@@ -52,7 +52,8 @@ const UserManagement = () => {
     try {
       setIsLoading(true);
       const response = await apiService.getUsers();
-      setUsers(response);
+      // Type assertion to ensure the response is properly typed
+      setUsers(Array.isArray(response) ? response as User[] : []);
     } catch (error) {
       toast({
         title: "Error",

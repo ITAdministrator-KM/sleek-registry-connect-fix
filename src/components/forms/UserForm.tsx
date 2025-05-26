@@ -7,6 +7,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/api';
 
+interface Department {
+  id: number;
+  name: string;
+}
+
+interface Division {
+  id: number;
+  name: string;
+  department_id: number;
+}
+
 interface UserFormProps {
   user?: {
     id: number;
@@ -33,8 +44,8 @@ const UserForm = ({ user, onSubmit, onCancel }: UserFormProps) => {
     department_id: user?.department_id || '',
     division_id: user?.division_id || ''
   });
-  const [departments, setDepartments] = useState([]);
-  const [divisions, setDivisions] = useState([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const { toast } = useToast();
 
@@ -46,7 +57,8 @@ const UserForm = ({ user, onSubmit, onCancel }: UserFormProps) => {
   const fetchDepartments = async () => {
     try {
       const response = await apiService.getDepartments();
-      setDepartments(response);
+      // Type assertion to ensure the response is properly typed
+      setDepartments(Array.isArray(response) ? response as Department[] : []);
     } catch (error) {
       console.error('Error fetching departments:', error);
     }
@@ -55,7 +67,8 @@ const UserForm = ({ user, onSubmit, onCancel }: UserFormProps) => {
   const fetchDivisions = async () => {
     try {
       const response = await apiService.getDivisions();
-      setDivisions(response);
+      // Type assertion to ensure the response is properly typed
+      setDivisions(Array.isArray(response) ? response as Division[] : []);
     } catch (error) {
       console.error('Error fetching divisions:', error);
     }
