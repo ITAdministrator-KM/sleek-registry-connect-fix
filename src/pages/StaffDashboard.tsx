@@ -3,12 +3,29 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Users, Calendar, LogOut, Menu, X, Download, Upload } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  CreditCard, 
+  QrCode, 
+  Ticket, 
+  Bell, 
+  Calendar, 
+  LogOut, 
+  Menu, 
+  X, 
+  Users,
+  FileText,
+  Settings 
+} from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import IDCardGenerator from '@/components/IDCardGenerator';
+import QRScanner from '@/components/QRScanner';
+import TokenManagement from '@/components/TokenManagement';
 
 const StaffDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [username, setUsername] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -29,12 +46,26 @@ const StaffDashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem('userRole');
     localStorage.removeItem('username');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userFullName');
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
     navigate('/');
   };
+
+  const sidebarItems = [
+    { id: 'overview', label: 'Overview', icon: FileText },
+    { id: 'public-accounts', label: 'Public Accounts', icon: Users },
+    { id: 'id-cards', label: 'ID Card Generator', icon: CreditCard },
+    { id: 'qr-scanner', label: 'QR Scanner', icon: QrCode },
+    { id: 'tokens', label: 'Token Management', icon: Ticket },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'appointments', label: 'Appointments', icon: Calendar },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-green-50 flex">
@@ -58,24 +89,24 @@ const StaffDashboard = () => {
 
         <nav className="flex-1 p-4">
           <ul className="space-y-2">
-            <li>
-              <button className="w-full flex items-center space-x-3 px-3 py-3 bg-green-600 text-white rounded-lg">
-                <FileText size={20} />
-                {sidebarOpen && <span>Documents</span>}
-              </button>
-            </li>
-            <li>
-              <button className="w-full flex items-center space-x-3 px-3 py-3 text-gray-700 hover:bg-gray-100 rounded-lg">
-                <Users size={20} />
-                {sidebarOpen && <span>Public Services</span>}
-              </button>
-            </li>
-            <li>
-              <button className="w-full flex items-center space-x-3 px-3 py-3 text-gray-700 hover:bg-gray-100 rounded-lg">
-                <Calendar size={20} />
-                {sidebarOpen && <span>Appointments</span>}
-              </button>
-            </li>
+            {sidebarItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.id}>
+                  <button 
+                    onClick={() => setActiveTab(item.id)}
+                    className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${
+                      activeTab === item.id 
+                        ? 'bg-green-600 text-white' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon size={20} />
+                    {sidebarOpen && <span>{item.label}</span>}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 
@@ -115,59 +146,109 @@ const StaffDashboard = () => {
 
         {/* Content */}
         <main className="flex-1 p-6 overflow-auto">
-          <div className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Pending Requests</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">24</div>
-                  <p className="text-green-100">Awaiting processing</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Completed Today</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">18</div>
-                  <p className="text-blue-100">Services completed</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Total This Month</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">342</div>
-                  <p className="text-purple-100">Services provided</p>
-                </CardContent>
-              </Card>
-            </div>
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Pending Requests</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">24</div>
+                    <p className="text-green-100">Awaiting processing</p>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Completed Today</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">18</div>
+                    <p className="text-blue-100">Services completed</p>
+                  </CardContent>
+                </Card>
+                
+                <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">ID Cards Generated</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">12</div>
+                    <p className="text-purple-100">This week</p>
+                  </CardContent>
+                </Card>
 
-            {/* Action Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Document Management</CardTitle>
-                  <CardDescription>Upload and manage department documents</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center space-x-2">
-                    <Upload size={20} />
-                    <span>Upload Document</span>
-                  </Button>
-                  <Button variant="outline" className="w-full flex items-center space-x-2">
-                    <Download size={20} />
-                    <span>Download Reports</span>
-                  </Button>
-                </CardContent>
-              </Card>
+                <Card className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">Active Tokens</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">8</div>
+                    <p className="text-orange-100">In queue</p>
+                  </CardContent>
+                </Card>
+              </div>
 
+              {/* Quick Actions */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <CreditCard className="mr-2 text-blue-600" size={20} />
+                      ID Card Generation
+                    </CardTitle>
+                    <CardDescription>Generate and print ID cards for public users</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      onClick={() => setActiveTab('id-cards')}
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                    >
+                      Go to ID Cards
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <QrCode className="mr-2 text-green-600" size={20} />
+                      QR Scanner
+                    </CardTitle>
+                    <CardDescription>Scan ID cards and update service records</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      onClick={() => setActiveTab('qr-scanner')}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      Open Scanner
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Ticket className="mr-2 text-purple-600" size={20} />
+                      Token Management
+                    </CardTitle>
+                    <CardDescription>Generate and manage service tokens</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      onClick={() => setActiveTab('tokens')}
+                      className="w-full bg-purple-600 hover:bg-purple-700"
+                    >
+                      Manage Tokens
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Recent Activities */}
               <Card>
                 <CardHeader>
                   <CardTitle>Recent Activities</CardTitle>
@@ -176,23 +257,23 @@ const StaffDashboard = () => {
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
-                      <FileText className="text-green-600" size={20} />
+                      <CreditCard className="text-green-600" size={20} />
                       <div>
-                        <p className="font-medium text-sm">Birth certificate processed</p>
+                        <p className="font-medium text-sm">ID card generated for Ahmed Mohamed</p>
                         <p className="text-xs text-gray-500">2 hours ago</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
-                      <Users className="text-blue-600" size={20} />
+                      <QrCode className="text-blue-600" size={20} />
                       <div>
-                        <p className="font-medium text-sm">Marriage registration completed</p>
+                        <p className="font-medium text-sm">QR code scanned for service update</p>
                         <p className="text-xs text-gray-500">4 hours ago</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3 p-3 bg-purple-50 rounded-lg">
-                      <Calendar className="text-purple-600" size={20} />
+                      <Ticket className="text-purple-600" size={20} />
                       <div>
-                        <p className="font-medium text-sm">Appointment scheduled</p>
+                        <p className="font-medium text-sm">Token #045 generated for Health Services</p>
                         <p className="text-xs text-gray-500">6 hours ago</p>
                       </div>
                     </div>
@@ -200,7 +281,71 @@ const StaffDashboard = () => {
                 </CardContent>
               </Card>
             </div>
-          </div>
+          )}
+
+          {activeTab === 'public-accounts' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-800">Public Account Creation</h2>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Create New Public Account</CardTitle>
+                  <CardDescription>Register new public users in the system</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Public account creation form will be implemented here.</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'id-cards' && <IDCardGenerator />}
+          {activeTab === 'qr-scanner' && <QRScanner />}
+          {activeTab === 'tokens' && <TokenManagement />}
+
+          {activeTab === 'notifications' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-800">Send Notifications</h2>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Notification Center</CardTitle>
+                  <CardDescription>Send notifications to public users about service completions</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Notification system will be implemented here.</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'appointments' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-800">Appointment Management</h2>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Manage Appointments</CardTitle>
+                  <CardDescription>View and manage public appointment bookings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Appointment management system will be implemented here.</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-800">Account Settings</h2>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Staff Account Settings</CardTitle>
+                  <CardDescription>Manage your account preferences and settings</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">Account settings will be implemented here.</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </main>
       </div>
     </div>
