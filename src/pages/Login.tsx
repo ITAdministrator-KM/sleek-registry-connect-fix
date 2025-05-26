@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useNavigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { User, Lock, UserCheck } from 'lucide-react';
+import { apiService } from '@/services/api';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -31,30 +32,32 @@ const Login = () => {
 
     setIsLoading(true);
 
-    // Simulate authentication
-    setTimeout(() => {
-      // Demo credentials
-      const validCredentials = [
-        { username: 'admin', password: 'admin123', role: 'admin' },
-        { username: 'staff', password: 'staff123', role: 'staff' },
-        { username: 'public', password: 'public123', role: 'public' }
-      ];
+    try {
+      console.log('Attempting login with:', { username, role });
+      
+      const response = await apiService.login({
+        username,
+        password,
+        role
+      });
 
-      const isValid = validCredentials.some(
-        cred => cred.username === username && cred.password === password && cred.role === role
-      );
+      console.log('Login response:', response);
 
-      if (isValid) {
-        localStorage.setItem('userRole', role);
-        localStorage.setItem('username', username);
+      if (response.user && response.token) {
+        // Store authentication data
+        localStorage.setItem('userRole', response.user.role);
+        localStorage.setItem('username', response.user.username);
+        localStorage.setItem('authToken', response.token);
+        localStorage.setItem('userId', response.user.id);
+        localStorage.setItem('userFullName', response.user.name);
         
         toast({
           title: "Login Successful",
-          description: `Welcome, ${username}!`,
+          description: `Welcome, ${response.user.name}!`,
         });
 
         // Redirect based on role
-        switch (role) {
+        switch (response.user.role) {
           case 'admin':
             navigate('/admin-dashboard');
             break;
@@ -64,16 +67,22 @@ const Login = () => {
           case 'public':
             navigate('/public-dashboard');
             break;
+          default:
+            navigate('/');
         }
       } else {
-        toast({
-          title: "Login Failed",
-          description: "Invalid credentials or role selection",
-          variant: "destructive",
-        });
+        throw new Error('Invalid response format');
       }
+    } catch (error) {
+      console.error('Login error:', error);
+      toast({
+        title: "Login Failed",
+        description: error instanceof Error ? error.message : "Invalid credentials or server error",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -155,11 +164,11 @@ const Login = () => {
             </form>
 
             <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-semibold text-gray-800 mb-2">Demo Credentials:</h4>
+              <h4 className="font-semibold text-gray-800 mb-2">Test with Admin Credentials:</h4>
               <div className="text-sm text-gray-600 space-y-1">
-                <p><strong>Admin:</strong> admin / admin123</p>
-                <p><strong>Staff:</strong> staff / staff123</p>
-                <p><strong>Public:</strong> public / public123</p>
+                <p><strong>Username:</strong> admin</p>
+                <p><strong>Password:</strong> password</p>
+                <p><strong>Role:</strong> Administrator</p>
               </div>
             </div>
           </CardContent>
