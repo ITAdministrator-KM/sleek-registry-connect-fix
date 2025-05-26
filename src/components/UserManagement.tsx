@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,36 +71,52 @@ const UserManagement = () => {
     department: '',
     division: ''
   });
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
   const { toast } = useToast();
+
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!formData.name.trim()) {
+      newErrors.name = 'Full name is required';
+    }
+    if (!formData.nic.trim()) {
+      newErrors.nic = 'NIC number is required';
+    } else if (formData.nic.length !== 10 && formData.nic.length !== 12) {
+      newErrors.nic = 'NIC must be 10 or 12 characters';
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email address is required';
+    } else {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        newErrors.email = 'Please enter a valid email address';
+      }
+    }
+    if (!formData.username.trim()) {
+      newErrors.username = 'Username is required';
+    }
+    if (!formData.password.trim()) {
+      newErrors.password = 'Password is required';
+    }
+    if (!formData.department) {
+      newErrors.department = 'Department is required';
+    }
+    if (!formData.division) {
+      newErrors.division = 'Division is required';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.nic || !formData.email || !formData.username || !formData.password || !formData.department || !formData.division) {
+    if (!validateForm()) {
       toast({
         title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate NIC format (simplified)
-    if (formData.nic.length !== 10 && formData.nic.length !== 12) {
-      toast({
-        title: "Error",
-        description: "NIC must be 10 or 12 characters",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid email address",
+        description: "Please fill in all fields correctly",
         variant: "destructive",
       });
       return;
@@ -153,6 +168,7 @@ const UserManagement = () => {
     });
     setEditingUser(null);
     setIsDialogOpen(false);
+    setErrors({});
   };
 
   const handleEdit = (user: User) => {
@@ -167,6 +183,7 @@ const UserManagement = () => {
       department: user.department,
       division: user.division
     });
+    setErrors({});
     setIsDialogOpen(true);
   };
 
@@ -184,6 +201,9 @@ const UserManagement = () => {
       department,
       division: '' // Reset division when department changes
     });
+    if (errors.department) {
+      setErrors(prev => ({ ...prev, department: '', division: '' }));
+    }
   };
 
   return (
@@ -210,15 +230,17 @@ const UserManagement = () => {
                   department: '',
                   division: ''
                 });
+                setErrors({});
               }}
+              aria-label="Add new user"
             >
-              <Plus className="mr-2" size={20} />
+              <Plus className="mr-2" size={20} aria-hidden="true" />
               Add User
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-labelledby="user-dialog-title">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle id="user-dialog-title">
                 {editingUser ? 'Edit User' : 'Add New User'}
               </DialogTitle>
               <DialogDescription>
@@ -226,67 +248,182 @@ const UserManagement = () => {
               </DialogDescription>
             </DialogHeader>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="user-name" className="text-gray-700 font-medium">
+                    Full Name <span className="text-red-500" aria-label="required">*</span>
+                  </Label>
                   <Input
-                    id="name"
+                    id="user-name"
+                    name="name"
+                    type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, name: e.target.value });
+                      if (errors.name) {
+                        setErrors(prev => ({ ...prev, name: '' }));
+                      }
+                    }}
                     placeholder="Enter full name"
+                    required
+                    aria-required="true"
+                    aria-describedby={errors.name ? "name-error" : "name-help"}
+                    aria-invalid={!!errors.name}
+                    autoComplete="name"
                   />
+                  <small id="name-help" className="text-sm text-gray-500">
+                    Enter the user's full name
+                  </small>
+                  {errors.name && (
+                    <div id="name-error" className="text-sm text-red-600" role="alert">
+                      {errors.name}
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="nic">NIC Number</Label>
+                  <Label htmlFor="user-nic" className="text-gray-700 font-medium">
+                    NIC Number <span className="text-red-500" aria-label="required">*</span>
+                  </Label>
                   <Input
-                    id="nic"
+                    id="user-nic"
+                    name="nic"
+                    type="text"
                     value={formData.nic}
-                    onChange={(e) => setFormData({ ...formData, nic: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, nic: e.target.value });
+                      if (errors.nic) {
+                        setErrors(prev => ({ ...prev, nic: '' }));
+                      }
+                    }}
                     placeholder="Enter NIC number"
+                    required
+                    aria-required="true"
+                    aria-describedby={errors.nic ? "nic-error" : "nic-help"}
+                    aria-invalid={!!errors.nic}
                   />
+                  <small id="nic-help" className="text-sm text-gray-500">
+                    Enter 10 or 12 digit NIC number
+                  </small>
+                  {errors.nic && (
+                    <div id="nic-error" className="text-sm text-red-600" role="alert">
+                      {errors.nic}
+                    </div>
+                  )}
                 </div>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label htmlFor="user-email" className="text-gray-700 font-medium">
+                  Email Address <span className="text-red-500" aria-label="required">*</span>
+                </Label>
                 <Input
-                  id="email"
+                  id="user-email"
+                  name="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    if (errors.email) {
+                      setErrors(prev => ({ ...prev, email: '' }));
+                    }
+                  }}
                   placeholder="Enter email address"
+                  required
+                  aria-required="true"
+                  aria-describedby={errors.email ? "email-error" : "email-help"}
+                  aria-invalid={!!errors.email}
+                  autoComplete="email"
                 />
+                <small id="email-help" className="text-sm text-gray-500">
+                  Enter a valid email address
+                </small>
+                {errors.email && (
+                  <div id="email-error" className="text-sm text-red-600" role="alert">
+                    {errors.email}
+                  </div>
+                )}
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="user-username" className="text-gray-700 font-medium">
+                    Username <span className="text-red-500" aria-label="required">*</span>
+                  </Label>
                   <Input
-                    id="username"
+                    id="user-username"
+                    name="username"
+                    type="text"
                     value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, username: e.target.value });
+                      if (errors.username) {
+                        setErrors(prev => ({ ...prev, username: '' }));
+                      }
+                    }}
                     placeholder="Enter username"
+                    required
+                    aria-required="true"
+                    aria-describedby={errors.username ? "username-error" : "username-help"}
+                    aria-invalid={!!errors.username}
+                    autoComplete="username"
                   />
+                  <small id="username-help" className="text-sm text-gray-500">
+                    Enter a unique username
+                  </small>
+                  {errors.username && (
+                    <div id="username-error" className="text-sm text-red-600" role="alert">
+                      {errors.username}
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="user-password" className="text-gray-700 font-medium">
+                    Password <span className="text-red-500" aria-label="required">*</span>
+                  </Label>
                   <Input
-                    id="password"
+                    id="user-password"
+                    name="password"
                     type="password"
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, password: e.target.value });
+                      if (errors.password) {
+                        setErrors(prev => ({ ...prev, password: '' }));
+                      }
+                    }}
                     placeholder="Enter password"
+                    required
+                    aria-required="true"
+                    aria-describedby={errors.password ? "password-error" : "password-help"}
+                    aria-invalid={!!errors.password}
+                    autoComplete="new-password"
                   />
+                  <small id="password-help" className="text-sm text-gray-500">
+                    Enter a secure password
+                  </small>
+                  {errors.password && (
+                    <div id="password-error" className="text-sm text-red-600" role="alert">
+                      {errors.password}
+                    </div>
+                  )}
                 </div>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select value={formData.role} onValueChange={(value: 'Admin' | 'Staff') => setFormData({ ...formData, role: value })}>
-                  <SelectTrigger>
+                <Label htmlFor="user-role" className="text-gray-700 font-medium">
+                  Role <span className="text-red-500" aria-label="required">*</span>
+                </Label>
+                <Select 
+                  value={formData.role} 
+                  onValueChange={(value: 'Admin' | 'Staff') => setFormData({ ...formData, role: value })}
+                  name="role"
+                  required
+                  aria-required="true"
+                >
+                  <SelectTrigger id="user-role" aria-describedby="role-help">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
@@ -294,13 +431,26 @@ const UserManagement = () => {
                     <SelectItem value="Staff">Staff Member</SelectItem>
                   </SelectContent>
                 </Select>
+                <small id="role-help" className="text-sm text-gray-500">
+                  Select the user's role and permissions
+                </small>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Select value={formData.department} onValueChange={handleDepartmentChange}>
-                    <SelectTrigger>
+                  <Label htmlFor="user-department" className="text-gray-700 font-medium">
+                    Department <span className="text-red-500" aria-label="required">*</span>
+                  </Label>
+                  <Select 
+                    value={formData.department} 
+                    onValueChange={handleDepartmentChange}
+                    name="department"
+                    required
+                    aria-required="true"
+                    aria-describedby={errors.department ? "department-error" : "department-help"}
+                    aria-invalid={!!errors.department}
+                  >
+                    <SelectTrigger id="user-department">
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -309,16 +459,36 @@ const UserManagement = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  <small id="department-help" className="text-sm text-gray-500">
+                    Select the user's department
+                  </small>
+                  {errors.department && (
+                    <div id="department-error" className="text-sm text-red-600" role="alert">
+                      {errors.department}
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="division">Division</Label>
+                  <Label htmlFor="user-division" className="text-gray-700 font-medium">
+                    Division <span className="text-red-500" aria-label="required">*</span>
+                  </Label>
                   <Select 
                     value={formData.division} 
-                    onValueChange={(value) => setFormData({ ...formData, division: value })}
+                    onValueChange={(value) => {
+                      setFormData({ ...formData, division: value });
+                      if (errors.division) {
+                        setErrors(prev => ({ ...prev, division: '' }));
+                      }
+                    }}
                     disabled={!formData.department}
+                    name="division"
+                    required
+                    aria-required="true"
+                    aria-describedby={errors.division ? "division-error" : "division-help"}
+                    aria-invalid={!!errors.division}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="user-division">
                       <SelectValue placeholder="Select division" />
                     </SelectTrigger>
                     <SelectContent>
@@ -327,11 +497,23 @@ const UserManagement = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  <small id="division-help" className="text-sm text-gray-500">
+                    Select the user's division
+                  </small>
+                  {errors.division && (
+                    <div id="division-error" className="text-sm text-red-600" role="alert">
+                      {errors.division}
+                    </div>
+                  )}
                 </div>
               </div>
               
               <div className="flex space-x-3">
-                <Button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700">
+                <Button 
+                  type="submit" 
+                  className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  aria-describedby="user-submit-help"
+                >
                   {editingUser ? 'Update' : 'Create'} User
                 </Button>
                 <Button 
@@ -339,9 +521,13 @@ const UserManagement = () => {
                   variant="outline" 
                   onClick={() => setIsDialogOpen(false)}
                   className="flex-1"
+                  aria-label="Cancel and close dialog"
                 >
                   Cancel
                 </Button>
+                <small id="user-submit-help" className="sr-only">
+                  {editingUser ? 'Update the user information' : 'Create a new user account'}
+                </small>
               </div>
             </form>
           </DialogContent>
@@ -419,7 +605,7 @@ const UserManagement = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
-                      <CreditCard size={16} className="text-gray-500" />
+                      <CreditCard size={16} className="text-gray-500" aria-hidden="true" />
                       <span className="font-mono text-sm">{user.nic}</span>
                     </div>
                   </TableCell>
@@ -442,16 +628,18 @@ const UserManagement = () => {
                         variant="outline"
                         onClick={() => handleEdit(user)}
                         className="text-blue-600 hover:text-blue-700"
+                        aria-label={`Edit ${user.name}'s account`}
                       >
-                        <Edit size={16} />
+                        <Edit size={16} aria-hidden="true" />
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleDelete(user.id)}
                         className="text-red-600 hover:text-red-700"
+                        aria-label={`Delete ${user.name}'s account`}
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={16} aria-hidden="true" />
                       </Button>
                     </div>
                   </TableCell>

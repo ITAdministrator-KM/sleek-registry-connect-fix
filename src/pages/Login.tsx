@@ -15,13 +15,31 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const validateForm = () => {
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!username.trim()) {
+      newErrors.username = 'Username is required';
+    }
+    if (!password.trim()) {
+      newErrors.password = 'Password is required';
+    }
+    if (!role) {
+      newErrors.role = 'Please select a role';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!username || !password || !role) {
+    if (!validateForm()) {
       toast({
         title: "Error",
         description: "Please fill in all fields",
@@ -106,13 +124,26 @@ const Login = () => {
           </CardHeader>
           
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form onSubmit={handleLogin} className="space-y-6" noValidate>
               <div className="space-y-2">
-                <Label htmlFor="role" className="text-gray-700 font-medium">Select Role</Label>
-                <Select value={role} onValueChange={setRole}>
-                  <SelectTrigger className="bg-white/50 border-gray-200 focus:border-blue-500 h-12">
+                <Label htmlFor="login-role" className="text-gray-700 font-medium">
+                  Select Role <span className="text-red-500" aria-label="required">*</span>
+                </Label>
+                <Select 
+                  value={role} 
+                  onValueChange={setRole}
+                  name="role"
+                  required
+                  aria-required="true"
+                  aria-describedby={errors.role ? "role-error" : "role-help"}
+                  aria-invalid={!!errors.role}
+                >
+                  <SelectTrigger 
+                    id="login-role"
+                    className="bg-white/50 border-gray-200 focus:border-blue-500 h-12"
+                  >
                     <div className="flex items-center space-x-2">
-                      <UserCheck size={20} className="text-gray-500" />
+                      <UserCheck size={20} className="text-gray-500" aria-hidden="true" />
                       <SelectValue placeholder="Choose your role" />
                     </div>
                   </SelectTrigger>
@@ -122,45 +153,107 @@ const Login = () => {
                     <SelectItem value="public">Public User</SelectItem>
                   </SelectContent>
                 </Select>
+                <small id="role-help" className="text-sm text-gray-500">
+                  Select your account type to continue
+                </small>
+                {errors.role && (
+                  <div id="role-error" className="text-sm text-red-600" role="alert">
+                    {errors.role}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-gray-700 font-medium">Username</Label>
+                <Label htmlFor="login-username" className="text-gray-700 font-medium">
+                  Username <span className="text-red-500" aria-label="required">*</span>
+                </Label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <User 
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                    size={20} 
+                    aria-hidden="true"
+                  />
                   <Input
-                    id="username"
+                    id="login-username"
+                    name="username"
                     type="text"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      if (errors.username) {
+                        setErrors(prev => ({ ...prev, username: '' }));
+                      }
+                    }}
                     className="pl-10 bg-white/50 border-gray-200 focus:border-blue-500 h-12"
                     placeholder="Enter your username"
+                    required
+                    aria-required="true"
+                    aria-describedby={errors.username ? "username-error" : "username-help"}
+                    aria-invalid={!!errors.username}
+                    autoComplete="username"
                   />
                 </div>
+                <small id="username-help" className="text-sm text-gray-500">
+                  Enter the username provided by your administrator
+                </small>
+                {errors.username && (
+                  <div id="username-error" className="text-sm text-red-600" role="alert">
+                    {errors.username}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-700 font-medium">Password</Label>
+                <Label htmlFor="login-password" className="text-gray-700 font-medium">
+                  Password <span className="text-red-500" aria-label="required">*</span>
+                </Label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <Lock 
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                    size={20} 
+                    aria-hidden="true"
+                  />
                   <Input
-                    id="password"
+                    id="login-password"
+                    name="password"
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errors.password) {
+                        setErrors(prev => ({ ...prev, password: '' }));
+                      }
+                    }}
                     className="pl-10 bg-white/50 border-gray-200 focus:border-blue-500 h-12"
                     placeholder="Enter your password"
+                    required
+                    aria-required="true"
+                    aria-describedby={errors.password ? "password-error" : "password-help"}
+                    aria-invalid={!!errors.password}
+                    autoComplete="current-password"
                   />
                 </div>
+                <small id="password-help" className="text-sm text-gray-500">
+                  Enter your secure password
+                </small>
+                {errors.password && (
+                  <div id="password-error" className="text-sm text-red-600" role="alert">
+                    {errors.password}
+                  </div>
+                )}
               </div>
 
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white h-12 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300"
                 disabled={isLoading}
+                aria-describedby="submit-help"
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </Button>
+              <small id="submit-help" className="sr-only">
+                Click to sign in with your credentials
+              </small>
             </form>
 
             <div className="mt-8 p-4 bg-blue-50 rounded-lg">
@@ -179,6 +272,7 @@ const Login = () => {
             variant="ghost" 
             onClick={() => navigate('/')}
             className="text-blue-600 hover:text-blue-700"
+            aria-label="Go back to home page"
           >
             ← Back to Home
           </Button>
