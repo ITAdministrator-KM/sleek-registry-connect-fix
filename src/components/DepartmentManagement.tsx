@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -7,6 +6,7 @@ import { Plus, Edit, FileText } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import DepartmentForm from './forms/DepartmentForm';
 import DepartmentTable from './tables/DepartmentTable';
+import { apiService } from '@/services/api';
 
 interface Department {
   id: string;
@@ -16,62 +16,84 @@ interface Department {
   createdAt: string;
 }
 
-const DepartmentManagement = () => {
-  const [departments, setDepartments] = useState<Department[]>([
-    {
-      id: '1',
-      name: 'Health Services',
-      description: 'Manages public health services and medical facilities',
-      documentsCount: 12,
-      createdAt: '2024-01-15'
-    },
-    {
-      id: '2',
-      name: 'Education',
-      description: 'Oversees educational institutions and programs',
-      documentsCount: 8,
-      createdAt: '2024-01-20'
-    },
-    {
-      id: '3',
-      name: 'Agriculture',
-      description: 'Supports agricultural development and farmer assistance',
-      documentsCount: 15,
-      createdAt: '2024-02-01'
-    }
-  ]);
+interface ApiDepartment {
+  id: number;
+  name: string;
+  description: string | null;
+  division_count: string;
+  created_at?: string;
+  status: string;
+}
 
+const DepartmentManagement = () => {
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const { toast } = useToast();
 
-  const handleSubmit = (formData: { name: string; description: string }) => {
-    if (editingDepartment) {
-      setDepartments(departments.map(dept => 
-        dept.id === editingDepartment.id 
-          ? { ...dept, ...formData }
-          : dept
-      ));
-      toast({
-        title: "Success",
-        description: "Department updated successfully",
-      });
-    } else {
-      const newDepartment: Department = {
-        id: Date.now().toString(),
-        ...formData,
-        documentsCount: 0,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      setDepartments([...departments, newDepartment]);
-      toast({
-        title: "Success",
-        description: "Department created successfully",
-      });
-    }
+  // Fetch departments on component mount
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
 
-    setEditingDepartment(null);
-    setIsDialogOpen(false);
+  const fetchDepartments = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiService.getDepartments();
+      const apiDepartments = response as ApiDepartment[];
+      const formattedDepartments = apiDepartments.map(dept => ({
+        id: dept.id.toString(),
+        name: dept.name,
+        description: dept.description || '',
+        documentsCount: parseInt(dept.division_count) || 0,
+        createdAt: dept.created_at || new Date().toISOString().split('T')[0]
+      }));
+      setDepartments(formattedDepartments);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch departments. Please try again later.",
+        variant: "destructive",
+      });
+      console.error('Error fetching departments:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (formData: { name: string; description: string }) => {
+    try {
+      if (editingDepartment) {
+        await apiService.updateDepartment({
+          id: parseInt(editingDepartment.id),
+          ...formData
+        });
+        toast({
+          title: "Success",
+          description: "Department updated successfully",
+        });
+      } else {
+        await apiService.createDepartment(formData);
+        toast({
+          title: "Success",
+          description: "Department created successfully",
+        });
+      }
+      // Refresh the departments list
+      await fetchDepartments();
+      setEditingDepartment(null);
+      setIsDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: editingDepartment 
+          ? "Failed to update department" 
+          : "Failed to create department",
+        variant: "destructive",
+      });
+      console.error('Error handling department:', error);
+    }
   };
 
   const handleEdit = (department: Department) => {
@@ -79,18 +101,36 @@ const DepartmentManagement = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setDepartments(departments.filter(dept => dept.id !== id));
-    toast({
-      title: "Success",
-      description: "Department deleted successfully",
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      await apiService.deleteDepartment(parseInt(id));
+      await fetchDepartments();
+      toast({
+        title: "Success",
+        description: "Department deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete department",
+        variant: "destructive",
+      });
+      console.error('Error deleting department:', error);
+    }
   };
 
   const handleCancel = () => {
     setEditingDepartment(null);
     setIsDialogOpen(false);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,69 +5,104 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Printer, RefreshCw, Ticket } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from '@/services/api';
 
 interface Token {
   id: string;
   tokenNumber: number;
   department: string;
+  departmentId: number;
   division: string;
+  divisionId: number;
   timestamp: string;
   status: 'active' | 'called' | 'completed';
 }
 
+interface Department {
+  id: number;
+  name: string;
+}
+
+interface Division {
+  id: number;
+  name: string;
+  department_id: number;
+}
+
 const TokenManagement = () => {
   const [tokens, setTokens] = useState<Token[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedDivision, setSelectedDivision] = useState('');
-  const [currentTokenNumbers, setCurrentTokenNumbers] = useState<{[key: string]: number}>({});
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  // Sample departments and divisions
-  const departments = [
-    {
-      id: 1,
-      name: 'Health Services',
-      divisions: ['Primary Health Care', 'Maternal Care', 'Vaccination']
-    },
-    {
-      id: 2,
-      name: 'Education',
-      divisions: ['School Registration', 'Scholarships', 'Certificates']
-    },
-    {
-      id: 3,
-      name: 'Civil Registration',
-      divisions: ['Birth Registration', 'Marriage Registration', 'Death Registration']
-    }
-  ];
-
-  // Initialize token numbers (reset daily)
   useEffect(() => {
-    const today = new Date().toDateString();
-    const savedDate = localStorage.getItem('tokenDate');
-    
-    if (savedDate !== today) {
-      // Reset tokens for new day
-      const initialTokens: {[key: string]: number} = {};
-      departments.forEach(dept => {
-        dept.divisions.forEach(div => {
-          const key = `${dept.name}-${div}`;
-          initialTokens[key] = 0;
-        });
-      });
-      setCurrentTokenNumbers(initialTokens);
-      localStorage.setItem('tokenDate', today);
-      localStorage.setItem('tokenNumbers', JSON.stringify(initialTokens));
-    } else {
-      // Load existing tokens for today
-      const savedTokens = localStorage.getItem('tokenNumbers');
-      if (savedTokens) {
-        setCurrentTokenNumbers(JSON.parse(savedTokens));
-      }
-    }
+    fetchDepartments();
+    fetchDivisions();
+    fetchTodayTokens();
   }, []);
 
-  const generateToken = () => {
+  const fetchDepartments = async () => {
+    try {
+      const response = await apiService.getDepartments();
+      setDepartments(Array.isArray(response) ? response : []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch departments",
+        variant: "destructive",
+      });
+      console.error('Error fetching departments:', error);
+    }
+  };
+
+  const fetchDivisions = async () => {
+    try {
+      const response = await apiService.getDivisions();
+      setDivisions(Array.isArray(response) ? response : []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch divisions",
+        variant: "destructive",
+      });
+      console.error('Error fetching divisions:', error);
+    }
+  };
+
+  const fetchTodayTokens = async () => {
+    try {
+      setIsLoading(true);
+      const today = new Date().toISOString().split('T')[0];
+      const apiTokens = await apiService.getTokens(today);
+      
+      const formattedTokens: Token[] = apiTokens.map(token => ({
+        id: token.id.toString(),
+        tokenNumber: token.token_number,
+        department: token.department_name,
+        departmentId: token.department_id,
+        division: token.division_name,
+        divisionId: token.division_id,
+        timestamp: new Date(token.created_at).toLocaleString(),
+        status: token.status
+      }));
+      
+      setTokens(formattedTokens);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch today's tokens",
+        variant: "destructive",
+      });
+      console.error('Error fetching tokens:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const generateToken = async () => {
     if (!selectedDepartment || !selectedDivision) {
       toast({
         title: "Error",
@@ -78,34 +112,48 @@ const TokenManagement = () => {
       return;
     }
 
-    const key = `${selectedDepartment}-${selectedDivision}`;
-    const newTokenNumber = (currentTokenNumbers[key] || 0) + 1;
-    
-    const newToken: Token = {
-      id: Date.now().toString(),
-      tokenNumber: newTokenNumber,
-      department: selectedDepartment,
-      division: selectedDivision,
-      timestamp: new Date().toLocaleString(),
-      status: 'active'
-    };
+    try {
+      const department = departments.find(d => d.name === selectedDepartment);
+      const division = divisions.find(d => d.name === selectedDivision);
 
-    setTokens(prev => [newToken, ...prev]);
-    
-    const updatedNumbers = {
-      ...currentTokenNumbers,
-      [key]: newTokenNumber
-    };
-    setCurrentTokenNumbers(updatedNumbers);
-    localStorage.setItem('tokenNumbers', JSON.stringify(updatedNumbers));
+      if (!department || !division) {
+        throw new Error("Invalid department or division selected");
+      }
 
-    toast({
-      title: "Token Generated",
-      description: `Token #${newTokenNumber} for ${selectedDivision}`,
-    });
+      const response = await apiService.createToken({
+        department_id: department.id,
+        division_id: division.id
+      });
 
-    // Auto-print simulation
-    printToken(newToken);
+      toast({
+        title: "Token Generated",
+        description: `Token #${response.token_number} for ${selectedDivision}`,
+      });
+
+      // Refresh tokens list
+      await fetchTodayTokens();
+
+      // Print the token
+      const newToken: Token = {
+        id: response.token_id.toString(),
+        tokenNumber: response.token_number,
+        department: selectedDepartment,
+        departmentId: department.id,
+        division: selectedDivision,
+        divisionId: division.id,
+        timestamp: new Date().toLocaleString(),
+        status: 'active'
+      };
+      
+      printToken(newToken);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate token",
+        variant: "destructive",
+      });
+      console.error('Error generating token:', error);
+    }
   };
 
   const printToken = (token: Token) => {
@@ -140,37 +188,39 @@ const TokenManagement = () => {
     });
   };
 
-  const updateTokenStatus = (tokenId: string, status: 'called' | 'completed') => {
-    setTokens(prev => 
-      prev.map(token => 
-        token.id === tokenId ? { ...token, status } : token
-      )
-    );
-    
-    toast({
-      title: "Token Updated",
-      description: `Token status changed to ${status}`,
-    });
+  const updateTokenStatus = async (tokenId: string, status: 'called' | 'completed') => {
+    try {
+      await apiService.updateToken({
+        id: parseInt(tokenId),
+        status
+      });
+      
+      // Update local state
+      setTokens(prev => 
+        prev.map(token => 
+          token.id === tokenId ? { ...token, status } : token
+        )
+      );
+      
+      toast({
+        title: "Token Updated",
+        description: `Token status changed to ${status}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update token status",
+        variant: "destructive",
+      });
+      console.error('Error updating token:', error);
+    }
   };
 
-  const resetDailyTokens = () => {
-    const initialTokens: {[key: string]: number} = {};
-    departments.forEach(dept => {
-      dept.divisions.forEach(div => {
-        const key = `${dept.name}-${div}`;
-        initialTokens[key] = 0;
-      });
-    });
-    
-    setCurrentTokenNumbers(initialTokens);
-    setTokens([]);
-    localStorage.setItem('tokenNumbers', JSON.stringify(initialTokens));
-    localStorage.setItem('tokenDate', new Date().toDateString());
-    
-    toast({
-      title: "Tokens Reset",
-      description: "All token numbers reset to start from 1",
-    });
+  const getFilteredDivisions = () => {
+    if (!selectedDepartment) return [];
+    const department = departments.find(d => d.name === selectedDepartment);
+    if (!department) return [];
+    return divisions.filter(d => d.department_id === department.id);
   };
 
   const getStatusColor = (status: string) => {
@@ -182,10 +232,13 @@ const TokenManagement = () => {
     }
   };
 
-  const getFilteredDivisions = () => {
-    const dept = departments.find(d => d.name === selectedDepartment);
-    return dept ? dept.divisions : [];
-  };
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -194,14 +247,6 @@ const TokenManagement = () => {
           <h3 className="text-2xl font-bold text-gray-800">Token Management</h3>
           <p className="text-gray-600 mt-2">Generate and manage service tokens</p>
         </div>
-        <Button 
-          onClick={resetDailyTokens}
-          variant="outline"
-          className="text-red-600 hover:text-red-700"
-        >
-          <RefreshCw className="mr-2" size={16} />
-          Reset Daily Tokens
-        </Button>
       </div>
 
       {/* Token Generation */}
@@ -242,8 +287,8 @@ const TokenManagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {getFilteredDivisions().map((division) => (
-                    <SelectItem key={division} value={division}>
-                      {division}
+                    <SelectItem key={division.id} value={division.name}>
+                      {division.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -264,35 +309,6 @@ const TokenManagement = () => {
         </CardContent>
       </Card>
 
-      {/* Current Token Numbers */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Current Token Numbers</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {departments.map((dept) => (
-              <div key={dept.id} className="space-y-2">
-                <h4 className="font-semibold text-gray-800">{dept.name}</h4>
-                {dept.divisions.map((division) => {
-                  const key = `${dept.name}-${division}`;
-                  const currentNumber = currentTokenNumbers[key] || 0;
-                  
-                  return (
-                    <div key={division} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                      <span className="text-sm">{division}</span>
-                      <Badge variant="outline">
-                        #{currentNumber.toString().padStart(3, '0')}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Active Tokens */}
       <Card>
         <CardHeader>
@@ -301,7 +317,7 @@ const TokenManagement = () => {
         <CardContent>
           {tokens.length > 0 ? (
             <div className="space-y-2">
-              {tokens.slice(0, 10).map((token) => (
+              {tokens.map((token) => (
                 <div key={token.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
                     <div className="flex items-center space-x-2">

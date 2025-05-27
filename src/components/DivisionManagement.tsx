@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,55 +9,95 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Edit, Trash2, Building } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from '@/services/api';
+
+interface Department {
+  id: number;
+  name: string;
+  description: string | null;
+}
+
+interface ApiDivision {
+  id: number;
+  name: string;
+  description: string | null;
+  department_id: number;
+  department_name: string;
+  created_at?: string;
+  status: string;
+}
 
 interface Division {
   id: string;
   name: string;
   department: string;
+  departmentId: number;
   description: string;
   createdAt: string;
 }
 
 const DivisionManagement = () => {
-  const [divisions, setDivisions] = useState<Division[]>([
-    {
-      id: '1',
-      name: 'Primary Healthcare',
-      department: 'Health Services',
-      description: 'Manages basic healthcare services and clinics',
-      createdAt: '2024-01-15'
-    },
-    {
-      id: '2',
-      name: 'Emergency Services',
-      department: 'Health Services',
-      description: 'Handles emergency medical responses',
-      createdAt: '2024-01-20'
-    },
-    {
-      id: '3',
-      name: 'Primary Education',
-      department: 'Education',
-      description: 'Oversees primary schools and early education',
-      createdAt: '2024-02-01'
-    }
-  ]);
-
-  const departments = ['Health Services', 'Education', 'Agriculture', 'Social Services'];
-  
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDivision, setEditingDivision] = useState<Division | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    department: '',
+    departmentId: 0,
     description: ''
   });
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchDepartments();
+    fetchDivisions();
+  }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await apiService.getDepartments();
+      setDepartments(Array.isArray(response) ? response : []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch departments",
+        variant: "destructive",
+      });
+      console.error('Error fetching departments:', error);
+    }
+  };
+
+  const fetchDivisions = async () => {
+    try {
+      setIsLoading(true);
+      const response = await apiService.getDivisions();
+      const apiDivisions = response as ApiDivision[];
+      const formattedDivisions = apiDivisions.map(div => ({
+        id: div.id.toString(),
+        name: div.name,
+        department: div.department_name,
+        departmentId: div.department_id,
+        description: div.description || '',
+        createdAt: div.created_at || new Date().toISOString().split('T')[0]
+      }));
+      setDivisions(formattedDivisions);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch divisions",
+        variant: "destructive",
+      });
+      console.error('Error fetching divisions:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.department || !formData.description) {
+    if (!formData.name || !formData.departmentId || !formData.description) {
       toast({
         title: "Error",
         description: "Please fill in all fields",
@@ -67,51 +106,81 @@ const DivisionManagement = () => {
       return;
     }
 
-    if (editingDivision) {
-      setDivisions(divisions.map(div => 
-        div.id === editingDivision.id 
-          ? { ...div, ...formData }
-          : div
-      ));
+    try {
+      if (editingDivision) {
+        await apiService.updateDivision({
+          id: parseInt(editingDivision.id),
+          name: formData.name,
+          department_id: formData.departmentId,
+          description: formData.description
+        });
+        toast({
+          title: "Success",
+          description: "Division updated successfully",
+        });
+      } else {
+        await apiService.createDivision({
+          name: formData.name,
+          department_id: formData.departmentId,
+          description: formData.description
+        });
+        toast({
+          title: "Success",
+          description: "Division created successfully",
+        });
+      }
+      
+      await fetchDivisions();
+      setFormData({ name: '', departmentId: 0, description: '' });
+      setEditingDivision(null);
+      setIsDialogOpen(false);
+    } catch (error) {
       toast({
-        title: "Success",
-        description: "Division updated successfully",
+        title: "Error",
+        description: editingDivision
+          ? "Failed to update division"
+          : "Failed to create division",
+        variant: "destructive",
       });
-    } else {
-      const newDivision: Division = {
-        id: Date.now().toString(),
-        ...formData,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      setDivisions([...divisions, newDivision]);
-      toast({
-        title: "Success",
-        description: "Division created successfully",
-      });
+      console.error('Error handling division:', error);
     }
-
-    setFormData({ name: '', department: '', description: '' });
-    setEditingDivision(null);
-    setIsDialogOpen(false);
   };
 
   const handleEdit = (division: Division) => {
     setEditingDivision(division);
     setFormData({
       name: division.name,
-      department: division.department,
+      departmentId: division.departmentId,
       description: division.description
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setDivisions(divisions.filter(div => div.id !== id));
-    toast({
-      title: "Success",
-      description: "Division deleted successfully",
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      await apiService.deleteDivision(parseInt(id));
+      await fetchDivisions();
+      toast({
+        title: "Success",
+        description: "Division deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete division",
+        variant: "destructive",
+      });
+      console.error('Error deleting division:', error);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -127,7 +196,7 @@ const DivisionManagement = () => {
               className="bg-green-600 hover:bg-green-700 text-white"
               onClick={() => {
                 setEditingDivision(null);
-                setFormData({ name: '', department: '', description: '' });
+                setFormData({ name: '', departmentId: 0, description: '' });
               }}
             >
               <Plus className="mr-2" size={20} />
@@ -157,13 +226,16 @@ const DivisionManagement = () => {
               
               <div className="space-y-2">
                 <Label htmlFor="department">Department</Label>
-                <Select value={formData.department} onValueChange={(value) => setFormData({ ...formData, department: value })}>
+                <Select 
+                  value={formData.departmentId.toString()} 
+                  onValueChange={(value) => setFormData({ ...formData, departmentId: parseInt(value) })}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
                     {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      <SelectItem key={dept.id} value={dept.id.toString()}>{dept.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

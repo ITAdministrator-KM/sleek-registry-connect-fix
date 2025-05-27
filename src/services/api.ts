@@ -1,5 +1,4 @@
-
-const API_BASE_URL = 'https://rapp.dskalmunai.lk/backend/api';
+const API_BASE_URL = 'https://dskalmunai.lk/backend/api';
 
 interface LoginData {
   username: string;
@@ -11,6 +10,40 @@ interface ApiResponse<T = any> {
   message?: string;
   user?: T;
   token?: string;
+}
+
+interface CreateTokenResponse {
+  message: string;
+  token_id: number;
+  token_number: number;
+}
+
+interface ApiToken {
+  id: number;
+  token_number: number;
+  department_id: number;
+  division_id: number;
+  department_name: string;
+  division_name: string;
+  status: 'active' | 'called' | 'completed';
+  created_at: string;
+}
+
+interface PublicUser {
+  id: number;
+  public_id: string;
+  name: string;
+  nic: string;
+  address: string;
+  mobile: string;
+  email?: string;
+  photo?: string;
+  department_id?: number;
+  division_id?: number;
+  department_name?: string;
+  division_name?: string;
+  created_at: string;
+  status: string;
 }
 
 class ApiService {
@@ -118,8 +151,8 @@ class ApiService {
     username: string;
     password: string;
     role: string;
-    department_id?: number;
-    division_id?: number;
+    department_id?: number | null;
+    division_id?: number | null;
   }) {
     return this.makeRequest('/users/index.php', {
       method: 'POST',
@@ -133,9 +166,10 @@ class ApiService {
     nic: string;
     email: string;
     username: string;
+    password?: string;
     role: string;
-    department_id?: number;
-    division_id?: number;
+    department_id?: number | null;
+    division_id?: number | null;
   }) {
     return this.makeRequest('/users/index.php', {
       method: 'PUT',
@@ -145,6 +179,51 @@ class ApiService {
 
   async deleteUser(id: number) {
     return this.makeRequest(`/users/index.php?id=${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getPublicUsers(): Promise<PublicUser[]> {
+    return this.makeRequest('/public-users/index.php');
+  }
+
+  async getPublicUserById(id: string): Promise<PublicUser> {
+    return this.makeRequest(`/public-users/index.php?id=${id}`);
+  }
+
+  async createPublicUser(data: {
+    name: string;
+    nic: string;
+    address: string;
+    mobile: string;
+    email?: string;
+    department_id?: number;
+    division_id?: number;
+  }): Promise<{ message: string; public_id: string }> {
+    return this.makeRequest('/public-users/index.php', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePublicUser(data: {
+    id: number;
+    name: string;
+    nic: string;
+    address: string;
+    mobile: string;
+    email?: string;
+    department_id?: number;
+    division_id?: number;
+  }): Promise<{ message: string }> {
+    return this.makeRequest('/public-users/index.php', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePublicUser(id: number): Promise<{ message: string }> {
+    return this.makeRequest(`/public-users/index.php?id=${id}`, {
       method: 'DELETE',
     });
   }

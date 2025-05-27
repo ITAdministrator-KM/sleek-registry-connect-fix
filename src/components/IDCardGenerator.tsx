@@ -1,5 +1,5 @@
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,14 +11,23 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { useToast } from "@/hooks/use-toast";
 
+import { apiService } from '@/services/api';
+
 interface PublicUser {
-  id: string;
-  publicId: string;
+  id: number;
+  public_id: string;
   name: string;
   nic: string;
   address: string;
   mobile: string;
+  email?: string;
   photo?: string;
+  department_id?: number;
+  division_id?: number;
+  department_name?: string;
+  division_name?: string;
+  created_at: string;
+  status: string;
 }
 
 const IDCardGenerator = () => {
@@ -29,36 +38,39 @@ const IDCardGenerator = () => {
   const cardRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Sample public users data
-  const [publicUsers] = useState<PublicUser[]>([
-    {
-      id: '1',
-      publicId: 'PUB001',
-      name: 'Ahmed Mohamed',
-      nic: '199512345678',
-      address: 'No. 123, Main Street, Kalmunai',
-      mobile: '+94771234567'
-    },
-    {
-      id: '2',
-      publicId: 'PUB002',
-      name: 'Fatima Ibrahim',
-      nic: '198798765432',
-      address: 'No. 456, Temple Road, Kalmunai',
-      mobile: '+94779876543'
+  const [publicUsers, setPublicUsers] = useState<PublicUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPublicUsers();
+  }, []);
+
+  const fetchPublicUsers = async () => {
+    try {
+      setIsLoading(true);
+      const users = await apiService.getPublicUsers();
+      setPublicUsers(users);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch public users",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  };
 
   const filteredUsers = publicUsers.filter(user =>
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.publicId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.public_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.nic.includes(searchTerm)
   );
 
   const generateQRCode = async (user: PublicUser) => {
     try {
       const qrData = JSON.stringify({
-        id: user.publicId,
+        id: user.public_id,
         name: user.name,
         nic: user.nic,
         timestamp: Date.now()
@@ -102,7 +114,7 @@ const IDCardGenerator = () => {
       });
       
       const link = document.createElement('a');
-      link.download = `id-card-${selectedUser?.publicId}.png`;
+      link.download = `id-card-${selectedUser?.public_id}.png`;
       link.href = canvas.toDataURL();
       link.click();
       
@@ -131,7 +143,7 @@ const IDCardGenerator = () => {
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('landscape', 'mm', [85.6, 54]); // Credit card size
       pdf.addImage(imgData, 'PNG', 0, 0, 85.6, 54);
-      pdf.save(`id-card-${selectedUser?.publicId}.pdf`);
+      pdf.save(`id-card-${selectedUser?.public_id}.pdf`);
       
       toast({
         title: "Success",
@@ -190,18 +202,23 @@ const IDCardGenerator = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredUsers.map((user) => (
-          <Card key={user.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">{user.name}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <p><strong>Public ID:</strong> {user.publicId}</p>
-                <p><strong>NIC:</strong> {user.nic}</p>
-                <p><strong>Mobile:</strong> {user.mobile}</p>
-              </div>
+      {isLoading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredUsers.map((user) => (
+            <Card key={user.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">{user.name}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <p><strong>Public ID:</strong> {user.public_id}</p>
+                  <p><strong>NIC:</strong> {user.nic}</p>
+                  <p><strong>Mobile:</strong> {user.mobile}</p>
+                </div>
               <Button
                 onClick={() => handleGenerateCard(user)}
                 className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
@@ -245,18 +262,34 @@ const IDCardGenerator = () => {
                 {/* Main Content */}
                 <div className="p-3 flex">
                   {/* Photo Section */}
-                  <div className="w-16 h-20 bg-gray-200 border border-gray-300 mr-3 flex items-center justify-center">
+                  <div className="w-16 h-20 bg-gray-200 border border-gray-300 mr-3 flex items-center justify-center overflow-hidden">
                     {selectedUser?.photo ? (
-                      <img src={selectedUser.photo} alt="Photo" className="w-full h-full object-cover" />
+                      <img 
+                        src={selectedUser.photo} 
+                        alt="Photo"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = '/placeholder.svg';
+                          toast({
+                            title: "Warning",
+                            description: "Failed to load user photo",
+                            variant: "destructive",
+                          });
+                        }}
+                      />
                     ) : (
-                      <span className="text-xs text-gray-500">PHOTO</span>
+                      <img 
+                        src="/placeholder.svg" 
+                        alt="No Photo"
+                        className="w-12 h-12 opacity-50" 
+                      />
                     )}
                   </div>
 
                   {/* Details Section */}
                   <div className="flex-1 text-xs space-y-1">
                     <div>
-                      <span className="font-bold">ID:</span> {selectedUser?.publicId}
+                      <span className="font-bold">ID:</span> {selectedUser?.public_id}
                     </div>
                     <div>
                       <span className="font-bold">Name:</span> {selectedUser?.name}
