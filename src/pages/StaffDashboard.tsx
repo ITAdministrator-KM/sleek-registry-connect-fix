@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   CreditCard, 
   QrCode, 
@@ -15,12 +14,16 @@ import {
   X, 
   Users,
   FileText,
-  Settings 
+  Settings,
+  UserPlus
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import IDCardGenerator from '@/components/IDCardGenerator';
 import QRScanner from '@/components/QRScanner';
 import TokenManagement from '@/components/TokenManagement';
+import PublicAccountCreation from '@/components/PublicAccountCreation';
+import NotificationManagement from '@/components/NotificationManagement';
+import AppointmentManagement from '@/components/AppointmentManagement';
 
 const StaffDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -58,11 +61,11 @@ const StaffDashboard = () => {
 
   const sidebarItems = [
     { id: 'overview', label: 'Overview', icon: FileText },
-    { id: 'public-accounts', label: 'Public Accounts', icon: Users },
+    { id: 'public-accounts', label: 'Public Accounts', icon: UserPlus },
     { id: 'id-cards', label: 'ID Card Generator', icon: CreditCard },
     { id: 'qr-scanner', label: 'QR Scanner', icon: QrCode },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'notifications', label: 'Send Notifications', icon: Bell },
     { id: 'appointments', label: 'Appointments', icon: Calendar },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -196,6 +199,24 @@ const StaffDashboard = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center">
+                      <UserPlus className="mr-2 text-green-600" size={20} />
+                      Public Account Creation
+                    </CardTitle>
+                    <CardDescription>Create new public user accounts</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      onClick={() => setActiveTab('public-accounts')}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      Create Account
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
                       <CreditCard className="mr-2 text-blue-600" size={20} />
                       ID Card Generation
                     </CardTitle>
@@ -207,24 +228,6 @@ const StaffDashboard = () => {
                       className="w-full bg-blue-600 hover:bg-blue-700"
                     >
                       Go to ID Cards
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <QrCode className="mr-2 text-green-600" size={20} />
-                      QR Scanner
-                    </CardTitle>
-                    <CardDescription>Scan ID cards and update service records</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button 
-                      onClick={() => setActiveTab('qr-scanner')}
-                      className="w-full bg-green-600 hover:bg-green-700"
-                    >
-                      Open Scanner
                     </Button>
                   </CardContent>
                 </Card>
@@ -283,54 +286,12 @@ const StaffDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'public-accounts' && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-800">Public Account Creation</h2>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Create New Public Account</CardTitle>
-                  <CardDescription>Register new public users in the system</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">Public account creation form will be implemented here.</p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
+          {activeTab === 'public-accounts' && <PublicAccountCreation />}
           {activeTab === 'id-cards' && <IDCardGenerator />}
           {activeTab === 'qr-scanner' && <QRScanner />}
           {activeTab === 'tokens' && <TokenManagement />}
-
-          {activeTab === 'notifications' && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-800">Send Notifications</h2>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Notification Center</CardTitle>
-                  <CardDescription>Send notifications to public users about service completions</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">Notification system will be implemented here.</p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {activeTab === 'appointments' && (
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-800">Appointment Management</h2>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Manage Appointments</CardTitle>
-                  <CardDescription>View and manage public appointment bookings</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">Appointment management system will be implemented here.</p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+          {activeTab === 'notifications' && <NotificationManagement />}
+          {activeTab === 'appointments' && <AppointmentManagement />}
 
           {activeTab === 'settings' && (
             <div className="space-y-6">
