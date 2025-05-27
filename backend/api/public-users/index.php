@@ -27,10 +27,10 @@ switch ($_SERVER['REQUEST_METHOD']) {
 
 function getPublicUsers($db) {
     try {
-        $query = "SELECT pu.*, d.name as department_name, div.name as division_name 
+        $query = "SELECT pu.*, d.name as department_name, dv.name as division_name 
                   FROM public_users pu 
                   LEFT JOIN departments d ON pu.department_id = d.id 
-                  LEFT JOIN divisions div ON pu.division_id = div.id 
+                  LEFT JOIN divisions dv ON pu.division_id = dv.id 
                   WHERE pu.status = 'active' 
                   ORDER BY pu.created_at DESC";
         

@@ -31,11 +31,11 @@ function getAppointments($db) {
         $status = $_GET['status'] ?? null;
         
         $query = "SELECT a.*, pu.name as public_user_name, pu.public_id, 
-                         d.name as department_name, div.name as division_name
+                         d.name as department_name, dv.name as division_name
                   FROM appointments a 
                   LEFT JOIN public_users pu ON a.public_user_id = pu.id 
                   LEFT JOIN departments d ON a.department_id = d.id 
-                  LEFT JOIN divisions div ON a.division_id = div.id 
+                  LEFT JOIN divisions dv ON a.division_id = dv.id 
                   WHERE 1=1";
         
         $params = array();

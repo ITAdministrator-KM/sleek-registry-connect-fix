@@ -26,10 +26,10 @@ function getTokens($db) {
     try {
         $date = $_GET['date'] ?? date('Y-m-d');
         
-        $query = "SELECT t.*, d.name as department_name, div.name as division_name 
+        $query = "SELECT t.*, d.name as department_name, dv.name as division_name 
                   FROM tokens t 
                   LEFT JOIN departments d ON t.department_id = d.id 
-                  LEFT JOIN divisions div ON t.division_id = div.id 
+                  LEFT JOIN divisions dv ON t.division_id = dv.id 
                   WHERE DATE(t.created_at) = :date 
                   ORDER BY t.created_at DESC";
         
