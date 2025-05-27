@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/api';
 import UserForm from './forms/UserForm';
 
+type UserRole = 'admin' | 'staff' | 'public';
+
 interface User {
   id: number;
   user_id: string;
@@ -17,7 +19,7 @@ interface User {
   nic: string;
   email: string;
   username: string;
-  role: string;
+  role: UserRole;
   department_id?: number;
   division_id?: number;
   department_name?: string;
@@ -65,10 +67,27 @@ const UserManagement = () => {
     }
   };
 
-  const handleSubmit = async (formData: any) => {
+  const handleSubmit = async (formData: {
+    name: string;
+    nic: string;
+    email: string;
+    username: string;
+    password: string;
+    role: UserRole;
+    department_id: number | null;
+    division_id: number | null;
+  }) => {
     try {
+      // First close the dialog to improve perceived performance
+      setIsDialogOpen(false);
+      setEditingUser(null);
+      
       if (editingUser) {
-        await apiService.updateUser({ ...formData, id: editingUser.id });
+        await apiService.updateUser({ 
+          ...formData, 
+          id: editingUser.id,
+          role: formData.role 
+        });
         toast({
           title: "Success",
           description: "User updated successfully",
@@ -81,9 +100,8 @@ const UserManagement = () => {
         });
       }
       
+      // Refresh the user list after the toast notification
       await fetchUsers();
-      setEditingUser(null);
-      setIsDialogOpen(false);
     } catch (error) {
       toast({
         title: "Error",

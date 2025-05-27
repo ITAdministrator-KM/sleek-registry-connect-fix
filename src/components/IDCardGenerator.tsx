@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -219,17 +218,18 @@ const IDCardGenerator = () => {
                   <p><strong>NIC:</strong> {user.nic}</p>
                   <p><strong>Mobile:</strong> {user.mobile}</p>
                 </div>
-              <Button
-                onClick={() => handleGenerateCard(user)}
-                className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
-              >
-                <CreditCard className="mr-2" size={16} />
-                Generate ID Card
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <Button
+                  onClick={() => handleGenerateCard(user)}
+                  className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
+                >
+                  <CreditCard className="mr-2" size={16} />
+                  Generate ID Card
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-4xl">

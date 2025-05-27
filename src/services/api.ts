@@ -143,7 +143,6 @@ class ApiService {
   async getUsers() {
     return this.makeRequest('/users/index.php');
   }
-
   async createUser(data: {
     name: string;
     nic: string;
@@ -180,6 +179,32 @@ class ApiService {
   async deleteUser(id: number) {
     return this.makeRequest(`/users/index.php?id=${id}`, {
       method: 'DELETE',
+    });
+  }
+
+  async getTokens(date?: string): Promise<ApiToken[]> {
+    const endpoint = date ? `/tokens/index.php?date=${date}` : '/tokens/index.php';
+    return this.makeRequest(endpoint);
+  }
+
+  async createToken(data: { 
+    department_id: number;
+    division_id: number;
+    public_user_id?: number;
+  }): Promise<CreateTokenResponse> {
+    return this.makeRequest('/tokens/index.php', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateToken(data: {
+    id: number;
+    status: 'active' | 'called' | 'completed';
+  }): Promise<{ message: string }> {
+    return this.makeRequest('/tokens/index.php', {
+      method: 'PUT',
+      body: JSON.stringify(data),
     });
   }
 

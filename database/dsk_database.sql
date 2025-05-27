@@ -5,23 +5,6 @@
 CREATE DATABASE IF NOT EXISTS dskalmun_appDSK;
 USE dskalmun_appDSK;
 
--- Users table
-CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id VARCHAR(20) UNIQUE NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    nic VARCHAR(20) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'staff', 'public') NOT NULL DEFAULT 'public',
-    department_id INT NULL,
-    division_id INT NULL,
-    status ENUM('active', 'inactive') DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
 -- Departments table
 CREATE TABLE departments (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -92,10 +75,24 @@ CREATE TABLE form_submissions (
     FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Add foreign key constraints to users table
-ALTER TABLE users 
-ADD FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
-ADD FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL;
+-- Users table
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id VARCHAR(20) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    nic VARCHAR(20) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('admin', 'staff', 'public') NOT NULL DEFAULT 'public',
+    department_id INT NULL,
+    division_id INT NULL,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
+    FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL
+);
 
 -- Insert default admin user
 INSERT INTO users (user_id, name, nic, email, username, password, role) VALUES 

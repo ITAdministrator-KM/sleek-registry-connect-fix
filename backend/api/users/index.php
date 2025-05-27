@@ -27,12 +27,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
 
 function getUsers($db) {
     try {
-        $query = "SELECT u.*, d.name as department_name, div.name as division_name 
-                  FROM users u 
-                  LEFT JOIN departments d ON u.department_id = d.id 
-                  LEFT JOIN divisions div ON u.division_id = div.id 
-                  WHERE u.status = 'active' 
-                  ORDER BY u.role, u.name";
+        $query = "SELECT u.*, d.name as department_name, `div`.name as division_name FROM users u LEFT JOIN departments d ON u.department_id = d.id LEFT JOIN divisions `div` ON u.division_id = `div`.id WHERE u.status = 'active' ORDER BY u.role, u.name";
         
         $stmt = $db->prepare($query);
         $stmt->execute();
@@ -78,8 +73,19 @@ function createUser($db) {
         $stmt->bindParam(":username", $data->username);
         $stmt->bindParam(":password", $hashed_password);
         $stmt->bindParam(":role", $data->role);
-        $stmt->bindParam(":department_id", $data->department_id);
-        $stmt->bindParam(":division_id", $data->division_id);
+        
+        // Handle nullable fields
+        if (isset($data->department_id) && !empty($data->department_id)) {
+            $stmt->bindParam(":department_id", $data->department_id);
+        } else {
+            $stmt->bindValue(":department_id", null, PDO::PARAM_NULL);
+        }
+        
+        if (isset($data->division_id) && !empty($data->division_id)) {
+            $stmt->bindParam(":division_id", $data->division_id);
+        } else {
+            $stmt->bindValue(":division_id", null, PDO::PARAM_NULL);
+        }
         
         if ($stmt->execute()) {
             http_response_code(201);
