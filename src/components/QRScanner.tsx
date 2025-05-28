@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +6,21 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Camera, Upload, Search } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from '@/services/api';
+
+interface Department {
+  id: number;
+  name: string;
+  description?: string;
+  status?: string;
+}
+
+interface Division {
+  id: number;
+  name: string;
+  department_id: number;
+  description?: string;
+}
 
 interface ScannedUser {
   id: string;
@@ -31,73 +45,37 @@ const QRScanner = () => {
   const [scannedUser, setScannedUser] = useState<ScannedUser | null>(null);
   const [manualInput, setManualInput] = useState('');
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<{id: number; name: string; divisions: string[]}[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScanning, setIsScanning] = useState(false);
   const { toast } = useToast();
 
-  // Sample departments and divisions
-  const departments = [
-    {
-      id: 1,
-      name: 'Health Services',
-      divisions: ['Primary Health Care', 'Maternal Care', 'Vaccination']
-    },
-    {
-      id: 2,
-      name: 'Education',
-      divisions: ['School Registration', 'Scholarships', 'Certificates']
-    },
-    {
-      id: 3,
-      name: 'Civil Registration',
-      divisions: ['Birth Registration', 'Marriage Registration', 'Death Registration']
-    }
-  ];
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
 
-  // Sample user data
-  const sampleUsers: { [key: string]: ScannedUser } = {
-    'PUB001': {
-      id: 'PUB001',
-      name: 'Ahmed Mohamed',
-      nic: '199512345678',
-      address: 'No. 123, Main Street, Kalmunai',
-      mobile: '+94771234567',
-      services: [
-        {
-          id: '1',
-          date: '2024-01-15',
-          department: 'Civil Registration',
-          division: 'Birth Registration',
-          service: 'Birth Certificate Application',
-          status: 'completed'
-        },
-        {
-          id: '2',
-          date: '2024-02-20',
-          department: 'Health Services',
-          division: 'Vaccination',
-          service: 'COVID-19 Vaccination',
-          status: 'completed'
-        }
-      ]
-    },
-    'PUB002': {
-      id: 'PUB002',
-      name: 'Fatima Ibrahim',
-      nic: '198798765432',
-      address: 'No. 456, Temple Road, Kalmunai',
-      mobile: '+94779876543',
-      services: [
-        {
-          id: '3',
-          date: '2024-01-10',
-          department: 'Education',
-          division: 'School Registration',
-          service: 'School Admission',
-          status: 'completed'
-        }
-      ]
+  const fetchDepartments = async () => {
+    try {
+      const deptResponse = await apiService.getDepartments() as Department[];
+      const divsResponse = await apiService.getDivisions() as Division[];
+      
+      const departmentsWithDivisions = deptResponse.map(dept => ({
+        id: dept.id,
+        name: dept.name,
+        divisions: divsResponse
+          .filter(div => div.department_id === dept.id)
+          .map(div => div.name)
+      }));
+      
+      setDepartments(departmentsWithDivisions);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch departments and divisions",
+        variant: "destructive",
+      });
     }
   };
 
@@ -128,7 +106,7 @@ const QRScanner = () => {
     }
   };
 
-  const handleManualInput = () => {
+  const handleManualInput = async () => {
     if (!manualInput.trim()) {
       toast({
         title: "Error",
@@ -138,27 +116,48 @@ const QRScanner = () => {
       return;
     }
 
-    const user = sampleUsers[manualInput.trim()];
-    if (user) {
-      setScannedUser(user);
+    try {
+      setIsLoading(true);
+      const user = await apiService.getPublicUserById(manualInput.trim());
+      const serviceHistory = await apiService.getServiceHistory(user.id);
+      
+      const formattedServices = serviceHistory.map(entry => ({
+        id: entry.id.toString(),
+        date: new Date(entry.created_at).toLocaleDateString(),
+        department: entry.department_name || '',
+        division: entry.division_name || '',
+        service: entry.service_name,
+        status: entry.status
+      }));
+
+      setScannedUser({
+        id: user.public_id,
+        name: user.name,
+        nic: user.nic,
+        address: user.address,
+        mobile: user.mobile,
+        services: formattedServices
+      });
+
       setIsDialogOpen(true);
       setManualInput('');
       toast({
         title: "User Found",
         description: `Loaded details for ${user.name}`,
       });
-    } else {
+    } catch (error) {
       toast({
         title: "Not Found",
         description: "Public ID not found in system",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleServiceUpdate = (departmentName: string, divisionName: string) => {
     const serviceKey = `${departmentName}-${divisionName}`;
-    
     setSelectedServices(prev => 
       prev.includes(serviceKey) 
         ? prev.filter(s => s !== serviceKey)
@@ -166,8 +165,8 @@ const QRScanner = () => {
     );
   };
 
-  const saveServiceUpdates = () => {
-    if (selectedServices.length === 0) {
+  const saveServiceUpdates = async () => {
+    if (!scannedUser || selectedServices.length === 0) {
       toast({
         title: "No Services Selected",
         description: "Please select at least one service to update",
@@ -176,13 +175,60 @@ const QRScanner = () => {
       return;
     }
 
-    toast({
-      title: "Services Updated",
-      description: `Updated ${selectedServices.length} services for ${scannedUser?.name}`,
-    });
-    
-    setSelectedServices([]);
-    setIsDialogOpen(false);
+    try {
+      setIsLoading(true);
+      const staffUserId = parseInt(localStorage.getItem('userId') || '0');
+      
+      // Record QR scan
+      await apiService.recordQRScan({
+        public_user_id: parseInt(scannedUser.id.replace('PUB', '')),
+        staff_user_id: staffUserId,
+        scan_purpose: 'Service Update',
+        scan_location: 'Service Counter'
+      });
+
+      // Add service history entries
+      for (const serviceKey of selectedServices) {
+        const [departmentName, divisionName] = serviceKey.split('-');
+        const department = departments.find(d => d.name === departmentName);
+        if (!department) continue;
+
+        await apiService.addServiceHistory({
+          public_user_id: parseInt(scannedUser.id.replace('PUB', '')),
+          department_id: department.id,
+          division_id: departments
+            .find(d => d.name === departmentName)?.id || 0,
+          service_name: `${departmentName} - ${divisionName}`,
+          staff_user_id: staffUserId
+        });
+      }
+
+      // Create notification for the user
+      await apiService.createNotification({
+        recipient_id: parseInt(scannedUser.id.replace('PUB', '')),
+        recipient_type: 'public',
+        title: 'Services Updated',
+        message: `${selectedServices.length} service(s) have been updated for you.`,
+        type: 'success'
+      });
+
+      toast({
+        title: "Services Updated",
+        description: `Updated ${selectedServices.length} services for ${scannedUser?.name}`,
+      });
+      
+      setSelectedServices([]);
+      setIsDialogOpen(false);
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update services",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -275,12 +321,6 @@ const QRScanner = () => {
               <Search className="mr-2" size={16} />
               Search User
             </Button>
-            
-            <div className="text-sm text-gray-600 space-y-1">
-              <p><strong>Test IDs:</strong></p>
-              <p>• PUB001 - Ahmed Mohamed</p>
-              <p>• PUB002 - Fatima Ibrahim</p>
-            </div>
           </CardContent>
         </Card>
       </div>

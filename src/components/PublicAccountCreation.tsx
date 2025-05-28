@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,22 +179,24 @@ const PublicAccountCreation = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name *</Label>
-                  <Input
-                    id="name"
+                  <Input                    id="name"
+                    name="name"
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
                     placeholder="Enter full name"
+                    autoComplete="name"
                     required
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="nic">NIC Number *</Label>
-                  <Input
-                    id="nic"
+                  <Input                    id="nic"
+                    name="nic"
                     value={formData.nic}
                     onChange={(e) => setFormData({...formData, nic: e.target.value})}
                     placeholder="Enter NIC number"
+                    autoComplete="off"
                     required
                   />
                 </div>
@@ -203,47 +204,52 @@ const PublicAccountCreation = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="address">Address *</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                  placeholder="Enter full address"
-                  required
+                <Textarea                    id="address"
+                    name="address"
+                    value={formData.address}
+                    onChange={(e) => setFormData({...formData, address: e.target.value})}
+                    placeholder="Enter full address"
+                    autoComplete="street-address"
+                    required
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="mobile">Mobile Number *</Label>
-                  <Input
-                    id="mobile"
+                  <Input                    id="mobile"
+                    name="mobile"
+                    type="tel"
                     value={formData.mobile}
                     onChange={(e) => setFormData({...formData, mobile: e.target.value})}
                     placeholder="+94771234567"
+                    autoComplete="tel"
                     required
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email (Optional)</Label>
-                  <Input
-                    id="email"
+                  <Input                    id="email"
+                    name="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
                     placeholder="Enter email address"
+                    autoComplete="email"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="department">Department (Optional)</Label>
+                  <Label htmlFor="public-department">Department (Optional)</Label>
                   <Select
+                    name="department_id"
                     value={formData.department_id}
                     onValueChange={(value) => setFormData({...formData, department_id: value, division_id: ''})}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="public-department" className="w-full">
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -254,26 +260,37 @@ const PublicAccountCreation = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  <small className="text-sm text-gray-500">Select your department if applicable</small>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="division">Division (Optional)</Label>
+                  <Label htmlFor="public-division">Division (Optional)</Label>
                   <Select
+                    name="division_id"
                     value={formData.division_id}
                     onValueChange={(value) => setFormData({...formData, division_id: value})}
                     disabled={!formData.department_id}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select division" />
+                    <SelectTrigger id="public-division" className="w-full">
+                      <SelectValue placeholder={formData.department_id ? "Select division" : "Select department first"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {getFilteredDivisions().map((division) => (
-                        <SelectItem key={division.id} value={division.id.toString()}>
-                          {division.name}
-                        </SelectItem>
-                      ))}
+                      {divisions
+                        .filter(div => div.department_id === parseInt(formData.department_id))
+                        .map((div) => (
+                          <SelectItem key={div.id} value={div.id.toString()}>
+                            {div.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
+                  <small className="text-sm text-gray-500">
+                    {!formData.department_id 
+                      ? "Please select a department first"
+                      : divisions.filter(div => div.department_id === parseInt(formData.department_id)).length === 0
+                      ? "No divisions available for selected department"
+                      : "Select your division within the department if applicable"}
+                  </small>
                 </div>
               </div>
 
@@ -299,12 +316,14 @@ const PublicAccountCreation = () => {
               Public Users ({publicUsers.length})
             </CardTitle>
             <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <Input
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />              <Input
+                id="search"
+                name="search"
                 placeholder="Search users..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
+                aria-label="Search users"
               />
             </div>
           </div>

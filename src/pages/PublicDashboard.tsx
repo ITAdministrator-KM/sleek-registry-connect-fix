@@ -1,10 +1,10 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, Calendar, User, LogOut, Menu, X, CheckCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import NotificationBell from '@/components/NotificationBell';
 
 const PublicDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -114,6 +114,7 @@ const PublicDashboard = () => {
               <h1 className="text-2xl font-bold text-gray-800">Public Services Portal</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <NotificationBell />
               <span className="text-gray-700">Welcome, {username}</span>
               <div className="h-8 w-8 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center text-white font-bold">
                 {username.charAt(0).toUpperCase()}

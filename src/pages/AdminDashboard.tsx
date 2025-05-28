@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +8,7 @@ import DepartmentManagement from '@/components/DepartmentManagement';
 import DivisionManagement from '@/components/DivisionManagement';
 import UserManagement from '@/components/UserManagement';
 import AccountSettings from '@/components/AccountSettings';
+import NotificationBell from '@/components/NotificationBell';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -245,6 +245,7 @@ const AdminDashboard = () => {
               </h1>
             </div>
             <div className="flex items-center space-x-4">
+              <NotificationBell />
               <span className="text-gray-700">Welcome, {username}</span>
               <div className="h-8 w-8 bg-gradient-to-r from-blue-600 to-green-600 rounded-full flex items-center justify-center text-white font-bold">
                 {username.charAt(0).toUpperCase()}

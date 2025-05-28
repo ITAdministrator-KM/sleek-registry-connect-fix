@@ -3,26 +3,38 @@
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 
-$database = new Database();
-$db = $database->getConnection();
+try {
+    $database = new Database();
+    $db = $database->getConnection();
 
-switch ($_SERVER['REQUEST_METHOD']) {
-    case 'GET':
-        getPublicUsers($db);
-        break;
-    case 'POST':
-        createPublicUser($db);
-        break;
-    case 'PUT':
-        updatePublicUser($db);
-        break;
-    case 'DELETE':
-        deletePublicUser($db);
-        break;
-    default:
-        http_response_code(405);
-        echo json_encode(array("message" => "Method not allowed"));
-        break;
+    if (!$db) {
+        throw new Exception("Database connection failed");
+    }
+
+    switch ($_SERVER['REQUEST_METHOD']) {
+        case 'GET':
+            getPublicUsers($db);
+            break;
+        case 'POST':
+            createPublicUser($db);
+            break;
+        case 'PUT':
+            updatePublicUser($db);
+            break;
+        case 'DELETE':
+            deletePublicUser($db);
+            break;
+        default:
+            http_response_code(405);
+            echo json_encode(array("message" => "Method not allowed"));
+            break;
+    }
+} catch (Exception $e) {
+    http_response_code(500);
+    echo json_encode(array(
+        "message" => "Server error",
+        "details" => $e->getMessage()
+    ));
 }
 
 function getPublicUsers($db) {
@@ -35,15 +47,40 @@ function getPublicUsers($db) {
                   ORDER BY pu.created_at DESC";
         
         $stmt = $db->prepare($query);
-        $stmt->execute();
+        
+        if (!$stmt) {
+            throw new Exception("Failed to prepare query");
+        }
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to execute query");
+        }
         
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
+        if ($users === false) {
+            throw new Exception("Failed to fetch results");
+        }
+        
         http_response_code(200);
-        echo json_encode($users);
+        echo json_encode(array(
+            "status" => "success",
+            "data" => $users
+        ));
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(array(
+            "status" => "error",
+            "message" => "Database error",
+            "details" => $e->getMessage()
+        ));
     } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $e->getMessage()));
+        echo json_encode(array(
+            "status" => "error",
+            "message" => "Server error",
+            "details" => $e->getMessage()
+        ));
     }
 }
 

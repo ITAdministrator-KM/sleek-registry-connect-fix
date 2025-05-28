@@ -3,47 +3,162 @@
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 
-$database = new Database();
-$db = $database->getConnection();
+try {
+    // Validate request method
+    $allowedMethods = ['GET', 'POST', 'PUT'];
+    if (!in_array($_SERVER['REQUEST_METHOD'], $allowedMethods)) {
+        throw new Exception("Method not allowed", 405);
+    }
 
-switch ($_SERVER['REQUEST_METHOD']) {
-    case 'GET':
-        getTokens($db);
-        break;
-    case 'POST':
-        createToken($db);
-        break;
-    case 'PUT':
-        updateToken($db);
-        break;
-    default:
-        http_response_code(405);
-        echo json_encode(array("message" => "Method not allowed"));
-        break;
+    // Check content type for POST and PUT requests
+    if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT'])) {
+        $contentType = isset($_SERVER["CONTENT_TYPE"]) ? $_SERVER["CONTENT_TYPE"] : "";
+        if (!str_contains($contentType, 'application/json')) {
+            throw new Exception("Invalid Content-Type. Expected application/json", 400);
+        }
+    }
+
+    // Verify authentication
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? '';
+    
+    if (!preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+        throw new Exception("No authentication token provided", 401);
+    }
+
+    $token = $matches[1];
+    // Validate JWT token (in production, use proper JWT library)
+    list($payload, $signature) = explode('.', $token);
+    $payload = json_decode(base64_decode($payload), true);
+    
+    if (!$payload || $payload['exp'] < time()) {
+        throw new Exception("Token expired or invalid", 401);
+    }
+
+    // Connect to database
+    $database = new Database();
+    $db = $database->getConnection();
+    if (!$db) {
+        throw new Exception("Database connection failed", 500);
+    }
+
+    // Handle request
+    switch ($_SERVER['REQUEST_METHOD']) {
+        case 'GET':
+            getTokens($db);
+            break;
+        case 'POST':
+            createToken($db);
+            break;
+        case 'PUT':
+            updateToken($db);
+            break;
+    }
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode([
+        "status" => "error",
+        "message" => "Database error",
+        "details" => $e->getMessage()
+    ]);
+} catch (Exception $e) {
+    $code = $e->getCode() ?: 500;
+    http_response_code($code);
+    echo json_encode([
+        "status" => "error",
+        "message" => $e->getMessage()
+    ]);
 }
 
 function getTokens($db) {
     try {
+        // Get and validate date parameter
         $date = $_GET['date'] ?? date('Y-m-d');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            throw new Exception("Invalid date format. Use YYYY-MM-DD", 400);
+        }
+
+        // Optional department and division filters
+        $departmentId = $_GET['department_id'] ?? null;
+        $divisionId = $_GET['division_id'] ?? null;
         
-        $query = "SELECT t.*, d.name as department_name, dv.name as division_name 
+        $query = "SELECT t.*, d.name as department_name, dv.name as division_name,
+                         pu.name as public_user_name, pu.public_id
                   FROM tokens t 
                   LEFT JOIN departments d ON t.department_id = d.id 
                   LEFT JOIN divisions dv ON t.division_id = dv.id 
-                  WHERE DATE(t.created_at) = :date 
-                  ORDER BY t.created_at DESC";
+                  LEFT JOIN public_users pu ON t.public_user_id = pu.id
+                  WHERE DATE(t.created_at) = :date";
+        
+        $params = [":date" => $date];
+
+        if ($departmentId) {
+            $query .= " AND t.department_id = :department_id";
+            $params[":department_id"] = $departmentId;
+        }
+
+        if ($divisionId) {
+            $query .= " AND t.division_id = :division_id";
+            $params[":division_id"] = $divisionId;
+        }
+        
+        $query .= " ORDER BY t.created_at DESC";
         
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":date", $date);
-        $stmt->execute();
+        if (!$stmt) {
+            throw new Exception("Failed to prepare query");
+        }
+
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to execute query");
+        }
         
         $tokens = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if ($tokens === false) {
+            throw new Exception("Failed to fetch tokens");
+        }
+
+        // Group tokens by department and status for statistics
+        $stats = [
+            'total' => count($tokens),
+            'by_status' => [],
+            'by_department' => []
+        ];
+
+        foreach ($tokens as $token) {
+            $stats['by_status'][$token['status']] = ($stats['by_status'][$token['status']] ?? 0) + 1;
+            $stats['by_department'][$token['department_name']] = ($stats['by_department'][$token['department_name']] ?? 0) + 1;
+        }
         
         http_response_code(200);
-        echo json_encode($tokens);
-    } catch (Exception $e) {
+        echo json_encode([
+            "status" => "success",
+            "data" => $tokens,
+            "meta" => [
+                "date" => $date,
+                "department_id" => $departmentId,
+                "division_id" => $divisionId,
+                "statistics" => $stats
+            ]
+        ]);
+    } catch (PDOException $e) {
         http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $e->getMessage()));
+        echo json_encode([
+            "status" => "error",
+            "message" => "Database error",
+            "details" => $e->getMessage()
+        ]);
+    } catch (Exception $e) {
+        $code = $e->getCode() ?: 500;
+        http_response_code($code);
+        echo json_encode([
+            "status" => "error",
+            "message" => $e->getMessage()
+        ]);
     }
 }
 

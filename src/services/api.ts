@@ -46,13 +46,64 @@ interface PublicUser {
   status: string;
 }
 
+interface Appointment {
+  id: number;
+  public_user_id: number;
+  department_id: number;
+  division_id: number;
+  appointment_date: string;
+  appointment_time: string;
+  purpose: string;
+  description?: string;
+  status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled';
+  notes?: string;
+  staff_user_id?: number;
+  created_at: string;
+  public_user_name?: string;
+  department_name?: string;
+  division_name?: string;
+}
+
+interface ServiceHistoryEntry {
+  id: number;
+  public_user_id: number;
+  department_id: number;
+  division_id: number;
+  service_name: string;
+  status: 'completed' | 'pending' | 'processing';
+  details?: string;
+  staff_user_id?: number;
+  created_at: string;
+  department_name?: string;
+  division_name?: string;
+}
+
+interface Notification {
+  id: number;
+  recipient_id: number;
+  recipient_type: 'public' | 'staff';
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  is_read: boolean;
+  created_at: string;
+}
+
+interface QRScan {
+  id: number;
+  public_user_id: number;
+  staff_user_id: number;
+  scan_location?: string;
+  scan_purpose?: string;
+  created_at: string;
+}
+
 class ApiService {
   private baseUrl: string;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
   }
-
   private async makeRequest<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -63,6 +114,7 @@ class ApiService {
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
@@ -73,8 +125,13 @@ class ApiService {
       console.log(`Making request to: ${url}`);
       const response = await fetch(url, config);
       
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.includes('application/json')) {
+        throw new Error(`Invalid response type: ${contentType}. Expected JSON but got HTML or other content type.`);
+      }
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
       
@@ -252,7 +309,134 @@ class ApiService {
       method: 'DELETE',
     });
   }
+
+  // Appointments API methods
+  async getAppointments(date?: string, status?: string): Promise<Appointment[]> {
+    let endpoint = '/appointments/index.php';
+    const params = new URLSearchParams();
+    if (date) params.append('date', date);
+    if (status) params.append('status', status);
+    
+    const queryString = params.toString();
+    if (queryString) endpoint += `?${queryString}`;
+    
+    return this.makeRequest(endpoint);
+  }
+
+  async createAppointment(data: {
+    public_user_id: number;
+    department_id: number;
+    division_id: number;
+    appointment_date: string;
+    appointment_time: string;
+    purpose: string;
+    description?: string;
+  }): Promise<{ message: string }> {
+    return this.makeRequest('/appointments/index.php', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAppointment(data: {
+    id: number;
+    status: Appointment['status'];
+    notes?: string;
+    staff_user_id?: number;
+  }): Promise<{ message: string }> {
+    return this.makeRequest('/appointments/index.php', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAppointment(id: number): Promise<{ message: string }> {
+    return this.makeRequest(`/appointments/index.php?id=${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Service History API methods
+  async getServiceHistory(publicUserId: number): Promise<ServiceHistoryEntry[]> {
+    return this.makeRequest(`/service-history/index.php?public_user_id=${publicUserId}`);
+  }
+
+  async addServiceHistory(data: {
+    public_user_id: number;
+    department_id: number;
+    division_id: number;
+    service_name: string;
+    details?: string;
+    staff_user_id?: number;
+  }): Promise<{ message: string }> {
+    return this.makeRequest('/service-history/index.php', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateServiceStatus(data: {
+    id: number;
+    status: ServiceHistoryEntry['status'];
+    details?: string;
+  }): Promise<{ message: string }> {
+    return this.makeRequest('/service-history/index.php', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Notifications API methods
+  async getNotifications(recipientId: number, recipientType?: 'public' | 'staff'): Promise<Notification[]> {
+    let endpoint = `/notifications/index.php?recipient_id=${recipientId}`;
+    if (recipientType) endpoint += `&recipient_type=${recipientType}`;
+    return this.makeRequest(endpoint);
+  }
+
+  async createNotification(data: {
+    recipient_id: number;
+    recipient_type?: 'public' | 'staff';
+    title: string;
+    message: string;
+    type?: 'info' | 'success' | 'warning' | 'error';
+  }): Promise<{ message: string }> {
+    return this.makeRequest('/notifications/index.php', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async markNotificationAsRead(id: number): Promise<{ message: string }> {
+    return this.makeRequest('/notifications/index.php', {
+      method: 'PUT',
+      body: JSON.stringify({ id, is_read: true }),
+    });
+  }
+
+  // QR Scan API methods
+  async recordQRScan(data: {
+    public_user_id: number;
+    staff_user_id: number;
+    scan_location?: string;
+    scan_purpose?: string;
+  }): Promise<{ message: string }> {
+    return this.makeRequest('/qr-scans/index.php', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getQRScans(publicUserId: number): Promise<QRScan[]> {
+    return this.makeRequest(`/qr-scans/index.php?public_user_id=${publicUserId}`);
+  }
 }
 
 export const apiService = new ApiService();
-export type { LoginData, ApiResponse };
+export type { 
+  LoginData, 
+  ApiResponse,
+  Appointment,
+  ServiceHistoryEntry,
+  Notification,
+  QRScan
+};

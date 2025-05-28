@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +23,7 @@ import TokenManagement from '@/components/TokenManagement';
 import PublicAccountCreation from '@/components/PublicAccountCreation';
 import NotificationManagement from '@/components/NotificationManagement';
 import AppointmentManagement from '@/components/AppointmentManagement';
+import NotificationBell from '@/components/NotificationBell';
 
 const StaffDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -139,6 +139,7 @@ const StaffDashboard = () => {
               <h1 className="text-2xl font-bold text-gray-800">Staff Dashboard</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <NotificationBell />
               <span className="text-gray-700">Welcome, {username}</span>
               <div className="h-8 w-8 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
                 {username.charAt(0).toUpperCase()}
