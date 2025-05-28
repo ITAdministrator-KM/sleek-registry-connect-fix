@@ -29,6 +29,12 @@ interface Division {
   department_id: number;
 }
 
+interface CreateTokenResponse {
+  message: string;
+  token_number: number;
+  token_id: number;
+}
+
 const TokenManagement = () => {
   const [tokens, setTokens] = useState<Token[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -78,7 +84,7 @@ const TokenManagement = () => {
       const today = new Date().toISOString().split('T')[0];
       const apiTokens = await apiService.getTokens(today);
       
-      const formattedTokens: Token[] = apiTokens.map(token => ({
+      const formattedTokens: Token[] = Array.isArray(apiTokens) ? apiTokens.map(token => ({
         id: token.id.toString(),
         tokenNumber: token.token_number,
         department: token.department_name,
@@ -87,7 +93,7 @@ const TokenManagement = () => {
         divisionId: token.division_id,
         timestamp: new Date(token.created_at).toLocaleString(),
         status: token.status
-      }));
+      })) : [];
       
       setTokens(formattedTokens);
     } catch (error) {
@@ -125,9 +131,15 @@ const TokenManagement = () => {
         division_id: division.id
       });
 
+      // Type assertion with validation
+      const tokenResponse = response as CreateTokenResponse;
+      if (!tokenResponse.token_number || !tokenResponse.token_id) {
+        throw new Error("Invalid response from server");
+      }
+
       toast({
         title: "Token Generated",
-        description: `Token #${response.token_number} for ${selectedDivision}`,
+        description: `Token #${tokenResponse.token_number} for ${selectedDivision}`,
       });
 
       // Refresh tokens list
@@ -135,8 +147,8 @@ const TokenManagement = () => {
 
       // Print the token
       const newToken: Token = {
-        id: response.token_id.toString(),
-        tokenNumber: response.token_number,
+        id: tokenResponse.token_id.toString(),
+        tokenNumber: tokenResponse.token_number,
         department: selectedDepartment,
         departmentId: department.id,
         division: selectedDivision,
