@@ -1,3 +1,4 @@
+
 const API_BASE_URL = 'https://dskalmunai.lk/backend/api';
 
 interface LoginData {
@@ -130,8 +131,17 @@ class ApiService {
       
       const response = await fetch(url, config);
       
-      const contentType = response.headers.get('content-type');
       console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      // Check if response is not ok
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`);
+      }
+      
+      const contentType = response.headers.get('content-type');
       console.log('Response content-type:', contentType);
       
       if (contentType && !contentType.includes('application/json')) {
@@ -142,10 +152,6 @@ class ApiService {
 
       const responseData = await response.json();
       console.log('Response data:', responseData);
-
-      if (!response.ok) {
-        throw new Error(responseData.message || responseData.details || `HTTP error! status: ${response.status}`);
-      }
       
       return responseData;
     } catch (error) {

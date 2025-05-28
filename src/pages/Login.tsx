@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,22 +58,30 @@ const Login = () => {
         role
       });
 
-      console.log('Login response:', response);
+      console.log('Login response received:', response);
 
       // Handle different response formats from backend
       let userData, authToken;
       
-      if (response.user && response.token) {
-        userData = response.user;
-        authToken = response.token;
-      } else if (response.data && response.data.user && response.data.token) {
-        userData = response.data.user;
-        authToken = response.data.token;
+      // Check if response has the expected structure
+      if (response && typeof response === 'object') {
+        if (response.user && response.token) {
+          userData = response.user;
+          authToken = response.token;
+        } else if (response.data && response.data.user && response.data.token) {
+          userData = response.data.user;
+          authToken = response.data.token;
+        } else {
+          console.error('Unexpected response format:', response);
+          throw new Error('Invalid response format from server');
+        }
       } else {
-        throw new Error('Invalid response format from server');
+        throw new Error('Invalid response from server');
       }
 
       if (userData && authToken) {
+        console.log('Setting up user session for:', userData.name);
+        
         // Store authentication data
         localStorage.setItem('userRole', userData.role);
         localStorage.setItem('username', userData.username);
@@ -104,13 +111,14 @@ const Login = () => {
             navigate('/');
         }
       } else {
-        throw new Error('Invalid credentials or server error');
+        throw new Error('Missing user data or token in response');
       }
     } catch (error) {
       console.error('Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Invalid credentials or server error";
       toast({
         title: "Login Failed",
-        description: error instanceof Error ? error.message : "Invalid credentials or server error",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -272,14 +280,17 @@ const Login = () => {
             </form>
 
             <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-semibold text-gray-800 mb-2">Test with Staff Credentials:</h4>
-              <div className="text-sm text-gray-600 space-y-1">
-                <p><strong>Username:</strong> Ansar</p>
-                <p><strong>Password:</strong> password</p>
-                <p><strong>Role:</strong> Staff Member</p>
-              </div>
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <p className="text-xs text-gray-500">Other test users: admin/password (admin), fatima/password (staff), ahmed/password (staff)</p>
+              <h4 className="font-semibold text-gray-800 mb-2">Test Credentials:</h4>
+              <div className="text-sm text-gray-600 space-y-2">
+                <div>
+                  <p><strong>Admin:</strong> admin / password</p>
+                </div>
+                <div>
+                  <p><strong>Staff:</strong> Ansar / password</p>
+                </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  Other staff users: fatima/password, ahmed/password
+                </div>
               </div>
             </div>
           </CardContent>
