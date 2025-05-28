@@ -7,9 +7,11 @@ interface LoginData {
 }
 
 interface ApiResponse<T = any> {
+  status?: string;
   message?: string;
   user?: T;
   token?: string;
+  data?: T;
 }
 
 interface CreateTokenResponse {
@@ -104,6 +106,7 @@ class ApiService {
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
   }
+
   private async makeRequest<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -123,30 +126,49 @@ class ApiService {
 
     try {
       console.log(`Making request to: ${url}`);
+      console.log('Request config:', config);
+      
       const response = await fetch(url, config);
       
       const contentType = response.headers.get('content-type');
+      console.log('Response status:', response.status);
+      console.log('Response content-type:', contentType);
+      
       if (contentType && !contentType.includes('application/json')) {
-        throw new Error(`Invalid response type: ${contentType}. Expected JSON but got HTML or other content type.`);
+        const textResponse = await response.text();
+        console.error('Non-JSON response received:', textResponse);
+        throw new Error(`Invalid response type: ${contentType}. Server returned: ${textResponse.substring(0, 200)}...`);
       }
 
+      const responseData = await response.json();
+      console.log('Response data:', responseData);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: `HTTP error! status: ${response.status}` }));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(responseData.message || responseData.details || `HTTP error! status: ${response.status}`);
       }
       
-      return await response.json();
+      return responseData;
     } catch (error) {
       console.error('API request failed:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('Unknown error occurred during API request');
     }
   }
 
-  async login(data: LoginData): Promise<ApiResponse> {
-    return this.makeRequest('/auth/login.php', {
+  async login(data: LoginData): Promise<any> {
+    const response = await this.makeRequest('/auth/login.php', {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    
+    // Handle different response formats
+    if (response.status === 'success' && response.data) {
+      return response.data;
+    }
+    
+    return response;
   }
 
   async getDepartments() {
@@ -200,6 +222,7 @@ class ApiService {
   async getUsers() {
     return this.makeRequest('/users/index.php');
   }
+
   async createUser(data: {
     name: string;
     nic: string;
@@ -310,7 +333,6 @@ class ApiService {
     });
   }
 
-  // Appointments API methods
   async getAppointments(date?: string, status?: string): Promise<Appointment[]> {
     let endpoint = '/appointments/index.php';
     const params = new URLSearchParams();
@@ -356,7 +378,6 @@ class ApiService {
     });
   }
 
-  // Service History API methods
   async getServiceHistory(publicUserId: number): Promise<ServiceHistoryEntry[]> {
     return this.makeRequest(`/service-history/index.php?public_user_id=${publicUserId}`);
   }
@@ -386,7 +407,6 @@ class ApiService {
     });
   }
 
-  // Notifications API methods
   async getNotifications(recipientId: number, recipientType?: 'public' | 'staff'): Promise<Notification[]> {
     let endpoint = `/notifications/index.php?recipient_id=${recipientId}`;
     if (recipientType) endpoint += `&recipient_type=${recipientType}`;
@@ -413,7 +433,6 @@ class ApiService {
     });
   }
 
-  // QR Scan API methods
   async recordQRScan(data: {
     public_user_id: number;
     staff_user_id: number;

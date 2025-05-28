@@ -61,21 +61,36 @@ const Login = () => {
 
       console.log('Login response:', response);
 
+      // Handle different response formats from backend
+      let userData, authToken;
+      
       if (response.user && response.token) {
+        userData = response.user;
+        authToken = response.token;
+      } else if (response.data && response.data.user && response.data.token) {
+        userData = response.data.user;
+        authToken = response.data.token;
+      } else {
+        throw new Error('Invalid response format from server');
+      }
+
+      if (userData && authToken) {
         // Store authentication data
-        localStorage.setItem('userRole', response.user.role);
-        localStorage.setItem('username', response.user.username);
-        localStorage.setItem('authToken', response.token);
-        localStorage.setItem('userId', response.user.id);
-        localStorage.setItem('userFullName', response.user.name);
+        localStorage.setItem('userRole', userData.role);
+        localStorage.setItem('username', userData.username);
+        localStorage.setItem('authToken', authToken);
+        localStorage.setItem('userId', userData.id.toString());
+        localStorage.setItem('userFullName', userData.name);
+        localStorage.setItem('userDepartmentId', userData.department_id?.toString() || '');
+        localStorage.setItem('userDivisionId', userData.division_id?.toString() || '');
         
         toast({
           title: "Login Successful",
-          description: `Welcome, ${response.user.name}!`,
+          description: `Welcome, ${userData.name}!`,
         });
 
         // Redirect based on role
-        switch (response.user.role) {
+        switch (userData.role) {
           case 'admin':
             navigate('/admin-dashboard');
             break;
@@ -89,7 +104,7 @@ const Login = () => {
             navigate('/');
         }
       } else {
-        throw new Error('Invalid response format');
+        throw new Error('Invalid credentials or server error');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -257,11 +272,14 @@ const Login = () => {
             </form>
 
             <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-semibold text-gray-800 mb-2">Test with Admin Credentials:</h4>
+              <h4 className="font-semibold text-gray-800 mb-2">Test with Staff Credentials:</h4>
               <div className="text-sm text-gray-600 space-y-1">
-                <p><strong>Username:</strong> admin</p>
+                <p><strong>Username:</strong> Ansar</p>
                 <p><strong>Password:</strong> password</p>
-                <p><strong>Role:</strong> Administrator</p>
+                <p><strong>Role:</strong> Staff Member</p>
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <p className="text-xs text-gray-500">Other test users: admin/password (admin), fatima/password (staff), ahmed/password (staff)</p>
               </div>
             </div>
           </CardContent>
