@@ -158,14 +158,20 @@ class ApiService {
   }
 
   async login(data: LoginData): Promise<any> {
-    const response = await this.makeRequest('/auth/login.php', {
+    const response = await this.makeRequest<any>('/auth/login.php', {
       method: 'POST',
       body: JSON.stringify(data),
     });
     
-    // Handle different response formats
-    if (response.status === 'success' && response.data) {
-      return response.data;
+    // Handle different response formats with proper type checking
+    if (response && typeof response === 'object') {
+      if ('status' in response && response.status === 'success' && 'data' in response && response.data) {
+        return response.data;
+      }
+      
+      if ('user' in response && 'token' in response) {
+        return response;
+      }
     }
     
     return response;
