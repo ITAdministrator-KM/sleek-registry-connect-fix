@@ -1,15 +1,14 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CreditCard, Download, Search, Printer } from 'lucide-react';
 import QRCode from 'qrcode';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { useToast } from "@/hooks/use-toast";
-
 import { apiService } from '@/services/api';
 
 interface PublicUser {
@@ -76,7 +75,7 @@ const IDCardGenerator = () => {
       });
       
       const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
-        width: 100,
+        width: 80,
         margin: 1,
         color: {
           dark: '#000000',
@@ -108,7 +107,7 @@ const IDCardGenerator = () => {
 
     try {
       const canvas = await html2canvas(cardRef.current, {
-        scale: 2,
+        scale: 3,
         backgroundColor: '#ffffff'
       });
       
@@ -135,12 +134,12 @@ const IDCardGenerator = () => {
 
     try {
       const canvas = await html2canvas(cardRef.current, {
-        scale: 2,
+        scale: 3,
         backgroundColor: '#ffffff'
       });
       
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('landscape', 'mm', [85.6, 54]); // Credit card size
+      const pdf = new jsPDF('landscape', 'mm', [85.6, 54]);
       pdf.addImage(imgData, 'PNG', 0, 0, 85.6, 54);
       pdf.save(`id-card-${selectedUser?.public_id}.pdf`);
       
@@ -238,86 +237,55 @@ const IDCardGenerator = () => {
           </DialogHeader>
           
           <div className="space-y-6">
-            {/* ID Card Design */}
             <div ref={cardRef} className="mx-auto">
-              <div className="w-[340px] h-[214px] bg-white border-2 border-gray-300 rounded-lg shadow-lg overflow-hidden relative id-card">
+              <div className="w-[400px] h-[250px] bg-white border-4 border-black rounded-lg shadow-lg overflow-hidden id-card" style={{ fontFamily: 'Arial, sans-serif' }}>
                 {/* Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-green-600 text-white p-2 flex items-center justify-between">
-                  <img 
-                    src="/lovable-uploads/6e847d33-bb31-4337-86e5-a709077e569d.png" 
-                    alt="DSK Logo" 
-                    className="h-8 w-8 rounded-full"
-                  />
-                  <div className="text-center">
-                    <h4 className="text-xs font-bold">DIVISIONAL SECRETARIAT</h4>
-                    <p className="text-xs">KALMUNAI</p>
+                <div className="bg-white text-center py-2 border-b-2 border-black">
+                  <div className="flex items-center justify-center space-x-3">
+                    <img 
+                      src="/lovable-uploads/6e847d33-bb31-4337-86e5-a709077e569d.png" 
+                      alt="Emblem" 
+                      className="h-10 w-10"
+                    />
+                    <div>
+                      <h1 className="text-lg font-bold text-black">Divisional Secretariate</h1>
+                      <h2 className="text-base font-semibold text-black">Kalmunai</h2>
+                    </div>
                   </div>
-                  <img 
-                    src="/lovable-uploads/6e847d33-bb31-4337-86e5-a709077e569d.png" 
-                    alt="DSK Logo" 
-                    className="h-8 w-8 rounded-full"
-                  />
                 </div>
 
                 {/* Main Content */}
-                <div className="p-3 flex">
-                  {/* Photo Section */}
-                  <div className="w-16 h-20 bg-gray-200 border border-gray-300 mr-3 flex items-center justify-center overflow-hidden">
-                    {selectedUser?.photo ? (
-                      <img 
-                        src={selectedUser.photo} 
-                        alt="Photo"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = '/placeholder.svg';
-                          toast({
-                            title: "Warning",
-                            description: "Failed to load user photo",
-                            variant: "destructive",
-                          });
-                        }}
-                      />
-                    ) : (
-                      <img 
-                        src="/placeholder.svg" 
-                        alt="No Photo"
-                        className="w-12 h-12 opacity-50" 
-                      />
-                    )}
-                  </div>
+                <div className="p-4 bg-white">
+                  <div className="border-2 border-black rounded-lg p-3 h-[140px] flex">
+                    {/* Left side - Details */}
+                    <div className="flex-1 space-y-2 text-sm">
+                      <div className="flex">
+                        <span className="font-bold w-16">Name:</span>
+                        <span className="text-black">{selectedUser?.name}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-16">NIC:</span>
+                        <span className="text-black">{selectedUser?.nic}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-16">DOB:</span>
+                        <span className="text-black">7/26/1993</span>
+                      </div>
+                      <div className="flex">
+                        <span className="font-bold w-16">Place:</span>
+                        <span className="text-black">Kalmunai</span>
+                      </div>
+                    </div>
 
-                  {/* Details Section */}
-                  <div className="flex-1 text-xs space-y-1">
-                    <div>
-                      <span className="font-bold">ID:</span> {selectedUser?.public_id}
-                    </div>
-                    <div>
-                      <span className="font-bold">Name:</span> {selectedUser?.name}
-                    </div>
-                    <div>
-                      <span className="font-bold">NIC:</span> {selectedUser?.nic}
-                    </div>
-                    <div>
-                      <span className="font-bold">Address:</span> {selectedUser?.address}
-                    </div>
-                    <div>
-                      <span className="font-bold">Mobile:</span> {selectedUser?.mobile}
+                    {/* Right side - QR Code */}
+                    <div className="w-20 h-20 border-2 border-black flex items-center justify-center ml-4">
+                      {qrCodeUrl ? (
+                        <img src={qrCodeUrl} alt="QR Code" className="w-full h-full" />
+                      ) : (
+                        <span className="text-xs text-gray-500">QR</span>
+                      )}
                     </div>
                   </div>
-
-                  {/* QR Code Section */}
-                  <div className="w-16 h-16 border border-gray-300 flex items-center justify-center">
-                    {qrCodeUrl ? (
-                      <img src={qrCodeUrl} alt="QR Code" className="w-full h-full" />
-                    ) : (
-                      <span className="text-xs text-gray-500">QR</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="absolute bottom-0 left-0 right-0 bg-gray-100 p-1 text-center">
-                  <p className="text-xs text-gray-600">Valid Government ID Card</p>
                 </div>
               </div>
             </div>
