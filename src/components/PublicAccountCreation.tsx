@@ -64,7 +64,7 @@ const PublicAccountCreation = () => {
   const fetchPublicUsers = async () => {
     try {
       const users = await apiService.getPublicUsers();
-      setPublicUsers(users);
+      setPublicUsers(Array.isArray(users) ? users : []);
     } catch (error) {
       toast({
         title: "Error",

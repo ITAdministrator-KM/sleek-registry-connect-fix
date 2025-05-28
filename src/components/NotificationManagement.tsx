@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,7 +74,7 @@ const NotificationManagement = () => {
   const fetchPublicUsers = async () => {
     try {
       const users = await apiService.getPublicUsers();
-      setPublicUsers(users);
+      setPublicUsers(Array.isArray(users) ? users : []);
     } catch (error) {
       toast({
         title: "Error",

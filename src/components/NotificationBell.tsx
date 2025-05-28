@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import {
@@ -8,8 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { apiService } from '@/services/api';
-import type { Notification } from '@/services/api';
+import { apiService, type Notification } from '@/services/api';
 
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
