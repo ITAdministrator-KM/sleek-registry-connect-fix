@@ -55,14 +55,18 @@ const TokenList = ({ refreshTrigger }: TokenListProps) => {
       setIsLoading(false);
     }
   };
-
   const updateTokenStatus = async (tokenId: string, status: 'called' | 'completed') => {
     try {
-      await apiService.updateToken({
+      const response = await apiService.updateToken({
         id: parseInt(tokenId),
         status
       });
       
+      if (!response || response.status === 'error') {
+        throw new Error(response?.message || 'Failed to update token');
+      }
+      
+      // Only update local state if the API call was successful
       setTokens(prev => 
         prev.map(token => 
           token.id === tokenId ? { ...token, status } : token
@@ -70,8 +74,8 @@ const TokenList = ({ refreshTrigger }: TokenListProps) => {
       );
       
       toast({
-        title: "Token Updated",
-        description: `Token status changed to ${status}`,
+        title: "Success",
+        description: `Token #${tokens.find(t => t.id === tokenId)?.tokenNumber} ${status}`,
       });
     } catch (error) {
       toast({

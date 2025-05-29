@@ -73,15 +73,19 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
       const response = await apiService.createToken({
         department_id: department.id,
         division_id: division.id
-      });
-
-      if (!response.token_number || !response.token_id) {
+      });      if (!response || typeof response !== 'object') {
         throw new Error("Invalid response from server");
+      }
+
+      const { token_number, token_id } = response;
+      
+      if (!token_number || !token_id) {
+        throw new Error("Token generation failed - missing token details");
       }
 
       toast({
         title: "Token Generated",
-        description: `Token #${response.token_number} for ${selectedDivision}`,
+        description: `Token #${token_number} for ${selectedDivision}`,
       });
 
       onTokenGenerated();

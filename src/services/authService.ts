@@ -1,4 +1,3 @@
-
 import { ApiBase } from './apiBase';
 
 interface LoginData {
@@ -38,6 +37,23 @@ export class AuthService extends ApiBase {
     }
     
     throw new Error('Invalid login response format');
+  }
+
+  async updatePassword(data: { id: number; currentPassword: string; newPassword: string }): Promise<any> {
+    try {
+      const response = await this.makeRequest('/users/password.php', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+
+      if (response?.status === 'success') {
+        return { success: true, message: response.message };
+      }
+      throw new Error(response?.message || 'Failed to update password');
+    } catch (error) {
+      console.error('Error updating password:', error);
+      throw error;
+    }
   }
 }
 

@@ -1,56 +1,50 @@
-import { useState, useRef, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CreditCard, Download, Search, Printer } from 'lucide-react';
-import QRCode from 'qrcode';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
+import type { PublicUser } from '@/services/api';
+import { Search, Printer, AlertCircle } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
-interface PublicUser {
-  id: number;
-  public_id: string;
-  name: string;
-  nic: string;
-  address: string;
-  mobile: string;
-  email?: string;
-  photo?: string;
-  department_id?: number;
-  division_id?: number;
-  department_name?: string;
-  division_name?: string;
-  created_at: string;
-  status: string;
-}
+// Card dimensions (85.6mm x 54mm - standard credit card size)
+const CARD_WIDTH = 85.6;
+const CARD_HEIGHT = 54;
 
 const IDCardGenerator = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<PublicUser | null>(null);
+  const [users, setUsers] = useState<PublicUser[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<PublicUser[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-  const cardRef = useRef<HTMLDivElement>(null);
+  const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const [publicUsers, setPublicUsers] = useState<PublicUser[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
   useEffect(() => {
-    fetchPublicUsers();
+    fetchUsers();
   }, []);
 
-  const fetchPublicUsers = async () => {
+  useEffect(() => {
+    const filtered = users.filter(user => 
+      user.public_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.nic.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredUsers(filtered);
+  }, [searchTerm, users]);
+
+  const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      const users = await apiService.getPublicUsers();
-      setPublicUsers(Array.isArray(users) ? users : []);
+      const response = await apiService.getPublicUsers();
+      setUsers(response);
     } catch (error) {
+      console.error('Error fetching users:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch public users",
+        description: "Failed to fetch users",
         variant: "destructive",
       });
     } finally {
@@ -58,255 +52,232 @@ const IDCardGenerator = () => {
     }
   };
 
-  const filteredUsers = publicUsers.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.public_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.nic.includes(searchTerm)
-  );
+  const handleSelectUser = (userId: number) => {
+    setSelectedUsers(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
 
-  const generateQRCode = async (user: PublicUser) => {
+  const handleSelectAll = () => {
+    if (selectedUsers.length === filteredUsers.length) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(filteredUsers.map(user => user.id));
+    }
+  };
+
+  const validateQRCode = (qrCode: string): boolean => {
+    if (!qrCode) return false;
+    // Check if it's a valid base64 data URL
+    return qrCode.startsWith('data:image/png;base64,') || 
+           qrCode.startsWith('data:image/jpeg;base64,');
+  };
+
+  const createCardContent = (user: PublicUser): HTMLDivElement => {
+    const cardContent = document.createElement('div');
+    
+    // Validate QR code before using it
+    const qrCodeValid = validateQRCode(user.qr_code);
+    
+    cardContent.innerHTML = `
+      <div style="width: ${CARD_WIDTH}mm; height: ${CARD_HEIGHT}mm; padding: 3mm; font-family: Arial; border: 1px solid #ccc; border-radius: 2mm;">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div>
+            <h2 style="margin: 0; font-size: 12px; color: #1e40af;">DSK Services Portal</h2>
+            <p style="margin: 1mm 0; font-size: 10px;">Kalmunai</p>
+          </div>
+          ${qrCodeValid 
+            ? `<img src="${user.qr_code}" style="width: 15mm; height: 15mm; object-fit: contain;" alt="QR Code" />`
+            : `<div style="width: 15mm; height: 15mm; display: flex; align-items: center; justify-content: center; background: #f3f4f6;">
+                <span style="font-size: 8px; color: #ef4444; text-align: center;">Invalid QR</span>
+               </div>`
+          }
+        </div>
+        <div style="margin-top: 2mm;">
+          <p style="margin: 1mm 0; font-size: 9px;"><strong>ID:</strong> ${user.public_id}</p>
+          <p style="margin: 1mm 0; font-size: 9px;"><strong>Name:</strong> ${user.name}</p>
+          <p style="margin: 1mm 0; font-size: 9px;"><strong>NIC:</strong> ${user.nic}</p>
+          <p style="margin: 1mm 0; font-size: 8px;"><strong>Address:</strong> ${user.address || 'N/A'}</p>
+          <p style="margin: 1mm 0; font-size: 9px;"><strong>Mobile:</strong> ${user.mobile || 'N/A'}</p>
+        </div>
+        <div style="position: absolute; bottom: 2mm; left: 3mm; right: 3mm; display: flex; justify-content: space-between; align-items: center;">
+          <p style="margin: 0; font-size: 7px; color: #666;">Generated: ${new Date().toLocaleDateString()}</p>
+          <p style="margin: 0; font-size: 7px; color: #666;">DSK Services</p>
+        </div>
+      </div>
+    `;
+
+    return cardContent;
+  };
+
+  const handlePrint = async () => {
     try {
-      const qrData = JSON.stringify({
-        id: user.public_id,
-        name: user.name,
-        nic: user.nic,
-        timestamp: Date.now()
+      const usersToPrint = filteredUsers.filter(user => 
+        selectedUsers.includes(user.id)
+      );
+
+      if (usersToPrint.length === 0) {
+        toast({
+          title: "Warning",
+          description: "Please select users to print",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsLoading(true);
+
+      // Create PDF with A4 size
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
       });
+
+      // Margins and spacing
+      const marginX = 10;
+      const marginY = 10;
+      const spacingX = 5;
+      const spacingY = 5;
+
+      // Calculate cards per row and column
+      const cardsPerRow = 2;
+      const cardsPerColumn = 5;
+
+      let invalidQRCount = 0;
       
-      const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
-        width: 80,
-        margin: 1,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
+      for (let i = 0; i < usersToPrint.length; i++) {
+        const user = usersToPrint[i];
+        
+        if (!validateQRCode(user.qr_code)) {
+          invalidQRCount++;
         }
-      });
-      
-      setQrCodeUrl(qrCodeDataUrl);
-      return qrCodeDataUrl;
+
+        if (i > 0 && i % (cardsPerRow * cardsPerColumn) === 0) {
+          pdf.addPage();
+        }
+
+        const cardIndex = i % (cardsPerRow * cardsPerColumn);
+        const row = Math.floor(cardIndex / cardsPerRow);
+        const col = cardIndex % cardsPerRow;
+
+        const x = marginX + col * (CARD_WIDTH + spacingX);
+        const y = marginY + row * (CARD_HEIGHT + spacingY);
+
+        // Create and append card content
+        const cardContent = createCardContent(user);
+        document.body.appendChild(cardContent);
+        
+        try {
+          const canvas = await html2canvas(cardContent, {
+            scale: 4,
+            logging: false,
+            width: CARD_WIDTH * 3.78, // Convert mm to pixels (96 DPI)
+            height: CARD_HEIGHT * 3.78,
+            backgroundColor: null
+          });
+
+          const imgData = canvas.toDataURL('image/jpeg', 1.0);
+          pdf.addImage(imgData, 'JPEG', x, y, CARD_WIDTH, CARD_HEIGHT);
+        } catch (error) {
+          console.error('Error generating card for user:', user.public_id, error);
+        } finally {
+          document.body.removeChild(cardContent);
+        }
+      }
+
+      pdf.save(`DSK_ID_Cards_${Date.now()}.pdf`);
+
+      if (invalidQRCount > 0) {
+        toast({
+          title: "Warning",
+          description: `Generated ID cards but ${invalidQRCount} user(s) had invalid QR codes. These will be marked on the cards.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: `Generated ${usersToPrint.length} ID card(s)`,
+        });
+      }
     } catch (error) {
-      console.error('Error generating QR code:', error);
+      console.error('Error generating ID cards:', error);
       toast({
         title: "Error",
-        description: "Failed to generate QR code",
+        description: "Failed to generate ID cards",
         variant: "destructive",
       });
-      return '';
-    }
-  };
-
-  const handleGenerateCard = async (user: PublicUser) => {
-    setSelectedUser(user);
-    await generateQRCode(user);
-    setIsDialogOpen(true);
-  };
-
-  const downloadAsImage = async () => {
-    if (!cardRef.current) return;
-
-    try {
-      const canvas = await html2canvas(cardRef.current, {
-        scale: 3,
-        backgroundColor: '#ffffff'
-      });
-      
-      const link = document.createElement('a');
-      link.download = `id-card-${selectedUser?.public_id}.png`;
-      link.href = canvas.toDataURL();
-      link.click();
-      
-      toast({
-        title: "Success",
-        description: "ID card downloaded as image",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to download image",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const downloadAsPDF = async () => {
-    if (!cardRef.current) return;
-
-    try {
-      const canvas = await html2canvas(cardRef.current, {
-        scale: 3,
-        backgroundColor: '#ffffff'
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('landscape', 'mm', [85.6, 54]);
-      pdf.addImage(imgData, 'PNG', 0, 0, 85.6, 54);
-      pdf.save(`id-card-${selectedUser?.public_id}.pdf`);
-      
-      toast({
-        title: "Success",
-        description: "ID card downloaded as PDF",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to download PDF",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const printCard = () => {
-    if (!cardRef.current) return;
-    
-    const printContent = cardRef.current.innerHTML;
-    const printWindow = window.open('', '_blank');
-    
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Print ID Card</title>
-            <style>
-              body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-              @media print {
-                body { margin: 0; padding: 0; }
-                .id-card { page-break-inside: avoid; }
-              }
-            </style>
-          </head>
-          <body>
-            ${printContent}
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-2xl font-bold text-gray-800">ID Card Generator</h3>
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <Input
-            placeholder="Search public users..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredUsers.map((user) => (
-            <Card key={user.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">{user.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <p><strong>Public ID:</strong> {user.public_id}</p>
-                  <p><strong>NIC:</strong> {user.nic}</p>
-                  <p><strong>Mobile:</strong> {user.mobile}</p>
-                </div>
-                <Button
-                  onClick={() => handleGenerateCard(user)}
-                  className="w-full mt-4 bg-blue-600 hover:bg-blue-700"
-                >
-                  <CreditCard className="mr-2" size={16} />
-                  Generate ID Card
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>ID Card Preview - {selectedUser?.name}</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-6">
-            <div ref={cardRef} className="mx-auto">
-              <div className="w-[400px] h-[250px] bg-white border-4 border-black rounded-lg shadow-lg overflow-hidden id-card" style={{ fontFamily: 'Arial, sans-serif' }}>
-                {/* Header */}
-                <div className="bg-white text-center py-2 border-b-2 border-black">
-                  <div className="flex items-center justify-center space-x-3">
-                    <img 
-                      src="/lovable-uploads/6e847d33-bb31-4337-86e5-a709077e569d.png" 
-                      alt="Emblem" 
-                      className="h-10 w-10"
-                    />
-                    <div>
-                      <h1 className="text-lg font-bold text-black">Divisional Secretariate</h1>
-                      <h2 className="text-base font-semibold text-black">Kalmunai</h2>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Main Content */}
-                <div className="p-4 bg-white">
-                  <div className="border-2 border-black rounded-lg p-3 h-[140px] flex">
-                    {/* Left side - Details */}
-                    <div className="flex-1 space-y-2 text-sm">
-                      <div className="flex">
-                        <span className="font-bold w-16">Name:</span>
-                        <span className="text-black">{selectedUser?.name}</span>
-                      </div>
-                      <div className="flex">
-                        <span className="font-bold w-16">NIC:</span>
-                        <span className="text-black">{selectedUser?.nic}</span>
-                      </div>
-                      <div className="flex">
-                        <span className="font-bold w-16">DOB:</span>
-                        <span className="text-black">7/26/1993</span>
-                      </div>
-                      <div className="flex">
-                        <span className="font-bold w-16">Place:</span>
-                        <span className="text-black">Kalmunai</span>
-                      </div>
-                    </div>
-
-                    {/* Right side - QR Code */}
-                    <div className="w-20 h-20 border-2 border-black flex items-center justify-center ml-4">
-                      {qrCodeUrl ? (
-                        <img src={qrCodeUrl} alt="QR Code" className="w-full h-full" />
-                      ) : (
-                        <span className="text-xs text-gray-500">QR</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>ID Card Generator</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Generate and print ID cards for public users
+              </p>
             </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-center space-x-4">
-              <Button onClick={downloadAsImage} variant="outline">
-                <Download className="mr-2" size={16} />
-                Download PNG
+            <div className="flex space-x-4">
+              <Button
+                variant="outline"
+                onClick={handleSelectAll}
+                disabled={isLoading || filteredUsers.length === 0}
+              >
+                {selectedUsers.length === filteredUsers.length ? 'Deselect All' : 'Select All'}
               </Button>
-              <Button onClick={downloadAsPDF} variant="outline">
-                <Download className="mr-2" size={16} />
-                Download PDF
-              </Button>
-              <Button onClick={printCard} className="bg-green-600 hover:bg-green-700">
-                <Printer className="mr-2" size={16} />
-                Print Card
+              <Button
+                variant="default"
+                onClick={handlePrint}
+                disabled={isLoading || selectedUsers.length === 0}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print Selected ({selectedUsers.length})
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Input
+                placeholder="Search by ID, name or NIC..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredUsers.map(user => (
+                <Card key={user.id} className="relative">
+                  <CardContent className="p-4">
+                    <div className="absolute top-4 right-4">
+                      <Checkbox
+                        checked={selectedUsers.includes(user.id)}
+                        onCheckedChange={() => handleSelectUser(user.id)}
+                      />
+                    </div>
+                    <div className="pr-8">
+                      <h3 className="font-medium">{user.name}</h3>
+                      <p className="text-sm text-muted-foreground">{user.public_id}</p>
+                      <p className="text-sm text-muted-foreground">{user.nic}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

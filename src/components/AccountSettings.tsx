@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { User, Mail, Lock, Bell, Shield, Database } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { apiService } from '@/services/api';
 
 const AccountSettings = () => {
   const [profileData, setProfileData] = useState({
@@ -46,7 +47,7 @@ const AccountSettings = () => {
     });
   };
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -67,16 +68,35 @@ const AccountSettings = () => {
       return;
     }
 
-    toast({
-      title: "Password Changed",
-      description: "Your password has been updated successfully.",
-    });
+    try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) {
+        throw new Error('User ID not found');
+      }
 
-    setPasswordData({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: ''
-    });
+      await apiService.updatePassword({
+        id: parseInt(userId),
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword
+      });
+
+      toast({
+        title: "Password Changed",
+        description: "Your password has been updated successfully.",
+      });
+
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update password",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleNotificationChange = (key: string, value: boolean) => {

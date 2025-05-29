@@ -226,16 +226,17 @@ const DivisionManagement = () => {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="department">Department</Label>
-                <Select 
-                  value={formData.departmentId.toString()} 
+                <Label htmlFor="department">Department</Label>                <Select 
+                  value={formData.departmentId ? formData.departmentId.toString() : undefined}
                   onValueChange={(value) => setFormData({ ...formData, departmentId: parseInt(value) })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
-                    {departments.map((dept) => (
+                    {departments
+                      .filter(dept => dept.status !== 'inactive')
+                      .map((dept) => (
                       <SelectItem key={dept.id} value={dept.id.toString()}>{dept.name}</SelectItem>
                     ))}
                   </SelectContent>

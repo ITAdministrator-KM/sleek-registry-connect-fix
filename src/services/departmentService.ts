@@ -5,13 +5,18 @@ export interface Department {
   id: number;
   name: string;
   description?: string;
+  status: string;
 }
 
-export class DepartmentService extends ApiBase {
-  async getDepartments(): Promise<Department[]> {
+export class DepartmentService extends ApiBase {  async getDepartments(): Promise<Department[]> {
     try {
       const response = await this.makeRequest('/departments/index.php');
-      return Array.isArray(response) ? response : [];
+      if (response?.status === "success" && Array.isArray(response.data)) {
+        return response.data.filter(dept => dept.status === 'active');
+      } else if (Array.isArray(response)) {
+        return response.filter(dept => dept.status === 'active');
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching departments:', error);
       return [];

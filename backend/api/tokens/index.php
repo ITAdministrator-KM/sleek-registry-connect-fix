@@ -1,4 +1,3 @@
-
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -167,17 +166,18 @@ function getTokens($db) {
 }
 
 function createToken($db) {
-    $data = json_decode(file_get_contents("php://input"));
-    
-    if (!isset($data->department_id) || !isset($data->division_id)) {
-        http_response_code(400);
-        echo json_encode(array("message" => "Department and division are required"));
-        return;
-    }
-    
     try {
-        // Get next token number for this department-division combination today
+        $data = json_decode(file_get_contents("php://input"));
+        
+        if (!$data || !isset($data->department_id) || !isset($data->division_id)) {
+            throw new Exception("Department and division are required", 400);
+        }
+
+        $departmentId = (int)$data->department_id;
+        $divisionId = (int)$data->division_id;
         $today = date('Y-m-d');
+        
+        // Get next token number for this department-division combination today
         $query = "SELECT COALESCE(MAX(token_number), 0) + 1 as next_number 
                   FROM tokens 
                   WHERE department_id = :department_id 
@@ -185,37 +185,51 @@ function createToken($db) {
                   AND DATE(created_at) = :today";
         
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":department_id", $data->department_id);
-        $stmt->bindParam(":division_id", $data->division_id);
-        $stmt->bindParam(":today", $today);
-        $stmt->execute();
+        $stmt->bindValue(":department_id", $departmentId, PDO::PARAM_INT);
+        $stmt->bindValue(":division_id", $divisionId, PDO::PARAM_INT);
+        $stmt->bindValue(":today", $today);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to get next token number");
+        }
         
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $token_number = $result['next_number'];
-        
+        $tokenNumber = (int)$result['next_number'];
+
         // Insert new token
-        $insertQuery = "INSERT INTO tokens (token_number, department_id, division_id, public_user_id, status) 
-                        VALUES (:token_number, :department_id, :division_id, :public_user_id, 'active')";
-        $insertStmt = $db->prepare($insertQuery);
-        $insertStmt->bindParam(":token_number", $token_number);
-        $insertStmt->bindParam(":department_id", $data->department_id);
-        $insertStmt->bindParam(":division_id", $data->division_id);
-        $insertStmt->bindParam(":public_user_id", $data->public_user_id ?? null);
+        $insertQuery = "INSERT INTO tokens (token_number, department_id, division_id, status, created_at) 
+                       VALUES (:token_number, :department_id, :division_id, 'active', NOW())";
         
-        if ($insertStmt->execute()) {
-            http_response_code(201);
-            echo json_encode(array(
-                "message" => "Token created successfully", 
-                "token_number" => $token_number,
-                "token_id" => $db->lastInsertId()
-            ));
-        } else {
-            http_response_code(400);
-            echo json_encode(array("message" => "Failed to create token"));
+        $insertStmt = $db->prepare($insertQuery);
+        $insertStmt->bindValue(":token_number", $tokenNumber, PDO::PARAM_INT);
+        $insertStmt->bindValue(":department_id", $departmentId, PDO::PARAM_INT);
+        $insertStmt->bindValue(":division_id", $divisionId, PDO::PARAM_INT);
+        
+        if (!$insertStmt->execute()) {
+            throw new Exception("Failed to create token");
         }
+        
+        $tokenId = $db->lastInsertId();
+        
+        http_response_code(201);
+        echo json_encode([
+            "status" => "success",
+            "data" => [
+                "token_id" => (int)$tokenId,
+                "token_number" => $tokenNumber,
+                "department_id" => $departmentId,
+                "division_id" => $divisionId,
+                "status" => "active",
+                "created_at" => date('Y-m-d H:i:s')
+            ]
+        ]);
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $e->getMessage()));
+        $code = $e->getCode() ?: 500;
+        http_response_code($code);
+        echo json_encode([
+            "status" => "error",
+            "message" => $e->getMessage()
+        ]);
     }
 }
 

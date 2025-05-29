@@ -79,10 +79,9 @@ try {
 }
 
 function getDepartments($db) {
-    try {
-        $query = "SELECT d.*, COUNT(dv.id) as divisions_count 
+    try {        $query = "SELECT d.*, COUNT(dv.id) as divisions_count 
                   FROM departments d 
-                  LEFT JOIN divisions dv ON d.id = dv.department_id 
+                  LEFT JOIN divisions dv ON d.id = dv.department_id AND dv.status = 'active'
                   WHERE d.status = 'active' 
                   GROUP BY d.id 
                   ORDER BY d.name";
@@ -99,6 +98,10 @@ function getDepartments($db) {
         $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
         if ($departments === false) {
             throw new Exception("Failed to fetch departments", 500);
+        }
+        
+        foreach ($departments as &$dept) {
+            $dept['divisions_count'] = intval($dept['divisions_count']);
         }
         
         http_response_code(200);
@@ -133,14 +136,16 @@ function createDepartment($db) {
             throw new Exception("Department with this name already exists", 409);
         }
 
-        $query = "INSERT INTO departments (name, description) VALUES (:name, :description)";
-        $stmt = $db->prepare($query);
+        $query = "INSERT INTO departments (name, description) VALUES (:name, :description)";        $stmt = $db->prepare($query);
         if (!$stmt) {
             throw new Exception("Failed to prepare query", 500);
         }
-
-        $stmt->bindParam(":name", $data->name);
-        $stmt->bindParam(":description", $data->description ?? null);
+        
+        $name = $data->name;
+        $description = isset($data->description) ? $data->description : null;
+        
+        $stmt->bindParam(":name", $name);
+        $stmt->bindParam(":description", $description, PDO::PARAM_STR);
         
         if (!$stmt->execute()) {
             throw new Exception("Failed to create department", 500);
@@ -198,11 +203,9 @@ function updateDepartment($db) {
         $stmt = $db->prepare($query);
         if (!$stmt) {
             throw new Exception("Failed to prepare query", 500);
-        }
-
-        $stmt->bindParam(":id", $data->id);
-        $stmt->bindParam(":name", $data->name);
-        $stmt->bindParam(":description", $data->description ?? null);
+        }        $stmt->bindValue(":id", $data->id);
+        $stmt->bindValue(":name", $data->name);
+        $stmt->bindValue(":description", $data->description ?? null, PDO::PARAM_STR);
         
         if (!$stmt->execute()) {
             throw new Exception("Failed to update department", 500);
@@ -224,9 +227,13 @@ function deleteDepartment($db) {
         if (!$id) {
             throw new Exception("Department ID is required", 400);
         }
+
+        // Start transaction
+        $db->beginTransaction();
         
-        // Check if department exists and has no active divisions
-        $checkQuery = "SELECT d.id, COUNT(dv.id) as divisions_count 
+        // Check if department exists and get active divisions count
+        $checkQuery = "SELECT d.id, COUNT(dv.id) as divisions_count, 
+                             (SELECT COUNT(*) FROM public_users pu WHERE pu.department_id = d.id AND pu.status = 'active') as users_count 
                       FROM departments d 
                       LEFT JOIN divisions dv ON d.id = dv.department_id AND dv.status = 'active'
                       WHERE d.id = :id AND d.status = 'active'
@@ -237,31 +244,71 @@ function deleteDepartment($db) {
         
         $result = $checkStmt->fetch(PDO::FETCH_ASSOC);
         if (!$result) {
+            $db->rollBack();
             throw new Exception("Department not found", 404);
         }
         
+        // Check for active users or divisions
+        if ($result['users_count'] > 0) {
+            $db->rollBack();
+            throw new Exception("Cannot delete department with active users. Please reassign users first.", 409);
+        }
+
+        // If there are active divisions, deactivate them first
         if ($result['divisions_count'] > 0) {
-            throw new Exception("Cannot delete department with active divisions", 409);
+            // First check for active users in divisions
+            $checkUsersQuery = "SELECT COUNT(*) as user_count 
+                              FROM public_users pu 
+                              INNER JOIN divisions d ON pu.division_id = d.id 
+                              WHERE d.department_id = :dept_id 
+                              AND pu.status = 'active'";
+            $checkUsersStmt = $db->prepare($checkUsersQuery);
+            $checkUsersStmt->bindParam(":dept_id", $id);
+            $checkUsersStmt->execute();
+            $userResult = $checkUsersStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($userResult['user_count'] > 0) {
+                $db->rollBack();
+                throw new Exception("Cannot delete department. Please reassign users from its divisions first.", 409);
+            }
+            
+            // Deactivate all divisions in this department
+            $deactivateDivsQuery = "UPDATE divisions SET status = 'inactive' WHERE department_id = :dept_id AND status = 'active'";
+            $deactivateDivsStmt = $db->prepare($deactivateDivsQuery);
+            $deactivateDivsStmt->bindParam(":dept_id", $id);
+            if (!$deactivateDivsStmt->execute()) {
+                $db->rollBack();
+                throw new Exception("Failed to deactivate divisions", 500);
+            }
         }
         
+        // Finally, deactivate the department
         $query = "UPDATE departments SET status = 'inactive' WHERE id = :id";
         $stmt = $db->prepare($query);
         if (!$stmt) {
+            $db->rollBack();
             throw new Exception("Failed to prepare query", 500);
         }
 
         $stmt->bindParam(":id", $id);
         
         if (!$stmt->execute()) {
+            $db->rollBack();
             throw new Exception("Failed to delete department", 500);
         }
+        
+        // Commit all changes
+        $db->commit();
         
         http_response_code(200);
         echo json_encode([
             "status" => "success",
-            "message" => "Department deleted successfully"
+            "message" => "Department and associated divisions deactivated successfully"
         ]);
     } catch (Exception $e) {
+        if ($db && $db->inTransaction()) {
+            $db->rollBack();
+        }
         throw $e;
     }
 }

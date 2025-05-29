@@ -1,450 +1,186 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Camera, Upload, Search } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/api';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
-interface Department {
-  id: number;
-  name: string;
-  description?: string;
-  status?: string;
-}
-
-interface Division {
-  id: number;
-  name: string;
-  department_id: number;
-  description?: string;
-}
-
-interface ScannedUser {
-  id: string;
+interface ScanResult {
+  public_id: string;
   name: string;
   nic: string;
-  address?: string;
-  mobile?: string;
-  services?: ServiceHistory[];
-}
-
-interface ServiceHistory {
-  id: string;
-  date: string;
-  department: string;
-  division: string;
-  service: string;
-  status: 'completed' | 'pending' | 'processing';
+  timestamp: number;
 }
 
 const QRScanner = () => {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [scannedUser, setScannedUser] = useState<ScannedUser | null>(null);
-  const [manualInput, setManualInput] = useState('');
-  const [selectedServices, setSelectedServices] = useState<string[]>([]);
-  const [departments, setDepartments] = useState<{id: number; name: string; divisions: string[]}[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [lastScan, setLastScan] = useState<ScanResult | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const { toast } = useToast();
 
+  // Check camera permissions on mount
   useEffect(() => {
-    fetchDepartments();
+    checkCameraPermission();
+    return () => {
+      cleanupScanner();
+    };
   }, []);
 
-  const fetchDepartments = async () => {
+  const checkCameraPermission = async () => {
     try {
-      const deptResponse = await apiService.getDepartments() as Department[];
-      const divsResponse = await apiService.getDivisions() as Division[];
+      const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+      setHasPermission(permission.state === 'granted');
       
-      const departmentsWithDivisions = deptResponse.map(dept => ({
-        id: dept.id,
-        name: dept.name,
-        divisions: divsResponse
-          .filter(div => div.department_id === dept.id)
-          .map(div => div.name)
-      }));
-      
-      setDepartments(departmentsWithDivisions);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch departments and divisions",
-        variant: "destructive",
+      permission.addEventListener('change', () => {
+        setHasPermission(permission.state === 'granted');
       });
+    } catch (error) {
+      console.error('Error checking camera permission:', error);
+      // Fall back to requesting permission directly
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(track => track.stop());
+        setHasPermission(true);
+      } catch (err) {
+        console.error('Error requesting camera access:', err);
+        setHasPermission(false);
+      }
     }
   };
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsScanning(true);
+  const cleanupScanner = async () => {
+    if (scannerRef.current && isScanning) {
+      try {
+        await scannerRef.current.stop();
+        setIsScanning(false);
+      } catch (error) {
+        console.error('Error stopping scanner:', error);
       }
+    }
+  };
+
+  const initializeScanner = async () => {
+    try {
+      // Check and request camera permission if needed
+      if (!hasPermission) {
+        await checkCameraPermission();
+        if (!hasPermission) {
+          throw new Error("Camera permission denied");
+        }
+      }
+
+      // Initialize scanner if not already initialized
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode("qr-reader");
+      }
+
+      const devices = await Html5Qrcode.getCameras();
+      if (!devices || devices.length === 0) {
+        throw new Error("No camera devices found");
+      }
+
+      // QR Code success callback
+      const qrCodeSuccessCallback = async (decodedText: string) => {
+        try {
+          const result = JSON.parse(decodedText) as ScanResult;
+          setLastScan(result);
+          
+          // Record the scan
+          await apiService.recordQRScan({
+            public_user_id: parseInt(result.public_id.replace('PUB', ''), 10),
+            staff_user_id: 1, // Replace with actual staff ID from context
+            scan_purpose: 'verification',
+            scan_location: 'office'
+          });
+
+          toast({
+            title: "Success",
+            description: `Scanned ID: ${result.public_id}`,
+          });
+        } catch (error) {
+          console.error('Error processing QR code:', error);
+          toast({
+            title: "Error",
+            description: "Invalid QR code format",
+            variant: "destructive",
+          });
+        }
+      };
+
+      // Scanner configuration
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+      };
+
+      // Start the scanner
+      await scannerRef.current.start(
+        { deviceId: devices[0].id },
+        config,
+        qrCodeSuccessCallback,
+        (errorMessage: string) => {
+          // Only log scanning errors if we're still scanning
+          if (isScanning) {
+            console.debug('QR Scan error:', errorMessage);
+          }
+        }
+      );
+
+      setIsScanning(true);
     } catch (error) {
+      console.error('Error starting scanner:', error);
       toast({
         title: "Camera Error",
-        description: "Unable to access camera. Please check permissions.",
+        description: error instanceof Error 
+          ? error.message 
+          : "Failed to start QR scanner. Please check camera permissions.",
         variant: "destructive",
       });
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-      videoRef.current.srcObject = null;
       setIsScanning(false);
     }
   };
 
-  const handleManualInput = async () => {
-    if (!manualInput.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a Public ID",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const user = await apiService.getPublicUserById(manualInput.trim());
-      const serviceHistory = await apiService.getServiceHistory(user.id);
-      
-      const formattedServices = serviceHistory.map(entry => ({
-        id: entry.id.toString(),
-        date: new Date(entry.created_at).toLocaleDateString(),
-        department: entry.department_name || '',
-        division: entry.division_name || '',
-        service: entry.service_name,
-        status: entry.status
-      }));
-
-      setScannedUser({
-        id: user.public_id,
-        name: user.name,
-        nic: user.nic,
-        address: user.address,
-        mobile: user.mobile,
-        services: formattedServices
-      });
-
-      setIsDialogOpen(true);
-      setManualInput('');
-      toast({
-        title: "User Found",
-        description: `Loaded details for ${user.name}`,
-      });
-    } catch (error) {
-      toast({
-        title: "Not Found",
-        description: "Public ID not found in system",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const stopScanner = async () => {
+    await cleanupScanner();
   };
-
-  const handleServiceUpdate = (departmentName: string, divisionName: string) => {
-    const serviceKey = `${departmentName}-${divisionName}`;
-    setSelectedServices(prev => 
-      prev.includes(serviceKey) 
-        ? prev.filter(s => s !== serviceKey)
-        : [...prev, serviceKey]
-    );
-  };
-
-  const saveServiceUpdates = async () => {
-    if (!scannedUser || selectedServices.length === 0) {
-      toast({
-        title: "No Services Selected",
-        description: "Please select at least one service to update",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const staffUserId = parseInt(localStorage.getItem('userId') || '0');
-      
-      // Record QR scan
-      await apiService.recordQRScan({
-        public_user_id: parseInt(scannedUser.id.replace('PUB', '')),
-        staff_user_id: staffUserId,
-        scan_purpose: 'Service Update',
-        scan_location: 'Service Counter'
-      });
-
-      // Add service history entries
-      for (const serviceKey of selectedServices) {
-        const [departmentName, divisionName] = serviceKey.split('-');
-        const department = departments.find(d => d.name === departmentName);
-        if (!department) continue;
-
-        await apiService.addServiceHistory({
-          public_user_id: parseInt(scannedUser.id.replace('PUB', '')),
-          department_id: department.id,
-          division_id: departments
-            .find(d => d.name === departmentName)?.id || 0,
-          service_name: `${departmentName} - ${divisionName}`,
-          staff_user_id: staffUserId
-        });
-      }
-
-      // Create notification for the user
-      await apiService.createNotification({
-        recipient_id: parseInt(scannedUser.id.replace('PUB', '')),
-        recipient_type: 'public',
-        title: 'Services Updated',
-        message: `${selectedServices.length} service(s) have been updated for you.`,
-        type: 'success'
-      });
-
-      toast({
-        title: "Services Updated",
-        description: `Updated ${selectedServices.length} services for ${scannedUser?.name}`,
-      });
-      
-      setSelectedServices([]);
-      setIsDialogOpen(false);
-
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update services",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'text-green-600 bg-green-100';
-      case 'processing': return 'text-blue-600 bg-blue-100';
-      case 'pending': return 'text-yellow-600 bg-yellow-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, []);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-2xl font-bold text-gray-800">QR Code Scanner</h3>
-        <p className="text-gray-600 mt-2">Scan ID cards or enter Public ID manually</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Camera Scanner */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Camera className="mr-2" size={20} />
-              Camera Scanner
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="relative">
-              <video
-                ref={videoRef}
-                className="w-full h-48 bg-gray-200 rounded-lg"
-                autoPlay
-                playsInline
-                style={{ display: isScanning ? 'block' : 'none' }}
-              />
-              {!isScanning && (
-                <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center">
-                  <span className="text-gray-500">Camera preview will appear here</span>
-                </div>
-              )}
-              <canvas ref={canvasRef} className="hidden" />
-            </div>
-            <div className="flex space-x-2">
-              <Button 
-                onClick={startCamera}
-                disabled={isScanning}
-                className="flex-1"
-              >
-                Start Camera
-              </Button>
-              <Button 
-                onClick={stopCamera}
-                disabled={!isScanning}
-                variant="outline"
-                className="flex-1"
-              >
-                Stop Camera
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Manual Input */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Search className="mr-2" size={20} />
-              Manual Input
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="manual-id">Public ID</Label>
-              <Input
-                id="manual-id"
-                placeholder="Enter Public ID (e.g., PUB001)"
-                value={manualInput}
-                onChange={(e) => setManualInput(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleManualInput()}
-              />
-            </div>
-            <Button onClick={handleManualInput} className="w-full">
-              <Search className="mr-2" size={16} />
-              Search User
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* User Details Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Public User Details - {scannedUser?.name}</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-6">
-            {/* User Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <strong>Public ID:</strong> {scannedUser?.id}
-                  </div>
-                  <div>
-                    <strong>Full Name:</strong> {scannedUser?.name}
-                  </div>
-                  <div>
-                    <strong>NIC:</strong> {scannedUser?.nic}
-                  </div>
-                  <div>
-                    <strong>Mobile:</strong> {scannedUser?.mobile}
-                  </div>
-                  <div className="col-span-2">
-                    <strong>Address:</strong> {scannedUser?.address}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Service History */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Service History</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {scannedUser?.services && scannedUser.services.length > 0 ? (
-                  <div className="space-y-3">
-                    {scannedUser.services.map((service) => (
-                      <div key={service.id} className="border rounded-lg p-3">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-semibold">{service.service}</h4>
-                            <p className="text-sm text-gray-600">
-                              {service.department} - {service.division}
-                            </p>
-                            <p className="text-sm text-gray-500">{service.date}</p>
-                          </div>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(service.status)}`}>
-                            {service.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500">No service history found</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Service Updates */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Update Services</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {departments.map((department) => (
-                    <div key={department.id} className="border rounded-lg p-3">
-                      <h4 className="font-semibold mb-2">{department.name}</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        {department.divisions.map((division) => {
-                          const serviceKey = `${department.name}-${division}`;
-                          const isSelected = selectedServices.includes(serviceKey);
-                          
-                          return (
-                            <div
-                              key={division}
-                              className={`p-2 border rounded cursor-pointer transition-colors ${
-                                isSelected 
-                                  ? 'bg-blue-100 border-blue-500' 
-                                  : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                              }`}
-                              onClick={() => handleServiceUpdate(department.name, division)}
-                            >
-                              <div className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => {}}
-                                  className="mr-2"
-                                />
-                                <span className="text-sm">{division}</span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                  
-                  <Button 
-                    onClick={saveServiceUpdates}
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    disabled={selectedServices.length === 0}
-                  >
-                    Update Selected Services ({selectedServices.length})
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle>QR Code Scanner</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!hasPermission && (
+          <div className="mb-4 p-4 bg-yellow-100 rounded-md">
+            <p className="text-yellow-800">
+              Camera access is required for QR scanning. 
+              Please allow camera access when prompted.
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+        )}
+        
+        <div id="qr-reader" className="mb-4" />
+        
+        <Button
+          onClick={isScanning ? stopScanner : initializeScanner}
+          variant={isScanning ? "destructive" : "default"}
+        >
+          {isScanning ? "Stop Scanning" : "Start Scanning"}
+        </Button>
+
+        {lastScan && (
+          <div className="mt-4 p-4 bg-green-50 rounded-md">
+            <h3 className="font-semibold">Last Scan Result:</h3>
+            <p>ID: {lastScan.public_id}</p>
+            <p>Name: {lastScan.name}</p>
+            <p>NIC: {lastScan.nic}</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

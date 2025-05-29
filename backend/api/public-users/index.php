@@ -1,19 +1,49 @@
-
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
+include_once '../../config/error_handler.php';
+
+function generateQRCode($data) {
+    // Use chillerlan/php-qrcode library
+    require_once '../../vendor/autoload.php';
+    
+    $options = new \chillerlan\QRCode\QROptions([
+        'outputType' => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
+        'eccLevel' => \chillerlan\QRCode\QRCode::ECC_L,
+        'scale' => 5,
+        'imageBase64' => true,
+    ]);
+    
+    $qrcode = new \chillerlan\QRCode\QRCode($options);
+    
+    return $qrcode->render(json_encode($data));
+}
+
+function sendResponse($status, $data = null, $message = null) {
+    http_response_code($status);
+    echo json_encode([
+        'status' => $status >= 200 && $status < 300 ? 'success' : 'error',
+        'data' => $data,
+        'message' => $message
+    ]);
+    exit;
+}
 
 try {
     $database = new Database();
     $db = $database->getConnection();
 
     if (!$db) {
-        throw new Exception("Database connection failed");
+        sendResponse(500, null, "Database connection failed");
     }
 
     switch ($_SERVER['REQUEST_METHOD']) {
         case 'GET':
-            getPublicUsers($db);
+            if (isset($_GET['id'])) {
+                getPublicUserById($db, $_GET['id']);
+            } else {
+                getPublicUsers($db);
+            }
             break;
         case 'POST':
             createPublicUser($db);
@@ -25,16 +55,10 @@ try {
             deletePublicUser($db);
             break;
         default:
-            http_response_code(405);
-            echo json_encode(array("message" => "Method not allowed"));
-            break;
+            sendResponse(405, null, "Method not allowed");
     }
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(array(
-        "message" => "Server error",
-        "details" => $e->getMessage()
-    ));
+    sendResponse(500, null, $e->getMessage());
 }
 
 function getPublicUsers($db) {
@@ -48,148 +72,231 @@ function getPublicUsers($db) {
         
         $stmt = $db->prepare($query);
         
-        if (!$stmt) {
-            throw new Exception("Failed to prepare query");
-        }
-        
         if (!$stmt->execute()) {
-            throw new Exception("Failed to execute query");
+            throw new Exception("Failed to fetch public users");
         }
         
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        if ($users === false) {
-            throw new Exception("Failed to fetch results");
+        // Remove sensitive data
+        foreach ($users as &$user) {
+            unset($user['password_hash']);
         }
         
-        http_response_code(200);
-        echo json_encode(array(
-            "status" => "success",
-            "data" => $users
-        ));
-    } catch (PDOException $e) {
-        http_response_code(500);
-        echo json_encode(array(
-            "status" => "error",
-            "message" => "Database error",
-            "details" => $e->getMessage()
-        ));
+        sendResponse(200, $users);
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(array(
-            "status" => "error",
-            "message" => "Server error",
-            "details" => $e->getMessage()
-        ));
+        sendResponse(500, null, $e->getMessage());
+    }
+}
+
+function getPublicUserById($db, $id) {
+    try {
+        $query = "SELECT pu.*, d.name as department_name, dv.name as division_name 
+                  FROM public_users pu 
+                  LEFT JOIN departments d ON pu.department_id = d.id 
+                  LEFT JOIN divisions dv ON pu.division_id = dv.id 
+                  WHERE pu.id = :id";
+        
+        $stmt = $db->prepare($query);
+        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to fetch public user");
+        }
+        
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$user) {
+            sendResponse(404, null, "User not found");
+        }
+        
+        // Remove sensitive data
+        unset($user['password_hash']);
+        
+        sendResponse(200, $user);
+    } catch (Exception $e) {
+        sendResponse(500, null, $e->getMessage());
     }
 }
 
 function createPublicUser($db) {
-    $data = json_decode(file_get_contents("php://input"));
-    
-    if (!isset($data->name) || !isset($data->nic) || !isset($data->address) || !isset($data->mobile)) {
-        http_response_code(400);
-        echo json_encode(array("message" => "All required fields must be provided"));
-        return;
-    }
-    
     try {
-        // Generate public_id
-        $public_id = generatePublicId();
+        $data = json_decode(file_get_contents("php://input"));
         
-        $query = "INSERT INTO public_users (public_id, name, nic, address, mobile, email, department_id, division_id) 
-                  VALUES (:public_id, :name, :nic, :address, :mobile, :email, :department_id, :division_id)";
+        if (!isset($data->name) || !isset($data->nic) || !isset($data->address) || 
+            !isset($data->mobile) || !isset($data->email) || !isset($data->username) || 
+            !isset($data->password)) {
+            throw new Exception("All required fields must be provided", 400);
+        }
+        
+        $db->beginTransaction();
+        
+        // Generate next public_id
+        $stmt = $db->query("SELECT MAX(CAST(SUBSTRING(public_id, 4) AS UNSIGNED)) as max_id FROM public_users WHERE public_id REGEXP '^PUB[0-9]+$'");
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $nextId = ($result['max_id'] ?? 0) + 1;
+        $publicId = 'PUB' . str_pad($nextId, 5, '0', STR_PAD_LEFT);
+        
+        // Generate QR code data
+        $qrData = [
+            'public_id' => $publicId,
+            'name' => $data->name,
+            'nic' => $data->nic,
+            'mobile' => $data->mobile,
+            'timestamp' => time()
+        ];
+        
+        $qrCode = generateQRCode($qrData);
+        
+        // Hash password using Argon2id
+        $passwordHash = password_hash($data->password, PASSWORD_ARGON2ID);
+        
+        $query = "INSERT INTO public_users (
+            public_id, name, nic, address, mobile, email, username, password_hash,
+            qr_code, department_id, division_id, status
+        ) VALUES (
+            :public_id, :name, :nic, :address, :mobile, :email, :username, :password_hash,
+            :qr_code, :department_id, :division_id, 'active'
+        )";
+        
         $stmt = $db->prepare($query);
         
-        // Use bindValue instead of bindParam to avoid reference issues
-        $stmt->bindValue(":public_id", $public_id);
-        $stmt->bindValue(":name", $data->name);
-        $stmt->bindValue(":nic", $data->nic);
-        $stmt->bindValue(":address", $data->address);
-        $stmt->bindValue(":mobile", $data->mobile);
-        $stmt->bindValue(":email", $data->email ?? null);
-        $stmt->bindValue(":department_id", $data->department_id ?? null);
-        $stmt->bindValue(":division_id", $data->division_id ?? null);
+        $stmt->bindValue(':public_id', $publicId);
+        $stmt->bindValue(':name', $data->name);
+        $stmt->bindValue(':nic', $data->nic);
+        $stmt->bindValue(':address', $data->address);
+        $stmt->bindValue(':mobile', $data->mobile);
+        $stmt->bindValue(':email', $data->email);
+        $stmt->bindValue(':username', $data->username);
+        $stmt->bindValue(':password_hash', $passwordHash);
+        $stmt->bindValue(':qr_code', $qrCode);
+        $stmt->bindValue(':department_id', $data->department_id ?? null);
+        $stmt->bindValue(':division_id', $data->division_id ?? null);
         
-        if ($stmt->execute()) {
-            http_response_code(201);
-            echo json_encode(array("message" => "Public user created successfully", "public_id" => $public_id));
-        } else {
-            http_response_code(400);
-            echo json_encode(array("message" => "Failed to create public user"));
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to create public user");
         }
+        
+        $userId = $db->lastInsertId();
+        $db->commit();
+        
+        // Fetch created user
+        $query = "SELECT * FROM public_users WHERE id = :id";
+        $stmt = $db->prepare($query);
+        $stmt->bindValue(':id', $userId);
+        $stmt->execute();
+        
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        unset($user['password_hash']);
+        
+        sendResponse(201, $user);
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $e->getMessage()));
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        sendResponse(500, null, $e->getMessage());
     }
-}
-
-function generatePublicId() {
-    $timestamp = time();
-    $random = rand(100, 999);
-    return 'PUB' . substr($timestamp, -4) . $random;
 }
 
 function updatePublicUser($db) {
-    $data = json_decode(file_get_contents("php://input"));
-    
-    if (!isset($data->id)) {
-        http_response_code(400);
-        echo json_encode(array("message" => "Public user ID is required"));
-        return;
-    }
-    
     try {
-        $query = "UPDATE public_users SET name = :name, nic = :nic, address = :address, mobile = :mobile, email = :email, department_id = :department_id, division_id = :division_id WHERE id = :id";
+        $data = json_decode(file_get_contents("php://input"));
+        
+        if (!isset($data->id)) {
+            throw new Exception("User ID is required", 400);
+        }
+        
+        $db->beginTransaction();
+        
+        $updates = [];
+        $params = [':id' => $data->id];
+        
+        // Build dynamic update query
+        if (isset($data->name)) $updates[] = "name = :name";
+        if (isset($data->nic)) $updates[] = "nic = :nic";
+        if (isset($data->address)) $updates[] = "address = :address";
+        if (isset($data->mobile)) $updates[] = "mobile = :mobile";
+        if (isset($data->email)) $updates[] = "email = :email";
+        if (isset($data->username)) $updates[] = "username = :username";
+        if (isset($data->password)) {
+            $updates[] = "password_hash = :password_hash";
+            $params[':password_hash'] = password_hash($data->password, PASSWORD_ARGON2ID);
+        }
+        if (isset($data->department_id)) $updates[] = "department_id = :department_id";
+        if (isset($data->division_id)) $updates[] = "division_id = :division_id";
+        if (isset($data->status)) $updates[] = "status = :status";
+        
+        if (empty($updates)) {
+            throw new Exception("No fields to update", 400);
+        }
+        
+        $query = "UPDATE public_users SET " . implode(", ", $updates) . " WHERE id = :id";
         $stmt = $db->prepare($query);
         
-        // Use bindValue instead of bindParam
-        $stmt->bindValue(":id", $data->id);
-        $stmt->bindValue(":name", $data->name);
-        $stmt->bindValue(":nic", $data->nic);
-        $stmt->bindValue(":address", $data->address);
-        $stmt->bindValue(":mobile", $data->mobile);
-        $stmt->bindValue(":email", $data->email);
-        $stmt->bindValue(":department_id", $data->department_id);
-        $stmt->bindValue(":division_id", $data->division_id);
-        
-        if ($stmt->execute()) {
-            http_response_code(200);
-            echo json_encode(array("message" => "Public user updated successfully"));
-        } else {
-            http_response_code(400);
-            echo json_encode(array("message" => "Failed to update public user"));
+        // Bind parameters
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
         }
+        
+        // Bind remaining parameters from data object
+        if (isset($data->name)) $stmt->bindValue(':name', $data->name);
+        if (isset($data->nic)) $stmt->bindValue(':nic', $data->nic);
+        if (isset($data->address)) $stmt->bindValue(':address', $data->address);
+        if (isset($data->mobile)) $stmt->bindValue(':mobile', $data->mobile);
+        if (isset($data->email)) $stmt->bindValue(':email', $data->email);
+        if (isset($data->username)) $stmt->bindValue(':username', $data->username);
+        if (isset($data->department_id)) $stmt->bindValue(':department_id', $data->department_id);
+        if (isset($data->division_id)) $stmt->bindValue(':division_id', $data->division_id);
+        if (isset($data->status)) $stmt->bindValue(':status', $data->status);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to update public user");
+        }
+        
+        $db->commit();
+        
+        // Fetch updated user
+        $query = "SELECT pu.*, d.name as department_name, dv.name as division_name 
+                  FROM public_users pu 
+                  LEFT JOIN departments d ON pu.department_id = d.id 
+                  LEFT JOIN divisions dv ON pu.division_id = dv.id 
+                  WHERE pu.id = :id";
+        
+        $stmt = $db->prepare($query);
+        $stmt->bindValue(':id', $data->id);
+        $stmt->execute();
+        
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        unset($user['password_hash']);
+        
+        sendResponse(200, $user);
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $e->getMessage()));
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        sendResponse(500, null, $e->getMessage());
     }
 }
 
 function deletePublicUser($db) {
-    $id = $_GET['id'] ?? null;
-    
-    if (!$id) {
-        http_response_code(400);
-        echo json_encode(array("message" => "Public user ID is required"));
-        return;
-    }
-    
     try {
+        $data = json_decode(file_get_contents("php://input"));
+        
+        if (!isset($data->id)) {
+            throw new Exception("User ID is required", 400);
+        }
+        
         $query = "UPDATE public_users SET status = 'inactive' WHERE id = :id";
         $stmt = $db->prepare($query);
-        $stmt->bindValue(":id", $id);
+        $stmt->bindValue(':id', $data->id);
         
-        if ($stmt->execute()) {
-            http_response_code(200);
-            echo json_encode(array("message" => "Public user deleted successfully"));
-        } else {
-            http_response_code(400);
-            echo json_encode(array("message" => "Failed to delete public user"));
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to delete public user");
         }
+        
+        sendResponse(200, null, "User deleted successfully");
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $e->getMessage()));
+        sendResponse(500, null, $e->getMessage());
     }
 }
 ?>

@@ -1,4 +1,3 @@
-
 import { authService } from './authService';
 import { departmentService } from './departmentService';
 import { userService } from './userService';
@@ -10,6 +9,7 @@ export type { Department } from './departmentService';
 export type { User } from './userService';
 export type { Notification } from './notificationService';
 
+// Internal interfaces
 interface LoginData {
   username: string;
   password: string;
@@ -23,6 +23,8 @@ interface Token {
   division_id: number;
   department_name: string;
   division_name: string;
+  public_user_name?: string;
+  public_id?: string;
   status: 'active' | 'called' | 'completed';
   created_at: string;
 }
@@ -48,11 +50,28 @@ interface PublicUser {
   address: string;
   mobile: string;
   email: string;
+  username: string;
   department_id?: number;
   division_id?: number;
+  department_name?: string;
+  division_name?: string;
+  qr_code?: string;
   status: string;
   created_at: string;
 }
+
+// Export types that are needed by other modules
+export interface Division {
+  id: number;
+  name: string;
+  department_id: number;
+  department_name: string;
+  description?: string;
+  status: string;
+  created_at: string;
+}
+
+export { type LoginData, type Token, type ServiceHistory, type PublicUser };
 
 class ApiService extends ApiBase {
   // Auth methods
@@ -78,31 +97,33 @@ class ApiService extends ApiBase {
   }
 
   // Division methods
-  async getDivisions(): Promise<any[]> {
+  async getDivisions(): Promise<Division[]> {
     try {
-      const response = await this.makeRequest('/divisions/index.php');
-      return Array.isArray(response) ? response : [];
+      const response = await this.makeRequest('/divisions/index.php', {
+        method: 'GET',
+      });
+      return response as Division[];
     } catch (error) {
       console.error('Error fetching divisions:', error);
       return [];
     }
   }
 
-  async createDivision(data: { name: string; department_id: number; description?: string }) {
+  async createDivision(data: { name: string; department_id: number; description?: string }): Promise<Response> {
     return this.makeRequest('/divisions/index.php', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updateDivision(data: { id: number; name: string; department_id: number; description?: string }) {
+  async updateDivision(data: { id: number; name: string; department_id: number; description?: string }): Promise<Response> {
     return this.makeRequest('/divisions/index.php', {
       method: 'PUT',
       body: JSON.stringify(data),
     });
   }
 
-  async deleteDivision(id: number) {
+  async deleteDivision(id: number): Promise<Response> {
     return this.makeRequest(`/divisions/index.php?id=${id}`, {
       method: 'DELETE',
     });
@@ -111,6 +132,11 @@ class ApiService extends ApiBase {
   // User methods - delegate to userService
   async getUsers() {
     return userService.getUsers();
+  }
+
+  // Add password update method
+  async updatePassword(data: { id: number; currentPassword: string; newPassword: string }) {
+    return authService.updatePassword(data);
   }
 
   async createUser(data: {
@@ -148,16 +174,36 @@ class ApiService extends ApiBase {
   async getPublicUsers(): Promise<PublicUser[]> {
     try {
       const response = await this.makeRequest('/public-users/index.php');
-      return Array.isArray(response) ? response : [];
+      if (!response) {
+        throw new Error('No response from server');
+      }
+      if (response.status === 'error') {
+        throw new Error(response.message || 'Failed to fetch public users');
+      }
+      if (response.status === 'success' && Array.isArray(response.data)) {
+        return response.data.map((user: PublicUser) => ({
+          ...user,
+          created_at: user.created_at || new Date().toISOString()
+        }));
+      }
+      throw new Error('Invalid response format');
     } catch (error) {
       console.error('Error fetching public users:', error);
-      return [];
+      throw error;
     }
   }
 
-  async getPublicUserById(id: string): Promise<PublicUser> {
-    const response = await this.makeRequest(`/public-users/index.php?id=${id}`);
-    return response;
+  async getPublicUserById(id: string): Promise<PublicUser | null> {
+    try {
+      const response = await this.makeRequest(`/public-users/index.php?id=${id}`);
+      if (response?.status === 'success' && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching public user:', error);
+      throw error;
+    }
   }
 
   async createPublicUser(data: {
@@ -165,14 +211,22 @@ class ApiService extends ApiBase {
     nic: string;
     address: string;
     mobile: string;
-    email?: string;
+    email: string;
+    username: string;
+    password: string;
     department_id?: number;
     division_id?: number;
-  }) {
-    return this.makeRequest('/public-users/index.php', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+  }): Promise<{ status: string; data?: PublicUser; message?: string }> {
+    try {
+      const response = await this.makeRequest('/public-users/index.php', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      return response;
+    } catch (error) {
+      console.error('Error creating public user:', error);
+      throw error;
+    }
   }
 
   // Notification methods - delegate to notificationService
@@ -206,19 +260,42 @@ class ApiService extends ApiBase {
       return [];
     }
   }
+  async createToken(data: { department_id: number; division_id: number }): Promise<{ token_number: number; token_id: number }> {
+    try {
+      const response = await this.makeRequest('/tokens/index.php', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      
+      if (!response || typeof response !== 'object' || !response.token_number || !response.token_id) {
+        throw new Error('Invalid response format from server');
+      }
 
-  async createToken(data: { department_id: number; division_id: number }) {
-    return this.makeRequest('/tokens/index.php', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+      return {
+        token_number: response.token_number,
+        token_id: response.token_id
+      };
+    } catch (error) {
+      console.error('Error creating token:', error);
+      throw error;
+    }
   }
+  async updateToken(data: { id: number; status: 'active' | 'called' | 'completed' }) {
+    try {
+      const response = await this.makeRequest('/tokens/index.php', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
 
-  async updateToken(data: { id: number; status: string }) {
-    return this.makeRequest('/tokens/index.php', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
+      if (!response || typeof response !== 'object') {
+        throw new Error('Invalid response from server');
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Error updating token:', error);
+      throw error;
+    }
   }
 
   // Service history methods
@@ -260,4 +337,3 @@ class ApiService extends ApiBase {
 }
 
 export const apiService = new ApiService();
-export type { LoginData, Token, ServiceHistory, PublicUser };

@@ -1,0 +1,6 @@
+{
+    "require": {
+        "php": ">=7.4",
+        "chillerlan/php-qrcode": "^4.3"
+    }
+}
