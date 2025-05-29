@@ -1,3 +1,4 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -170,8 +171,8 @@ function createPublicUser($db) {
         $stmt->bindValue(':username', $data->username);
         $stmt->bindValue(':password_hash', $passwordHash);
         $stmt->bindValue(':qr_code', $qrCode);
-        $stmt->bindValue(':department_id', $data->department_id ?? null);
-        $stmt->bindValue(':division_id', $data->division_id ?? null);
+        $stmt->bindValue(':department_id', isset($data->department_id) ? $data->department_id : null);
+        $stmt->bindValue(':division_id', isset($data->division_id) ? $data->division_id : null);
         
         if (!$stmt->execute()) {
             throw new Exception("Failed to create public user");
@@ -212,19 +213,46 @@ function updatePublicUser($db) {
         $params = [':id' => $data->id];
         
         // Build dynamic update query
-        if (isset($data->name)) $updates[] = "name = :name";
-        if (isset($data->nic)) $updates[] = "nic = :nic";
-        if (isset($data->address)) $updates[] = "address = :address";
-        if (isset($data->mobile)) $updates[] = "mobile = :mobile";
-        if (isset($data->email)) $updates[] = "email = :email";
-        if (isset($data->username)) $updates[] = "username = :username";
+        if (isset($data->name)) {
+            $updates[] = "name = :name";
+            $params[':name'] = $data->name;
+        }
+        if (isset($data->nic)) {
+            $updates[] = "nic = :nic";
+            $params[':nic'] = $data->nic;
+        }
+        if (isset($data->address)) {
+            $updates[] = "address = :address";
+            $params[':address'] = $data->address;
+        }
+        if (isset($data->mobile)) {
+            $updates[] = "mobile = :mobile";
+            $params[':mobile'] = $data->mobile;
+        }
+        if (isset($data->email)) {
+            $updates[] = "email = :email";
+            $params[':email'] = $data->email;
+        }
+        if (isset($data->username)) {
+            $updates[] = "username = :username";
+            $params[':username'] = $data->username;
+        }
         if (isset($data->password)) {
             $updates[] = "password_hash = :password_hash";
             $params[':password_hash'] = password_hash($data->password, PASSWORD_ARGON2ID);
         }
-        if (isset($data->department_id)) $updates[] = "department_id = :department_id";
-        if (isset($data->division_id)) $updates[] = "division_id = :division_id";
-        if (isset($data->status)) $updates[] = "status = :status";
+        if (isset($data->department_id)) {
+            $updates[] = "department_id = :department_id";
+            $params[':department_id'] = $data->department_id;
+        }
+        if (isset($data->division_id)) {
+            $updates[] = "division_id = :division_id";
+            $params[':division_id'] = $data->division_id;
+        }
+        if (isset($data->status)) {
+            $updates[] = "status = :status";
+            $params[':status'] = $data->status;
+        }
         
         if (empty($updates)) {
             throw new Exception("No fields to update", 400);
@@ -233,23 +261,7 @@ function updatePublicUser($db) {
         $query = "UPDATE public_users SET " . implode(", ", $updates) . " WHERE id = :id";
         $stmt = $db->prepare($query);
         
-        // Bind parameters
-        foreach ($params as $key => $value) {
-            $stmt->bindValue($key, $value);
-        }
-        
-        // Bind remaining parameters from data object
-        if (isset($data->name)) $stmt->bindValue(':name', $data->name);
-        if (isset($data->nic)) $stmt->bindValue(':nic', $data->nic);
-        if (isset($data->address)) $stmt->bindValue(':address', $data->address);
-        if (isset($data->mobile)) $stmt->bindValue(':mobile', $data->mobile);
-        if (isset($data->email)) $stmt->bindValue(':email', $data->email);
-        if (isset($data->username)) $stmt->bindValue(':username', $data->username);
-        if (isset($data->department_id)) $stmt->bindValue(':department_id', $data->department_id);
-        if (isset($data->division_id)) $stmt->bindValue(':division_id', $data->division_id);
-        if (isset($data->status)) $stmt->bindValue(':status', $data->status);
-        
-        if (!$stmt->execute()) {
+        if (!$stmt->execute($params)) {
             throw new Exception("Failed to update public user");
         }
         

@@ -73,7 +73,9 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
       const response = await apiService.createToken({
         department_id: department.id,
         division_id: division.id
-      });      if (!response || typeof response !== 'object') {
+      });
+
+      if (!response || typeof response !== 'object') {
         throw new Error("Invalid response from server");
       }
 
@@ -89,7 +91,7 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
       });
 
       onTokenGenerated();
-      printToken(response.token_number, selectedDepartment, selectedDivision);
+      printTokenXP58(token_number, selectedDepartment, selectedDivision);
     } catch (error) {
       toast({
         title: "Error",
@@ -100,34 +102,98 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
     }
   };
 
-  const printToken = (tokenNumber: number, department: string, division: string) => {
+  // XP-58 thermal printer format (58mm width)
+  const printTokenXP58 = (tokenNumber: number, department: string, division: string) => {
+    const now = new Date();
+    const tokenStr = tokenNumber.toString().padStart(3, '0');
+    
+    // XP-58 specific formatting - 32 characters per line at standard font
     const printContent = `
-      ================================
-           DIVISIONAL SECRETARIAT
-                KALMUNAI
-      ================================
-      
-      TOKEN NUMBER: ${tokenNumber.toString().padStart(3, '0')}
-      
-      Department: ${department}
-      Division: ${division}
-      
-      Date & Time: ${new Date().toLocaleString()}
-      
-      Please wait for your number to
-      be called.
-      
-      ================================
-      Thank you for your patience
-      ================================
+${centerText('DIVISIONAL SECRETARIAT', 32)}
+${centerText('KALMUNAI', 32)}
+${'='.repeat(32)}
+
+${centerText('TOKEN NUMBER', 32)}
+${centerText(tokenStr, 32)}
+
+Division: ${division.length > 22 ? division.substring(0, 19) + '...' : division}
+Date: ${now.toLocaleDateString()}
+Time: ${now.toLocaleTimeString()}
+
+${'='.repeat(32)}
+${centerText('Please wait for your', 32)}
+${centerText('number to be called', 32)}
+${'='.repeat(32)}
+
+${centerText('Thank you', 32)}
     `;
 
-    console.log('Printing token:', printContent);
+    // For actual thermal printer integration, you would send this to the printer driver
+    // For now, we'll simulate by logging and creating a download
+    console.log('XP-58 Thermal Print Content:', printContent);
+    
+    // Create downloadable receipt format
+    createPrintableReceipt(printContent, tokenStr);
     
     toast({
       title: "Token Printed",
-      description: "Token sent to thermal printer",
+      description: "Token formatted for XP-58 thermal printer",
     });
+  };
+
+  const centerText = (text: string, width: number): string => {
+    const padding = Math.max(0, Math.floor((width - text.length) / 2));
+    return ' '.repeat(padding) + text;
+  };
+
+  const createPrintableReceipt = (content: string, tokenNumber: string) => {
+    // Create a printable HTML version that matches thermal printer output
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Token ${tokenNumber}</title>
+            <style>
+              body {
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+                line-height: 1.2;
+                margin: 0;
+                padding: 10px;
+                width: 58mm;
+                background: white;
+              }
+              pre {
+                margin: 0;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+              }
+              @media print {
+                body { 
+                  font-size: 10px;
+                  width: 58mm;
+                  margin: 0;
+                  padding: 5px;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <pre>${content}</pre>
+            <script>
+              window.onload = function() {
+                window.print();
+                setTimeout(function() {
+                  window.close();
+                }, 1000);
+              }
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
   };
 
   const getFilteredDivisions = () => {
@@ -142,7 +208,7 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
       <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-t-lg">
         <CardTitle className="flex items-center text-purple-800">
           <Ticket className="mr-2" size={20} />
-          Generate New Token
+          Generate Token (XP-58 Format)
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
@@ -193,6 +259,16 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
               Generate & Print
             </Button>
           </div>
+        </div>
+
+        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">XP-58 Thermal Printer Info:</h4>
+          <ul className="text-xs text-gray-600 space-y-1">
+            <li>• Paper width: 58mm</li>
+            <li>• Auto-cut after printing</li>
+            <li>• Token numbers reset daily at midnight</li>
+            <li>• Supports USB and Bluetooth connectivity</li>
+          </ul>
         </div>
       </CardContent>
     </Card>
