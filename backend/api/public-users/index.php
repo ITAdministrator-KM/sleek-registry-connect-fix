@@ -100,14 +100,16 @@ function createPublicUser($db) {
         $query = "INSERT INTO public_users (public_id, name, nic, address, mobile, email, department_id, division_id) 
                   VALUES (:public_id, :name, :nic, :address, :mobile, :email, :department_id, :division_id)";
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":public_id", $public_id);
-        $stmt->bindParam(":name", $data->name);
-        $stmt->bindParam(":nic", $data->nic);
-        $stmt->bindParam(":address", $data->address);
-        $stmt->bindParam(":mobile", $data->mobile);
-        $stmt->bindParam(":email", $data->email ?? null);
-        $stmt->bindParam(":department_id", $data->department_id ?? null);
-        $stmt->bindParam(":division_id", $data->division_id ?? null);
+        
+        // Use bindValue instead of bindParam to avoid reference issues
+        $stmt->bindValue(":public_id", $public_id);
+        $stmt->bindValue(":name", $data->name);
+        $stmt->bindValue(":nic", $data->nic);
+        $stmt->bindValue(":address", $data->address);
+        $stmt->bindValue(":mobile", $data->mobile);
+        $stmt->bindValue(":email", $data->email ?? null);
+        $stmt->bindValue(":department_id", $data->department_id ?? null);
+        $stmt->bindValue(":division_id", $data->division_id ?? null);
         
         if ($stmt->execute()) {
             http_response_code(201);
@@ -140,14 +142,16 @@ function updatePublicUser($db) {
     try {
         $query = "UPDATE public_users SET name = :name, nic = :nic, address = :address, mobile = :mobile, email = :email, department_id = :department_id, division_id = :division_id WHERE id = :id";
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":id", $data->id);
-        $stmt->bindParam(":name", $data->name);
-        $stmt->bindParam(":nic", $data->nic);
-        $stmt->bindParam(":address", $data->address);
-        $stmt->bindParam(":mobile", $data->mobile);
-        $stmt->bindParam(":email", $data->email);
-        $stmt->bindParam(":department_id", $data->department_id);
-        $stmt->bindParam(":division_id", $data->division_id);
+        
+        // Use bindValue instead of bindParam
+        $stmt->bindValue(":id", $data->id);
+        $stmt->bindValue(":name", $data->name);
+        $stmt->bindValue(":nic", $data->nic);
+        $stmt->bindValue(":address", $data->address);
+        $stmt->bindValue(":mobile", $data->mobile);
+        $stmt->bindValue(":email", $data->email);
+        $stmt->bindValue(":department_id", $data->department_id);
+        $stmt->bindValue(":division_id", $data->division_id);
         
         if ($stmt->execute()) {
             http_response_code(200);
@@ -174,7 +178,7 @@ function deletePublicUser($db) {
     try {
         $query = "UPDATE public_users SET status = 'inactive' WHERE id = :id";
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":id", $id);
+        $stmt->bindValue(":id", $id);
         
         if ($stmt->execute()) {
             http_response_code(200);

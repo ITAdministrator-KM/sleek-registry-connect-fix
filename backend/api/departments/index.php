@@ -1,3 +1,4 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -33,10 +34,15 @@ try {
     }
 
     $token = $matches[1];
-    list($payload, $signature) = explode('.', $token);
-    $payload = json_decode(base64_decode($payload), true);
+    $tokenParts = explode('.', $token);
     
-    if (!$payload || $payload['exp'] < time()) {
+    if (count($tokenParts) !== 3) {
+        throw new Exception("Invalid token format", 401);
+    }
+    
+    $payload = json_decode(base64_decode($tokenParts[1]), true);
+    
+    if (!$payload || !isset($payload['exp']) || $payload['exp'] < time()) {
         throw new Exception("Token expired or invalid", 401);
     }
 
