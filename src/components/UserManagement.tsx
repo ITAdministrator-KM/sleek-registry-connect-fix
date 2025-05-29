@@ -55,10 +55,11 @@ const UserManagement = () => {
     try {
       setIsLoading(true);
       const response = await apiService.getUsers();
-      // Transform service users to component users with created_at field
+      // Transform service users to component users with proper typing
       const transformedUsers: User[] = response.map((serviceUser: ServiceUser) => ({
         ...serviceUser,
         user_id: serviceUser.user_id || `USR-${serviceUser.id}`,
+        role: serviceUser.role as UserRole, // Type cast to UserRole
         created_at: new Date().toISOString().split('T')[0] // Add default created_at
       }));
       setUsers(transformedUsers);
