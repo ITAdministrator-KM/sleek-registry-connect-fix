@@ -1,14 +1,32 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Building, FileText, Settings, LogOut, Menu, X, Plus } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Building, 
+  Users, 
+  Settings, 
+  LogOut, 
+  Menu, 
+  X, 
+  Home,
+  Ticket,
+  Bell,
+  UserPlus,
+  FileText
+} from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import DepartmentManagement from '@/components/DepartmentManagement';
 import DivisionManagement from '@/components/DivisionManagement';
 import UserManagement from '@/components/UserManagement';
 import AccountSettings from '@/components/AccountSettings';
+import TokenManagement from '@/components/TokenManagement';
+import NotificationManagement from '@/components/NotificationManagement';
+import PublicAccountCreation from '@/components/PublicAccountCreation';
 import NotificationBell from '@/components/NotificationBell';
+import DashboardStats from '@/components/DashboardStats';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -19,7 +37,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     const role = localStorage.getItem('userRole');
-    const user = localStorage.getItem('username');
+    const user = localStorage.getItem('username') || localStorage.getItem('userFullName');
     
     if (role !== 'admin') {
       navigate('/login');
@@ -34,6 +52,9 @@ const AdminDashboard = () => {
   const handleLogout = () => {
     localStorage.removeItem('userRole');
     localStorage.removeItem('username');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userFullName');
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
@@ -42,10 +63,13 @@ const AdminDashboard = () => {
   };
 
   const menuItems = [
-    { id: 'overview', label: 'Overview', icon: Building },
+    { id: 'overview', label: 'Dashboard Overview', icon: Home },
     { id: 'departments', label: 'Departments', icon: Building },
     { id: 'divisions', label: 'Divisions', icon: FileText },
     { id: 'users', label: 'User Management', icon: Users },
+    { id: 'tokens', label: 'Token Management', icon: Ticket },
+    { id: 'public-users', label: 'Public Accounts', icon: UserPlus },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'settings', label: 'Account Settings', icon: Settings },
   ];
 
@@ -54,75 +78,38 @@ const AdminDashboard = () => {
       case 'overview':
         return (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Total Departments</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">12</div>
-                  <p className="text-blue-100">Active departments</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Total Divisions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">28</div>
-                  <p className="text-green-100">Active divisions</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Total Users</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">156</div>
-                  <p className="text-purple-100">Registered users</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Active Staff</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">42</div>
-                  <p className="text-orange-100">Staff members</p>
-                </CardContent>
-              </Card>
+            <div>
+              <h2 className="text-3xl font-bold text-gray-800">Admin Dashboard</h2>
+              <p className="text-gray-600 mt-2">Overview of system statistics and activities</p>
             </div>
-
+            <DashboardStats />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Recent Activities</CardTitle>
-                  <CardDescription>Latest system activities</CardDescription>
+                  <CardDescription>Latest system activities and updates</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
-                      <Users className="text-blue-600" size={20} />
+                      <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
                       <div>
-                        <p className="font-medium">New user registered</p>
-                        <p className="text-sm text-gray-500">John Doe - 2 hours ago</p>
+                        <p className="text-sm font-medium">New department created</p>
+                        <p className="text-xs text-gray-500">5 minutes ago</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
-                      <Building className="text-green-600" size={20} />
+                      <div className="h-2 w-2 bg-green-600 rounded-full"></div>
                       <div>
-                        <p className="font-medium">Department created</p>
-                        <p className="text-sm text-gray-500">Health Services - 4 hours ago</p>
+                        <p className="text-sm font-medium">Staff user added</p>
+                        <p className="text-xs text-gray-500">15 minutes ago</p>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-3 p-3 bg-purple-50 rounded-lg">
-                      <FileText className="text-purple-600" size={20} />
+                    <div className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg">
+                      <div className="h-2 w-2 bg-yellow-600 rounded-full"></div>
                       <div>
-                        <p className="font-medium">Document uploaded</p>
-                        <p className="text-sm text-gray-500">Policy document - 6 hours ago</p>
+                        <p className="text-sm font-medium">Token system updated</p>
+                        <p className="text-xs text-gray-500">1 hour ago</p>
                       </div>
                     </div>
                   </div>
@@ -134,27 +121,30 @@ const AdminDashboard = () => {
                   <CardTitle>Quick Actions</CardTitle>
                   <CardDescription>Common administrative tasks</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-3">
                   <Button 
-                    onClick={() => setActiveTab('departments')}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center space-x-2"
+                    onClick={() => setActiveTab('departments')} 
+                    className="w-full justify-start"
+                    variant="outline"
                   >
-                    <Plus size={20} />
-                    <span>Add New Department</span>
+                    <Building className="mr-2" size={16} />
+                    Manage Departments
                   </Button>
                   <Button 
-                    onClick={() => setActiveTab('divisions')}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white flex items-center space-x-2"
+                    onClick={() => setActiveTab('users')} 
+                    className="w-full justify-start"
+                    variant="outline"
                   >
-                    <Plus size={20} />
-                    <span>Add New Division</span>
+                    <Users className="mr-2" size={16} />
+                    Add New User
                   </Button>
                   <Button 
-                    onClick={() => setActiveTab('users')}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white flex items-center space-x-2"
+                    onClick={() => setActiveTab('tokens')} 
+                    className="w-full justify-start"
+                    variant="outline"
                   >
-                    <Plus size={20} />
-                    <span>Add New User</span>
+                    <Ticket className="mr-2" size={16} />
+                    Token Management
                   </Button>
                 </CardContent>
               </Card>
@@ -167,10 +157,16 @@ const AdminDashboard = () => {
         return <DivisionManagement />;
       case 'users':
         return <UserManagement />;
+      case 'tokens':
+        return <TokenManagement />;
+      case 'public-users':
+        return <PublicAccountCreation />;
+      case 'notifications':
+        return <NotificationManagement />;
       case 'settings':
         return <AccountSettings />;
       default:
-        return <div>Content not found</div>;
+        return <div>Select a menu item</div>;
     }
   };
 
@@ -188,7 +184,7 @@ const AdminDashboard = () => {
             {sidebarOpen && (
               <div>
                 <h1 className="text-xl font-bold text-gray-800">DSK Admin</h1>
-                <p className="text-sm text-gray-500">Admin Dashboard</p>
+                <p className="text-sm text-gray-500">Administrative Panel</p>
               </div>
             )}
           </div>
@@ -197,7 +193,7 @@ const AdminDashboard = () => {
         <nav className="flex-1 p-4">
           <ul className="space-y-2">
             {menuItems.map((item) => {
-              const Icon = item.icon;
+              const IconComponent = item.icon;
               return (
                 <li key={item.id}>
                   <button
@@ -208,7 +204,7 @@ const AdminDashboard = () => {
                         : 'text-gray-700 hover:bg-gray-100'
                     }`}
                   >
-                    <Icon size={20} />
+                    <IconComponent size={20} />
                     {sidebarOpen && <span>{item.label}</span>}
                   </button>
                 </li>

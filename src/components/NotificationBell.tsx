@@ -1,15 +1,11 @@
 
 import { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { apiService, type Notification } from '@/services/api';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { apiService, Notification } from '@/services/api';
 
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -17,96 +13,108 @@ const NotificationBell = () => {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const fetchNotifications = async () => {
     try {
-      const userId = parseInt(localStorage.getItem('userId') || '0');
+      const userId = localStorage.getItem('userId');
       const userRole = localStorage.getItem('userRole');
+      
       if (!userId) return;
 
-      const notifs = await apiService.getNotifications(
-        userId,
-        userRole === 'staff' ? 'staff' : 'public'
+      const response = await apiService.getNotifications(
+        parseInt(userId), 
+        userRole as 'public' | 'staff'
       );
       
-      setNotifications(notifs);
-      setUnreadCount(notifs.filter(n => !n.is_read).length);
+      // Ensure response is an array and properly typed
+      const notificationsList = Array.isArray(response) ? response as Notification[] : [];
+      setNotifications(notificationsList);
+      
+      const unreadNotifications = notificationsList.filter(n => !n.is_read);
+      setUnreadCount(unreadNotifications.length);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
     }
   };
 
-  const handleNotificationClick = async (notificationId: number) => {
+  const markAsRead = async (notificationId: number) => {
     try {
       await apiService.markNotificationAsRead(notificationId);
-      setNotifications(prev => 
-        prev.map(n => 
-          n.id === notificationId ? { ...n, is_read: true } : n
-        )
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      await fetchNotifications(); // Refresh the list
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
   };
 
-  const getNotificationStyles = (type: Notification['type']) => {
+  const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'success': return 'text-green-600 bg-green-50';
-      case 'warning': return 'text-yellow-600 bg-yellow-50';
-      case 'error': return 'text-red-600 bg-red-50';
-      default: return 'text-blue-600 bg-blue-50';
+      case 'success': return '✅';
+      case 'warning': return '⚠️';
+      case 'error': return '❌';
+      default: return 'ℹ️';
     }
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className="relative p-2 rounded-full hover:bg-gray-100 transition-colors">
-          <Bell className="h-5 w-5" />
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="relative">
+          <Bell size={20} />
           {unreadCount > 0 && (
             <Badge 
-              className="absolute -top-1 -right-1 min-w-[1.25rem] h-5 flex items-center justify-center bg-red-500"
-              variant="secondary"
+              variant="destructive" 
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs"
             >
               {unreadCount}
             </Badge>
           )}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuGroup>
-          {notifications.length === 0 ? (
-            <DropdownMenuItem disabled>
-              No notifications
-            </DropdownMenuItem>
-          ) : (
-            notifications.map(notification => (
-              <DropdownMenuItem
-                key={notification.id}
-                onClick={() => handleNotificationClick(notification.id)}
-                className={`flex flex-col items-start space-y-1 ${
-                  !notification.is_read ? 'bg-blue-50' : ''
-                }`}
-              >
-                <div className="font-medium">{notification.title}</div>
-                <div className="text-sm text-gray-500">{notification.message}</div>
-                <div className="text-xs text-gray-400">
-                  {new Date(notification.created_at).toLocaleString()}
-                </div>
-                <Badge className={getNotificationStyles(notification.type)}>
-                  {notification.type}
-                </Badge>
-              </DropdownMenuItem>
-            ))
-          )}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80" align="end">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-semibold">Notifications</h4>
+            <Badge variant="secondary">{notifications.length}</Badge>
+          </div>
+          
+          <div className="max-h-80 overflow-y-auto space-y-2">
+            {notifications.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">
+                No notifications yet
+              </p>
+            ) : (
+              notifications.map((notification) => (
+                <Card 
+                  key={notification.id} 
+                  className={`cursor-pointer transition-colors ${
+                    !notification.is_read ? 'bg-blue-50 border-blue-200' : ''
+                  }`}
+                  onClick={() => !notification.is_read && markAsRead(notification.id)}
+                >
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center space-x-2">
+                      <span>{getNotificationIcon(notification.type)}</span>
+                      <span>{notification.title}</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <CardDescription className="text-xs">
+                      {notification.message}
+                    </CardDescription>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(notification.created_at).toLocaleDateString()}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 

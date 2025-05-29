@@ -40,22 +40,33 @@ const Login = () => {
       console.log('Attempting login with:', { username, role });
       
       const response = await apiService.login({ username, password, role });
+      console.log('Login response:', response);
 
-      if (response && response.user && response.token) {
-        const userData = response.user;
-        const authToken = response.token;
+      if (response && response.data && response.data.user && response.data.token) {
+        const userData = response.data.user;
+        const authToken = response.data.token;
         
+        // Store all necessary authentication data
         localStorage.setItem('userRole', userData.role);
         localStorage.setItem('username', userData.username);
         localStorage.setItem('authToken', authToken);
         localStorage.setItem('userId', userData.id.toString());
         localStorage.setItem('userFullName', userData.name);
         
+        // Store additional user data for dashboard use
+        if (userData.department_id) {
+          localStorage.setItem('userDepartmentId', userData.department_id.toString());
+        }
+        if (userData.division_id) {
+          localStorage.setItem('userDivisionId', userData.division_id.toString());
+        }
+        
         toast({
           title: "Login Successful",
           description: `Welcome, ${userData.name}!`,
         });
 
+        // Navigate based on role
         switch (userData.role) {
           case 'admin':
             navigate('/admin-dashboard');
@@ -70,7 +81,7 @@ const Login = () => {
             navigate('/');
         }
       } else {
-        throw new Error('Invalid response format');
+        throw new Error('Invalid response format from server');
       }
     } catch (error) {
       console.error('Login error:', error);

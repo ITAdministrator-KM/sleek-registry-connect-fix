@@ -51,11 +51,26 @@ interface ServiceHistory {
   created_at: string;
 }
 
+interface PublicUser {
+  id: number;
+  public_id: string;
+  name: string;
+  nic: string;
+  address: string;
+  mobile: string;
+  email: string;
+  department_id?: number;
+  division_id?: number;
+  status: string;
+  created_at: string;
+}
+
 class ApiService extends ApiBase {
   async login(data: LoginData): Promise<any> {
     return authService.login(data);
   }
 
+  // Department methods
   async getDepartments(): Promise<any[]> {
     const response = await this.makeRequest('/departments/index.php');
     return Array.isArray(response) ? response : [];
@@ -81,6 +96,7 @@ class ApiService extends ApiBase {
     });
   }
 
+  // Division methods
   async getDivisions(): Promise<any[]> {
     const response = await this.makeRequest('/divisions/index.php');
     return Array.isArray(response) ? response : [];
@@ -106,6 +122,7 @@ class ApiService extends ApiBase {
     });
   }
 
+  // User methods
   async getUsers(): Promise<any[]> {
     const response = await this.makeRequest('/users/index.php');
     return Array.isArray(response) ? response : [];
@@ -150,12 +167,13 @@ class ApiService extends ApiBase {
     });
   }
 
-  async getPublicUsers(): Promise<any[]> {
+  // Public user methods
+  async getPublicUsers(): Promise<PublicUser[]> {
     const response = await this.makeRequest('/public-users/index.php');
     return Array.isArray(response) ? response : [];
   }
 
-  async getPublicUserById(id: string): Promise<any> {
+  async getPublicUserById(id: string): Promise<PublicUser> {
     const response = await this.makeRequest(`/public-users/index.php?id=${id}`);
     return response;
   }
@@ -175,6 +193,7 @@ class ApiService extends ApiBase {
     });
   }
 
+  // Notification methods
   async getNotifications(recipientId: number, recipientType?: 'public' | 'staff'): Promise<Notification[]> {
     let endpoint = `/notifications/index.php?recipient_id=${recipientId}`;
     if (recipientType) endpoint += `&recipient_type=${recipientType}`;
@@ -202,6 +221,7 @@ class ApiService extends ApiBase {
     });
   }
 
+  // Token methods
   async getTokens(date?: string): Promise<Token[]> {
     let endpoint = '/tokens/index.php';
     if (date) endpoint += `?date=${date}`;
@@ -223,6 +243,7 @@ class ApiService extends ApiBase {
     });
   }
 
+  // Service history methods
   async getServiceHistory(userId: number): Promise<ServiceHistory[]> {
     const response = await this.makeRequest(`/service-history/index.php?user_id=${userId}`);
     return Array.isArray(response) ? response : [];
@@ -241,6 +262,7 @@ class ApiService extends ApiBase {
     });
   }
 
+  // QR scan methods
   async recordQRScan(data: {
     public_user_id: number;
     staff_user_id: number;
@@ -255,4 +277,4 @@ class ApiService extends ApiBase {
 }
 
 export const apiService = new ApiService();
-export type { LoginData, ApiResponse, Token, ServiceHistory };
+export type { LoginData, ApiResponse, Token, ServiceHistory, PublicUser };
