@@ -42,16 +42,24 @@ const Login = () => {
       const response = await apiService.login({ username, password, role });
       console.log('Login response:', response);
 
-      if (response && response.data && response.data.user && response.data.token) {
-        const userData = response.data.user;
-        const authToken = response.data.token;
-        
+      // Handle different response formats more flexibly
+      let userData, authToken;
+
+      if (response && response.data) {
+        userData = response.data.user || response.data;
+        authToken = response.data.token;
+      } else if (response && response.user) {
+        userData = response.user;
+        authToken = response.token;
+      }
+
+      if (userData && authToken) {
         // Store all necessary authentication data
         localStorage.setItem('userRole', userData.role);
         localStorage.setItem('username', userData.username);
         localStorage.setItem('authToken', authToken);
-        localStorage.setItem('userId', userData.id.toString());
-        localStorage.setItem('userFullName', userData.name);
+        localStorage.setItem('userId', userData.id?.toString() || '');
+        localStorage.setItem('userFullName', userData.name || '');
         
         // Store additional user data for dashboard use
         if (userData.department_id) {
@@ -63,7 +71,7 @@ const Login = () => {
         
         toast({
           title: "Login Successful",
-          description: `Welcome, ${userData.name}!`,
+          description: `Welcome, ${userData.name || username}!`,
         });
 
         // Navigate based on role
@@ -81,7 +89,7 @@ const Login = () => {
             navigate('/');
         }
       } else {
-        throw new Error('Invalid response format from server');
+        throw new Error('Invalid response format - missing user data or token');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -99,19 +107,19 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <Card className="bg-white/80 backdrop-blur-md shadow-2xl border-0">
+        <Card className="bg-white/90 backdrop-blur-md shadow-2xl border-0 rounded-xl">
           <CardHeader className="text-center pb-8">
             <div className="flex justify-center mb-6">
               <img 
                 src="/lovable-uploads/6e847d33-bb31-4337-86e5-a709077e569d.png" 
                 alt="DSK Logo" 
-                className="h-20 w-20 rounded-full shadow-lg"
+                className="h-20 w-20 rounded-full shadow-lg border-4 border-white"
               />
             </div>
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-              DSK Login
+              DSK Portal
             </CardTitle>
-            <CardDescription className="text-gray-600 mt-2">
+            <CardDescription className="text-gray-600 mt-2 font-medium">
               Divisional Secretariat KALMUNAI
             </CardDescription>
           </CardHeader>
@@ -122,14 +130,6 @@ const Login = () => {
               isLoading={isLoading}
               errors={errors}
             />
-
-            <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-semibold text-gray-800 mb-2">Test Credentials:</h4>
-              <div className="text-sm text-gray-600 space-y-2">
-                <div><p><strong>Admin:</strong> admin / password</p></div>
-                <div><p><strong>Staff:</strong> Ansar / password</p></div>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
@@ -137,7 +137,7 @@ const Login = () => {
           <Button 
             variant="ghost" 
             onClick={() => navigate('/')}
-            className="text-blue-600 hover:text-blue-700"
+            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-all duration-200"
           >
             ← Back to Home
           </Button>

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -22,12 +21,14 @@ const NotificationBell = () => {
       
       if (!userId) return;
 
+      // Map admin role to staff for backend compatibility
+      const recipientType = userRole === 'admin' ? 'staff' : (userRole as 'public' | 'staff');
+      
       const response = await apiService.getNotifications(
         parseInt(userId), 
-        userRole as 'public' | 'staff'
+        recipientType
       );
       
-      // Ensure response is an array and properly typed
       const notificationsList = Array.isArray(response) ? response as Notification[] : [];
       setNotifications(notificationsList);
       
@@ -43,7 +44,7 @@ const NotificationBell = () => {
   const markAsRead = async (notificationId: number) => {
     try {
       await apiService.markNotificationAsRead(notificationId);
-      await fetchNotifications(); // Refresh the list
+      await fetchNotifications();
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -61,23 +62,23 @@ const NotificationBell = () => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="sm" className="relative">
-          <Bell size={20} />
+        <Button variant="ghost" size="sm" className="relative hover:bg-blue-50 transition-colors">
+          <Bell size={20} className="text-gray-600" />
           {unreadCount > 0 && (
             <Badge 
               variant="destructive" 
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs"
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs bg-red-500 hover:bg-red-600"
             >
               {unreadCount}
             </Badge>
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80" align="end">
+      <PopoverContent className="w-80 bg-white border border-gray-200 shadow-lg" align="end">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="font-semibold">Notifications</h4>
-            <Badge variant="secondary">{notifications.length}</Badge>
+            <h4 className="font-semibold text-gray-800">Notifications</h4>
+            <Badge variant="secondary" className="bg-gray-100 text-gray-700">{notifications.length}</Badge>
           </div>
           
           <div className="max-h-80 overflow-y-auto space-y-2">
@@ -89,19 +90,19 @@ const NotificationBell = () => {
               notifications.map((notification) => (
                 <Card 
                   key={notification.id} 
-                  className={`cursor-pointer transition-colors ${
-                    !notification.is_read ? 'bg-blue-50 border-blue-200' : ''
+                  className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+                    !notification.is_read ? 'bg-blue-50 border-blue-200 shadow-sm' : 'border-gray-100'
                   }`}
                   onClick={() => !notification.is_read && markAsRead(notification.id)}
                 >
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center space-x-2">
                       <span>{getNotificationIcon(notification.type)}</span>
-                      <span>{notification.title}</span>
+                      <span className="text-gray-800">{notification.title}</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <CardDescription className="text-xs">
+                    <CardDescription className="text-xs text-gray-600">
                       {notification.message}
                     </CardDescription>
                     <p className="text-xs text-gray-400 mt-1">
