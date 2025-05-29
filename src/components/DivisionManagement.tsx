@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,12 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Edit, Trash2, Building } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/api';
-
-interface Department {
-  id: number;
-  name: string;
-  description: string | null;
-}
+import { Department } from '@/services/departmentService';
 
 interface ApiDivision {
   id: number;
@@ -57,7 +53,12 @@ const DivisionManagement = () => {
   const fetchDepartments = async () => {
     try {
       const response = await apiService.getDepartments();
-      setDepartments(Array.isArray(response) ? response : []);
+      // Ensure description is always a string for consistency
+      const normalizedDepartments = response.map(dept => ({
+        ...dept,
+        description: dept.description || ''
+      }));
+      setDepartments(normalizedDepartments);
     } catch (error) {
       toast({
         title: "Error",

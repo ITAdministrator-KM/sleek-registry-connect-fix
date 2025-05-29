@@ -13,13 +13,13 @@ export interface Notification {
 }
 
 export class NotificationService extends ApiBase {
-  async getNotifications(recipientId: number, recipientType?: 'public' | 'staff'): Promise<Notification[]> {
+  async getNotifications(recipientId: number, recipientType?: 'public' | 'staff' | 'admin'): Promise<Notification[]> {
     try {
-      // Fix recipient type mapping - backend expects 'staff' for admin users
-      const adjustedType = recipientType === 'admin' ? 'staff' : recipientType;
+      // Map 'admin' to 'staff' for backend compatibility
+      const backendType = recipientType === 'admin' ? 'staff' : recipientType;
       
       let endpoint = `/notifications/index.php?recipient_id=${recipientId}`;
-      if (adjustedType) endpoint += `&recipient_type=${adjustedType}`;
+      if (backendType) endpoint += `&recipient_type=${backendType}`;
       
       const response = await this.makeRequest(endpoint);
       return Array.isArray(response) ? response : [];

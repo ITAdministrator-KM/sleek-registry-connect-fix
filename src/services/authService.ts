@@ -19,7 +19,7 @@ interface LoginResponse {
 
 export class AuthService extends ApiBase {
   async login(data: LoginData): Promise<any> {
-    const response = await this.makeRequest<LoginResponse>('/auth/login.php', {
+    const response = await this.makeRequest('/auth/login.php', {
       method: 'POST',
       body: JSON.stringify(data),
     });

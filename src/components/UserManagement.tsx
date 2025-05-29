@@ -8,6 +8,7 @@ import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/api';
+import { User as ServiceUser } from '@/services/userService';
 import UserForm from './forms/UserForm';
 
 type UserRole = 'admin' | 'staff' | 'public';
@@ -54,8 +55,13 @@ const UserManagement = () => {
     try {
       setIsLoading(true);
       const response = await apiService.getUsers();
-      // Type assertion to ensure the response is properly typed
-      setUsers(Array.isArray(response) ? response as User[] : []);
+      // Transform service users to component users with created_at field
+      const transformedUsers: User[] = response.map((serviceUser: ServiceUser) => ({
+        ...serviceUser,
+        user_id: serviceUser.user_id || `USR-${serviceUser.id}`,
+        created_at: new Date().toISOString().split('T')[0] // Add default created_at
+      }));
+      setUsers(transformedUsers);
     } catch (error) {
       toast({
         title: "Error",
