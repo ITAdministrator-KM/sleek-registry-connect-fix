@@ -1,4 +1,3 @@
-
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -11,8 +10,17 @@ function generateQRCode($data) {
     $options = new \chillerlan\QRCode\QROptions([
         'outputType' => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
         'eccLevel' => \chillerlan\QRCode\QRCode::ECC_L,
-        'scale' => 5,
+        'scale' => 8, // Increased scale for better black and white printing
         'imageBase64' => true,
+        'imageTransparent' => false,
+        'drawCircularModules' => false,
+        'drawLightModules' => false,
+        'moduleValues' => [
+            // Black modules for dark areas
+            1536 => [0, 0, 0],
+            // White modules for light areas  
+            6 => [255, 255, 255],
+        ]
     ]);
     
     $qrcode = new \chillerlan\QRCode\QRCode($options);
@@ -138,13 +146,14 @@ function createPublicUser($db) {
         $nextId = ($result['max_id'] ?? 0) + 1;
         $publicId = 'PUB' . str_pad($nextId, 5, '0', STR_PAD_LEFT);
         
-        // Generate QR code data
+        // Generate QR code data - optimized for scanning and black/white printing
         $qrData = [
-            'public_id' => $publicId,
+            'id' => $publicId,
             'name' => $data->name,
             'nic' => $data->nic,
             'mobile' => $data->mobile,
-            'timestamp' => time()
+            'issued' => date('Y-m-d'),
+            'authority' => 'DSK'
         ];
         
         $qrCode = generateQRCode($qrData);
@@ -190,7 +199,7 @@ function createPublicUser($db) {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         unset($user['password_hash']);
         
-        sendResponse(201, $user);
+        sendResponse(201, $user, "Public user created successfully with QR code");
     } catch (Exception $e) {
         if ($db->inTransaction()) {
             $db->rollBack();

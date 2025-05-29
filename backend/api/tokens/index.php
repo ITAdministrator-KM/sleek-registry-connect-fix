@@ -214,14 +214,11 @@ function createToken($db) {
         http_response_code(201);
         echo json_encode([
             "status" => "success",
-            "data" => [
-                "token_id" => (int)$tokenId,
-                "token_number" => $tokenNumber,
-                "department_id" => $departmentId,
-                "division_id" => $divisionId,
-                "status" => "active",
-                "created_at" => date('Y-m-d H:i:s')
-            ]
+            "token_number" => $tokenNumber,
+            "token_id" => (int)$tokenId,
+            "department_id" => $departmentId,
+            "division_id" => $divisionId,
+            "created_at" => date('Y-m-d H:i:s')
         ]);
     } catch (Exception $e) {
         $code = $e->getCode() ?: 500;

@@ -260,6 +260,7 @@ class ApiService extends ApiBase {
       return [];
     }
   }
+
   async createToken(data: { department_id: number; division_id: number }): Promise<{ token_number: number; token_id: number }> {
     try {
       const response = await this.makeRequest('/tokens/index.php', {
@@ -267,19 +268,33 @@ class ApiService extends ApiBase {
         body: JSON.stringify(data),
       });
       
-      if (!response || typeof response !== 'object' || !response.token_number || !response.token_id) {
+      // Handle the corrected response format from backend
+      if (!response || typeof response !== 'object') {
         throw new Error('Invalid response format from server');
       }
 
+      if (response.status === 'error') {
+        throw new Error(response.message || 'Token creation failed');
+      }
+
+      // Extract token details from the corrected response format
+      const tokenNumber = response.token_number;
+      const tokenId = response.token_id;
+
+      if (!tokenNumber || !tokenId) {
+        throw new Error('Missing token details in response');
+      }
+
       return {
-        token_number: response.token_number,
-        token_id: response.token_id
+        token_number: tokenNumber,
+        token_id: tokenId
       };
     } catch (error) {
       console.error('Error creating token:', error);
       throw error;
     }
   }
+
   async updateToken(data: { id: number; status: 'active' | 'called' | 'completed' }) {
     try {
       const response = await this.makeRequest('/tokens/index.php', {
