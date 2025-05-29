@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -77,7 +76,7 @@ const IDCardGenerator = () => {
 
   const createCardContent = (user: PublicUser): HTMLDivElement => {
     const cardContent = document.createElement('div');
-    const qrCodeValid = validateQRCode(user.qr_code);
+    const qrCodeValid = validateQRCode(user.qr_code || '');
     
     cardContent.innerHTML = `
       <div style="width: ${CARD_WIDTH}mm; height: ${CARD_HEIGHT}mm; padding: 3mm; font-family: Arial, sans-serif; border: 2px solid #000; border-radius: 3mm; background: white; position: relative; box-sizing: border-box;">
@@ -104,11 +103,11 @@ const IDCardGenerator = () => {
               <span style="font-size: 8px; color: #000; margin-left: 2mm;">${user.nic}</span>
             </div>
             <div style="margin-bottom: 1.5mm;">
-              <span style="font-size: 7px; font-weight: bold; color: #000;">DOB:</span>
-              <span style="font-size: 8px; color: #000; margin-left: 2mm;">${user.dob || 'N/A'}</span>
+              <span style="font-size: 7px; font-weight: bold; color: #000;">Mobile:</span>
+              <span style="font-size: 8px; color: #000; margin-left: 2mm;">${user.mobile}</span>
             </div>
             <div style="margin-bottom: 1.5mm;">
-              <span style="font-size: 7px; font-weight: bold; color: #000;">Place:</span>
+              <span style="font-size: 7px; font-weight: bold; color: #000;">Address:</span>
               <span style="font-size: 8px; color: #000; margin-left: 2mm;">${user.address || 'Kalmunai'}</span>
             </div>
           </div>
@@ -174,7 +173,7 @@ const IDCardGenerator = () => {
       for (let i = 0; i < usersToPrint.length; i++) {
         const user = usersToPrint[i];
         
-        if (!validateQRCode(user.qr_code)) {
+        if (!validateQRCode(user.qr_code || '')) {
           invalidQRCount++;
         }
 
