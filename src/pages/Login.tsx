@@ -34,26 +34,15 @@ const Login = () => {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      console.log('Attempting login with:', { username, role });
+    setIsLoading(true);    try {
+      const loginData = { username, password, role };
+      console.log('Attempting login with:', loginData);
       
-      const response = await apiService.login({ username, password, role });
+      const response = await apiService.login(loginData);
       console.log('Login response:', response);
 
-      // Handle different response formats more flexibly
-      let userData, authToken;
-
-      if (response && response.data) {
-        userData = response.data.user || response.data;
-        authToken = response.data.token;
-      } else if (response && response.user) {
-        userData = response.user;
-        authToken = response.token;
-      }
-
-      if (userData && authToken) {
+      if (response.status === 'success' && response.data) {
+        const { user: userData, token: authToken } = response.data;
         // Store all necessary authentication data
         localStorage.setItem('userRole', userData.role);
         localStorage.setItem('username', userData.username);

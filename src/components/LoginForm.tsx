@@ -28,8 +28,8 @@ const LoginForm = ({ onSubmit, isLoading, errors }: LoginFormProps) => {
         <Label htmlFor="login-role" className="text-gray-700 font-medium">
           Select Role <span className="text-red-500">*</span>
         </Label>
-        <Select value={role} onValueChange={setRole}>
-          <SelectTrigger className="bg-white/50 border-gray-200 focus:border-blue-500 h-12">
+        <Select value={role} onValueChange={setRole} name="role">
+          <SelectTrigger id="login-role" className="bg-white/50 border-gray-200 focus:border-blue-500 h-12">
             <div className="flex items-center space-x-2">
               <UserCheck size={20} className="text-gray-500" />
               <SelectValue placeholder="Choose your role" />
@@ -54,11 +54,15 @@ const LoginForm = ({ onSubmit, isLoading, errors }: LoginFormProps) => {
           <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <Input
             id="login-username"
+            name="username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="pl-10 bg-white/50 border-gray-200 focus:border-blue-500 h-12"
             placeholder="Enter your username"
+            autoComplete="username"
+            required
+            aria-required="true"
           />
         </div>
         {errors.username && (
@@ -74,11 +78,15 @@ const LoginForm = ({ onSubmit, isLoading, errors }: LoginFormProps) => {
           <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
           <Input
             id="login-password"
+            name="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="pl-10 bg-white/50 border-gray-200 focus:border-blue-500 h-12"
             placeholder="Enter your password"
+            autoComplete="current-password"
+            required
+            aria-required="true"
           />
         </div>
         {errors.password && (

@@ -18,6 +18,11 @@ export class ApiBase {
       ...options,
     };
 
+    // Ensure body is properly stringified if it's not already a string
+    if (defaultOptions.body && typeof defaultOptions.body === 'object') {
+      defaultOptions.body = JSON.stringify(defaultOptions.body);
+    }
+
     // Merge headers properly
     if (options.headers) {
       defaultOptions.headers = {

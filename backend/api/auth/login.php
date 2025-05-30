@@ -1,42 +1,66 @@
 
 <?php
-header('Content-Type: application/json; charset=UTF-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+include_once '../../config/cors.php';
+include_once '../../config/database.php';
+include_once '../../config/error_handler.php';
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
+// Set error handlers
+set_error_handler('handleError');
+set_exception_handler('handleException');
+
+// Ensure proper content type
+header('Content-Type: application/json; charset=UTF-8');
+
+function base64url_encode($data) { 
+    return rtrim(strtr(base64_encode($data), '+/', '-_'), '='); 
 }
 
-include_once '../../config/database.php';
+function sendResponse($status, $data = null, $message = null) {
+    http_response_code($status);
+    echo json_encode([
+        'status' => $status >= 200 && $status < 300 ? 'success' : 'error',
+        'data' => $data,
+        'message' => $message
+    ]);
+    exit;
+}
 
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        throw new Exception("Only POST method allowed", 405);
+        sendResponse(405, null, "Only POST method allowed");
     }
 
     $input = file_get_contents("php://input");
     if (empty($input)) {
-        throw new Exception("Empty request body", 400);
+        sendResponse(400, null, "Empty request body");
     }
 
     $data = json_decode($input, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
-        throw new Exception("Invalid JSON: " . json_last_error_msg(), 400);
+        sendResponse(400, null, "Invalid JSON: " . json_last_error_msg());
     }
 
-    $requiredFields = ['username', 'password', 'role'];
+    $requiredFields = ['username', 'password'];
     foreach ($requiredFields as $field) {
         if (!isset($data[$field]) || trim($data[$field]) === '') {
             throw new Exception("Missing required field: $field", 400);
         }
     }
 
-    $validRoles = ['admin', 'staff', 'public'];
-    if (!in_array($data['role'], $validRoles)) {
-        throw new Exception("Invalid role", 400);
+    // Validate username format
+    if (!preg_match('/^[a-zA-Z0-9_]+$/', $data['username'])) {
+        throw new Exception("Username contains invalid characters. Only letters, numbers and underscore allowed.", 400);
+    }
+
+    // If role is not provided, we'll try to determine it from the username format
+    if (!isset($data['role'])) {
+        if (strpos($data['username'], 'admin_') === 0) {
+            $data['role'] = 'admin';
+        } else if (strpos($data['username'], 'staff_') === 0) {
+            $data['role'] = 'staff';
+        } else {
+            $data['role'] = 'public';
+        }
     }
 
     $database = new Database();
@@ -46,11 +70,16 @@ try {
               FROM users 
               WHERE username = ? AND role = ? AND status = 'active'";
     
-    $stmt = $db->prepare($query);
-    $stmt->execute([$data['username'], $data['role']]);
-    
-    if ($stmt->rowCount() === 0) {
-        throw new Exception("Invalid credentials", 401);
+    try {
+        $stmt = $db->prepare($query);
+        $stmt->execute([$data['username'], $data['role']]);
+        
+        if ($stmt->rowCount() === 0) {
+            throw new Exception("Invalid credentials", 401);
+        }
+    } catch (PDOException $e) {
+        error_log("Database error during login: " . $e->getMessage());
+        throw new Exception("Database error occurred", 500);
     }
 
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -64,20 +93,26 @@ try {
     $issuedAt = time();
     $expirationTime = $issuedAt + 3600;
     
-    $payload = [
-        'iat' => $issuedAt,
-        'exp' => $expirationTime,
-        'user_id' => $user['id'],
-        'role' => $user['role']
-    ];
-    
-    $header = base64_encode(json_encode(['typ' => 'JWT', 'alg' => 'HS256']));
-    $payload_encoded = base64_encode(json_encode($payload));
-    $secretKey = 'dsk-secret-key-2024';
-    $signature = hash_hmac('sha256', "$header.$payload_encoded", $secretKey, true);
-    $signature_encoded = base64_encode($signature);
-    
-    $token = "$header.$payload_encoded.$signature_encoded";
+    try {
+        $payload = [
+            'iat' => $issuedAt,
+            'exp' => $expirationTime,
+            'user_id' => $user['id'],
+            'role' => $user['role'],
+            'jti' => bin2hex(random_bytes(16)) // Add unique token ID
+        ];
+        
+        $header = base64url_encode(json_encode(['typ' => 'JWT', 'alg' => 'HS256']));
+        $payload_encoded = base64url_encode(json_encode($payload));
+        $secretKey = getenv('JWT_SECRET_KEY') ?: 'dsk-secret-key-2024';
+        $signature = hash_hmac('sha256', "$header.$payload_encoded", $secretKey, true);
+        $signature_encoded = base64url_encode($signature);
+        
+        $token = "$header.$payload_encoded.$signature_encoded";
+    } catch (Exception $e) {
+        error_log("Token generation error: " . $e->getMessage());
+        throw new Exception("Error generating authentication token", 500);
+    }
 
     http_response_code(200);
     echo json_encode([
@@ -91,11 +126,8 @@ try {
     ]);
 
 } catch (Exception $e) {
+    error_log("Login error: " . $e->getMessage());
     $code = $e->getCode() ?: 500;
-    http_response_code($code);
-    echo json_encode([
-        "status" => "error",
-        "message" => $e->getMessage()
-    ]);
+    sendResponse($code, null, $e->getMessage());
 }
 ?>

@@ -25,10 +25,16 @@ export interface Token {
   message?: string;
 }
 
-export interface LoginResponse {
-  token: string;
+export interface LoginResponseData {
   user: User;
-  message?: string;
+  token: string;
+  expires_at: number;
+}
+
+export interface LoginResponse {
+  status: 'success' | 'error';
+  message: string;
+  data?: LoginResponseData;
 }
 
 export interface PublicUser {
@@ -85,12 +91,11 @@ export interface Division {
   created_at: string;
 }
 
-class ApiService extends ApiBase {
-  // Auth
-  async login(username: string, password: string): Promise<LoginResponse> {
+class ApiService extends ApiBase {  // Auth
+  async login(data: { username: string; password: string; role: string }): Promise<LoginResponse> {
     const response = await this.makeRequest('/auth/login.php', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify(data),
     });
     return response.data;
   }
