@@ -1,3 +1,4 @@
+
 import { ApiBase } from './apiBase';
 
 export type UserRole = 'admin' | 'staff' | 'public';
@@ -131,7 +132,7 @@ class ApiService extends ApiBase {
   // Public Users
   async getPublicUsers(): Promise<PublicUser[]> {
     const response = await this.makeRequest('/public-users/');
-    return response.data;
+    return Array.isArray(response.data) ? response.data : [];
   }
 
   async getPublicUserById(id: number): Promise<PublicUser> {
@@ -166,7 +167,7 @@ class ApiService extends ApiBase {
   // Users
   async getUsers(): Promise<User[]> {
     const response = await this.makeRequest('/users/');
-    return response.data;
+    return Array.isArray(response.data) ? response.data : [];
   }
 
   async createUser(userData: Partial<User>): Promise<User> {
@@ -196,7 +197,7 @@ class ApiService extends ApiBase {
   // Departments
   async getDepartments(): Promise<Department[]> {
     const response = await this.makeRequest('/departments/');
-    return response.data;
+    return Array.isArray(response.data) ? response.data : [];
   }
 
   async createDepartment(departmentData: { name: string; description: string }): Promise<Department> {
@@ -227,7 +228,7 @@ class ApiService extends ApiBase {
   async getDivisions(departmentId?: number): Promise<Division[]> {
     const endpoint = departmentId ? `/divisions/?department_id=${departmentId}` : '/divisions/';
     const response = await this.makeRequest(endpoint);
-    return response.data;
+    return Array.isArray(response.data) ? response.data : [];
   }
 
   async createDivision(divisionData: { name: string; department_id: number; description: string }): Promise<Division> {
@@ -266,7 +267,7 @@ class ApiService extends ApiBase {
   async getTokens(departmentId?: number): Promise<Token[]> {
     const endpoint = departmentId ? `/tokens/?department_id=${departmentId}` : '/tokens/';
     const response = await this.makeRequest(endpoint);
-    return response.data;
+    return Array.isArray(response.data) ? response.data : [];
   }
 
   async updateTokenStatus(tokenId: number, status: Token['status']): Promise<Token> {
@@ -280,7 +281,9 @@ class ApiService extends ApiBase {
   // Add alias for backward compatibility
   async updateToken(data: { id: number; status: Token['status'] }): Promise<Token> {
     return this.updateTokenStatus(data.id, data.status);
-  }  // Notifications
+  }
+
+  // Notifications
   async getNotifications(): Promise<NotificationsResponse> {
     try {
       const userId = localStorage.getItem('userId');
@@ -297,7 +300,8 @@ class ApiService extends ApiBase {
       if (recipientType) {
         endpoint += `&recipient_type=${recipientType}`;
       }
-        const response = await this.makeRequest(endpoint);
+      
+      const response = await this.makeRequest(endpoint);
       return response as NotificationsResponse;
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -309,6 +313,7 @@ class ApiService extends ApiBase {
       };
     }
   }
+
   async markNotificationAsRead(notificationId: number): Promise<{ status: string; message: string }> {
     const response = await this.makeRequest('/notifications/index.php', {
       method: 'PUT',

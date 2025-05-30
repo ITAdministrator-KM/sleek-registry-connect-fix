@@ -53,18 +53,20 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
   const fetchDepartments = async () => {
     try {
       const response = await apiService.getDepartments();
-      setDepartments(response);
+      setDepartments(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Error fetching departments:', error);
+      setDepartments([]);
     }
   };
 
   const fetchDivisions = async () => {
     try {
       const response = await apiService.getDivisions();
-      setDivisions(response);
+      setDivisions(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Error fetching divisions:', error);
+      setDivisions([]);
     }
   };
 
@@ -97,10 +99,10 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="public-user-name">Full Name *</Label>
+                <Label htmlFor="user-name-field">Full Name *</Label>
                 <Input
-                  id="public-user-name"
-                  name="name"
+                  id="user-name-field"
+                  name="user-name"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
                   placeholder="Enter full name"
@@ -110,10 +112,10 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="public-user-nic">NIC *</Label>
+                <Label htmlFor="user-nic-field">NIC *</Label>
                 <Input
-                  id="public-user-nic"
-                  name="nic"
+                  id="user-nic-field"
+                  name="user-nic"
                   value={formData.nic}
                   onChange={(e) => setFormData(prev => ({...prev, nic: e.target.value}))}
                   placeholder="Enter NIC number"
@@ -123,10 +125,10 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="public-user-mobile">Mobile *</Label>
+                <Label htmlFor="user-mobile-field">Mobile *</Label>
                 <Input
-                  id="public-user-mobile"
-                  name="mobile"
+                  id="user-mobile-field"
+                  name="user-mobile"
                   value={formData.mobile}
                   onChange={(e) => setFormData(prev => ({...prev, mobile: e.target.value}))}
                   placeholder="Enter mobile number"
@@ -136,10 +138,10 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="public-user-email">Email</Label>
+                <Label htmlFor="user-email-field">Email</Label>
                 <Input
-                  id="public-user-email"
-                  name="email"
+                  id="user-email-field"
+                  name="user-email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))}
@@ -149,10 +151,10 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="public-user-username">Username *</Label>
+                <Label htmlFor="user-username-field">Username *</Label>
                 <Input
-                  id="public-user-username"
-                  name="username"
+                  id="user-username-field"
+                  name="user-username"
                   value={formData.username}
                   onChange={(e) => setFormData(prev => ({...prev, username: e.target.value}))}
                   placeholder="Enter username"
@@ -162,10 +164,10 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="public-user-password">Password {!user && '*'}</Label>
+                <Label htmlFor="user-password-field">Password {!user && '*'}</Label>
                 <Input
-                  id="public-user-password"
-                  name="password"
+                  id="user-password-field"
+                  name="user-password"
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData(prev => ({...prev, password: e.target.value}))}
@@ -176,12 +178,12 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="public-user-department">Department</Label>
+                <Label htmlFor="user-department-field">Department</Label>
                 <Select 
                   value={formData.department_id.toString()} 
                   onValueChange={(value) => setFormData(prev => ({...prev, department_id: parseInt(value), division_id: 0}))}
                 >
-                  <SelectTrigger id="public-user-department" name="department">
+                  <SelectTrigger id="user-department-field" name="user-department">
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
@@ -196,13 +198,13 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="public-user-division">Division</Label>
+                <Label htmlFor="user-division-field">Division</Label>
                 <Select 
                   value={formData.division_id.toString()} 
                   onValueChange={(value) => setFormData(prev => ({...prev, division_id: parseInt(value)}))}
                   disabled={!formData.department_id}
                 >
-                  <SelectTrigger id="public-user-division" name="division">
+                  <SelectTrigger id="user-division-field" name="user-division">
                     <SelectValue placeholder="Select division" />
                   </SelectTrigger>
                   <SelectContent>
@@ -218,10 +220,10 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="public-user-address">Address *</Label>
+              <Label htmlFor="user-address-field">Address *</Label>
               <Input
-                id="public-user-address"
-                name="address"
+                id="user-address-field"
+                name="user-address"
                 value={formData.address}
                 onChange={(e) => setFormData(prev => ({...prev, address: e.target.value}))}
                 placeholder="Enter full address"

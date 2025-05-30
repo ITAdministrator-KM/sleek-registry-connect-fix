@@ -1,9 +1,8 @@
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, Trash2, AlertCircle } from 'lucide-react';
+import { Edit, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
 import type { PublicUser } from '@/services/api';
-import { IDCardValidator } from '../id-card/IDCardValidator';
 
 interface PublicUserTableProps {
   users: PublicUser[];
@@ -11,7 +10,31 @@ interface PublicUserTableProps {
   onDelete: (user: PublicUser) => void;
 }
 
+const validateQRCode = (qrCode: string | undefined): boolean => {
+  if (!qrCode || qrCode.trim() === '') return false;
+  
+  // Check if it's a valid base64 image or valid QR data
+  const base64Pattern = /^data:image\/(png|jpeg|jpg);base64,/;
+  if (base64Pattern.test(qrCode)) {
+    const base64Data = qrCode.split(',')[1];
+    return base64Data && base64Data.length > 100;
+  }
+  
+  // Check if it's valid JSON or string data
+  try {
+    if (qrCode.length > 10) {
+      return true;
+    }
+  } catch (error) {
+    return false;
+  }
+  
+  return false;
+};
+
 export const PublicUserTable = ({ users, onEdit, onDelete }: PublicUserTableProps) => {
+  const safeUsers = Array.isArray(users) ? users : [];
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse border border-gray-200 rounded-lg">
@@ -28,7 +51,7 @@ export const PublicUserTable = ({ users, onEdit, onDelete }: PublicUserTableProp
           </tr>
         </thead>
         <tbody>
-          {users.map((user) => (
+          {safeUsers.map((user) => (
             <tr key={user.id} className="hover:bg-gray-50">
               <td className="border border-gray-200 px-4 py-3 font-medium">{user.public_id}</td>
               <td className="border border-gray-200 px-4 py-3">{user.name}</td>
@@ -38,8 +61,11 @@ export const PublicUserTable = ({ users, onEdit, onDelete }: PublicUserTableProp
                 {user.department_name || '-'}
               </td>
               <td className="border border-gray-200 px-4 py-3">
-                {IDCardValidator.validateQRCode(user.qr_code || '') ? (
-                  <Badge variant="default" className="bg-green-100 text-green-800">Valid</Badge>
+                {validateQRCode(user.qr_code) ? (
+                  <Badge variant="default" className="bg-green-100 text-green-800">
+                    <CheckCircle className="mr-1 h-3 w-3" />
+                    Valid
+                  </Badge>
                 ) : (
                   <Badge variant="destructive" className="bg-red-100 text-red-800">
                     <AlertCircle className="mr-1 h-3 w-3" />
@@ -75,7 +101,7 @@ export const PublicUserTable = ({ users, onEdit, onDelete }: PublicUserTableProp
         </tbody>
       </table>
       
-      {users.length === 0 && (
+      {safeUsers.length === 0 && (
         <div className="text-center py-8 text-gray-500">
           No public accounts found
         </div>

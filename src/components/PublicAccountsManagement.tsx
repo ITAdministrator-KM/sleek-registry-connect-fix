@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
 import type { PublicUser } from '@/services/api';
-import { Search, Plus, Edit, Trash2, UserPlus } from 'lucide-react';
+import { Search, UserPlus } from 'lucide-react';
 import { PublicUserForm } from './public-accounts/PublicUserForm';
 import { PublicUserTable } from './public-accounts/PublicUserTable';
 import { ConfirmDialog } from './public-accounts/ConfirmDialog';
@@ -26,11 +26,12 @@ const PublicAccountsManagement = () => {
   }, []);
 
   useEffect(() => {
-    const filtered = users.filter(user => 
-      user.public_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.nic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    const safeUsers = Array.isArray(users) ? users : [];
+    const filtered = safeUsers.filter(user => 
+      user.public_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.nic?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredUsers(filtered);
   }, [searchTerm, users]);
@@ -39,9 +40,11 @@ const PublicAccountsManagement = () => {
     try {
       setIsLoading(true);
       const response = await apiService.getPublicUsers();
-      setUsers(response);
+      const safeResponse = Array.isArray(response) ? response : [];
+      setUsers(safeResponse);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setUsers([]);
       toast({
         title: "Error",
         description: "Failed to fetch public users",
@@ -56,11 +59,14 @@ const PublicAccountsManagement = () => {
     try {
       setIsLoading(true);
       const newUser = await apiService.createPublicUser(userData);
-      setUsers(prev => [newUser, ...prev]);
+      setUsers(prev => {
+        const safePrev = Array.isArray(prev) ? prev : [];
+        return [newUser, ...safePrev];
+      });
       setShowForm(false);
       toast({
         title: "Success",
-        description: "Public user created successfully",
+        description: "Public user created successfully with sequential ID",
       });
     } catch (error) {
       console.error('Error creating user:', error);
@@ -78,9 +84,12 @@ const PublicAccountsManagement = () => {
     try {
       setIsLoading(true);
       const updatedUser = await apiService.updatePublicUser(userData.id, userData);
-      setUsers(prev => prev.map(user => 
-        user.id === updatedUser.id ? updatedUser : user
-      ));
+      setUsers(prev => {
+        const safePrev = Array.isArray(prev) ? prev : [];
+        return safePrev.map(user => 
+          user.id === updatedUser.id ? updatedUser : user
+        );
+      });
       setEditingUser(null);
       toast({
         title: "Success",
@@ -104,17 +113,20 @@ const PublicAccountsManagement = () => {
     try {
       setIsLoading(true);
       await apiService.deletePublicUser(deletingUser.id);
-      setUsers(prev => prev.filter(user => user.id !== deletingUser.id));
+      setUsers(prev => {
+        const safePrev = Array.isArray(prev) ? prev : [];
+        return safePrev.filter(user => user.id !== deletingUser.id);
+      });
       setDeletingUser(null);
       toast({
         title: "Success",
-        description: "Public user deleted successfully",
+        description: "Public user deleted successfully from database",
       });
     } catch (error) {
       console.error('Error deleting user:', error);
       toast({
         title: "Error",
-        description: "Failed to delete public user",
+        description: "Failed to delete public user from database",
         variant: "destructive",
       });
     } finally {
@@ -136,6 +148,9 @@ const PublicAccountsManagement = () => {
     setEditingUser(null);
   };
 
+  const safeUsers = Array.isArray(users) ? users : [];
+  const safeFilteredUsers = Array.isArray(filteredUsers) ? filteredUsers : [];
+
   return (
     <div className="space-y-6">
       <Card>
@@ -144,7 +159,7 @@ const PublicAccountsManagement = () => {
             <div>
               <CardTitle>Public Accounts Management</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Total accounts: {users.length}
+                Total accounts: {safeUsers.length} | Sequential ID assignment from PUB00001
               </p>
             </div>
             <Button
@@ -161,7 +176,9 @@ const PublicAccountsManagement = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               <Input
-                placeholder="Search accounts..."
+                id="search-public-accounts"
+                name="search-public-accounts"
+                placeholder="Search accounts by ID, name, NIC, or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -172,7 +189,7 @@ const PublicAccountsManagement = () => {
               <div className="text-center py-8">Loading accounts...</div>
             ) : (
               <PublicUserTable
-                users={filteredUsers}
+                users={safeFilteredUsers}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
               />
@@ -193,7 +210,7 @@ const PublicAccountsManagement = () => {
       {deletingUser && (
         <ConfirmDialog
           title="Delete Public Account"
-          message={`Are you sure you want to delete the account for ${deletingUser.name}? This action cannot be undone.`}
+          message={`Are you sure you want to delete the account for ${deletingUser.name}? This will permanently remove the record from the database and cannot be undone.`}
           onConfirm={handleDeleteUser}
           onCancel={() => setDeletingUser(null)}
           isLoading={isLoading}

@@ -12,26 +12,55 @@ export class IDCardPrinter {
 
   static async printMultipleCards(users: PublicUser[], autoPrint: boolean, toast: any) {
     try {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        throw new Error('Unable to open print window. Please check popup settings.');
-      }
-
-      // Generate QR codes for all users
+      // Generate QR codes for all users with enhanced validation
       const usersWithQR = await Promise.all(
         users.map(async (user) => {
           try {
             let qrDataUrl = '';
-            if (user.qr_code) {
-              // Enhanced QR code generation for better printing
-              qrDataUrl = await QRCode.toDataURL(user.qr_code, {
-                width: 200,
-                margin: 1,
+            if (user.qr_code && user.qr_code.trim() !== '') {
+              // If QR code is already a data URL, use it
+              if (user.qr_code.startsWith('data:image/')) {
+                qrDataUrl = user.qr_code;
+              } else {
+                // Generate new QR code with user data
+                const qrData = {
+                  id: user.public_id,
+                  name: user.name,
+                  nic: user.nic,
+                  mobile: user.mobile,
+                  issued: new Date().toISOString().split('T')[0],
+                  authority: 'DSK Kalmunai'
+                };
+                
+                qrDataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
+                  width: 300,
+                  margin: 2,
+                  color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                  },
+                  errorCorrectionLevel: 'H'
+                });
+              }
+            } else {
+              // Generate QR code if missing
+              const qrData = {
+                id: user.public_id,
+                name: user.name,
+                nic: user.nic,
+                mobile: user.mobile,
+                issued: new Date().toISOString().split('T')[0],
+                authority: 'DSK Kalmunai'
+              };
+              
+              qrDataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
+                width: 300,
+                margin: 2,
                 color: {
                   dark: '#000000',
                   light: '#FFFFFF'
                 },
-                errorCorrectionLevel: 'M'
+                errorCorrectionLevel: 'H'
               });
             }
             return { ...user, qr_data_url: qrDataUrl };
@@ -44,21 +73,39 @@ export class IDCardPrinter {
 
       const htmlContent = this.generateIDCardHTML(usersWithQR);
       
+      // Create print window
+      const printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (!printWindow) {
+        throw new Error('Unable to open print window. Please check popup settings.');
+      }
+
       printWindow.document.write(htmlContent);
       printWindow.document.close();
 
-      // Wait for images to load, then print
+      // Handle printing based on autoPrint setting
       printWindow.onload = () => {
         setTimeout(() => {
           if (autoPrint) {
             printWindow.print();
-            setTimeout(() => printWindow.close(), 1000);
+            // Close window after printing
+            printWindow.onafterprint = () => {
+              setTimeout(() => printWindow.close(), 1000);
+            };
+          } else {
+            // Show manual print dialog
+            const userConfirmed = confirm('ID cards are ready. Do you want to print now?');
+            if (userConfirmed) {
+              printWindow.print();
+              printWindow.onafterprint = () => {
+                setTimeout(() => printWindow.close(), 1000);
+              };
+            }
           }
-        }, 500);
+        }, 1000);
       };
 
       toast({
-        title: "ID Cards Ready ✅",
+        title: "✅ ID Cards Generated Successfully",
         description: `${users.length} ID card(s) prepared for printing with enhanced QR codes`,
       });
 
@@ -114,7 +161,6 @@ export class IDCardPrinter {
             let loadedImages = 0;
             
             if (images.length === 0) {
-              setTimeout(() => window.print(), 500);
               return;
             }
             
@@ -124,22 +170,14 @@ export class IDCardPrinter {
               } else {
                 img.onload = () => {
                   loadedImages++;
-                  if (loadedImages === images.length) {
-                    setTimeout(() => window.print(), 500);
-                  }
+                  console.log('Image loaded:', loadedImages, '/', images.length);
                 };
                 img.onerror = () => {
                   loadedImages++;
-                  if (loadedImages === images.length) {
-                    setTimeout(() => window.print(), 500);
-                  }
+                  console.log('Image error:', loadedImages, '/', images.length);
                 };
               }
             });
-            
-            if (loadedImages === images.length) {
-              setTimeout(() => window.print(), 500);
-            }
           }
         </script>
       </body>
@@ -152,11 +190,10 @@ export class IDCardPrinter {
     
     return `
       <div class="id-card">
-        <!-- Front Side -->
         <div class="card-front">
           <div class="card-header">
             <div class="logo-section">
-              <img src="/lovable-uploads/6e847d33-bb31-4337-86e5-a709077e569d.png" alt="Logo" class="logo" />
+              <img src="/lovable-uploads/6e847d33-bb31-4337-86e5-a709077e569d.png" alt="DSK Logo" class="logo" />
             </div>
             <div class="org-info">
               <div class="org-name">Divisional Secretariat</div>
@@ -185,12 +222,16 @@ export class IDCardPrinter {
             </div>
             
             <div class="qr-section">
-              ${user.qr_data_url ? `<img src="${user.qr_data_url}" alt="QR Code" class="qr-code" />` : '<div class="qr-error">QR Code Error</div>'}
+              ${user.qr_data_url ? 
+                `<img src="${user.qr_data_url}" alt="QR Code" class="qr-code" crossorigin="anonymous" />` : 
+                '<div class="qr-error">QR Code Unavailable</div>'
+              }
             </div>
           </div>
           
           <div class="card-footer">
             <div class="generated-date">Generated: ${currentDate}</div>
+            <div class="validity">Valid for official purposes</div>
           </div>
         </div>
       </div>
@@ -215,6 +256,8 @@ export class IDCardPrinter {
         background: white;
         color: black;
         line-height: 1.2;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
       
       .print-container {
@@ -233,12 +276,13 @@ export class IDCardPrinter {
       .id-card {
         width: 85.6mm;
         height: 54mm;
-        border: 2px solid #333;
-        border-radius: 6mm;
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 2px solid #2563eb;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
         overflow: hidden;
         position: relative;
         page-break-inside: avoid;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       }
       
       .empty-card {
@@ -248,7 +292,7 @@ export class IDCardPrinter {
       .card-front {
         width: 100%;
         height: 100%;
-        padding: 2mm;
+        padding: 3mm;
         display: flex;
         flex-direction: column;
       }
@@ -257,9 +301,9 @@ export class IDCardPrinter {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 1.5mm;
-        border-bottom: 1px solid #333;
-        padding-bottom: 1mm;
+        margin-bottom: 2mm;
+        border-bottom: 2px solid #2563eb;
+        padding-bottom: 1.5mm;
       }
       
       .logo-section {
@@ -267,10 +311,11 @@ export class IDCardPrinter {
       }
       
       .logo {
-        width: 8mm;
-        height: 8mm;
+        width: 10mm;
+        height: 10mm;
         border-radius: 50%;
         object-fit: cover;
+        border: 1px solid #2563eb;
       }
       
       .org-info {
@@ -280,15 +325,15 @@ export class IDCardPrinter {
       }
       
       .org-name {
-        font-size: 7pt;
+        font-size: 8pt;
         font-weight: bold;
-        color: #1a365d;
+        color: #1e40af;
         line-height: 1.1;
       }
       
       .org-location {
-        font-size: 6pt;
-        color: #2d3748;
+        font-size: 7pt;
+        color: #3730a3;
         font-weight: 600;
       }
       
@@ -297,7 +342,7 @@ export class IDCardPrinter {
         display: flex;
         justify-content: space-between;
         align-items: stretch;
-        gap: 2mm;
+        gap: 3mm;
       }
       
       .user-info {
@@ -310,60 +355,70 @@ export class IDCardPrinter {
       .info-row {
         display: flex;
         align-items: baseline;
-        margin-bottom: 0.8mm;
+        margin-bottom: 1mm;
       }
       
       .label {
-        font-size: 6pt;
+        font-size: 7pt;
         font-weight: bold;
-        color: #2d3748;
-        min-width: 12mm;
+        color: #374151;
+        min-width: 14mm;
         flex-shrink: 0;
       }
       
       .value {
-        font-size: 7pt;
-        color: #1a202c;
+        font-size: 8pt;
+        color: #111827;
         font-weight: 600;
         word-break: break-word;
         line-height: 1.1;
       }
       
       .qr-section {
-        width: 16mm;
-        height: 16mm;
+        width: 18mm;
+        height: 18mm;
         display: flex;
         align-items: center;
         justify-content: center;
         background: white;
-        border: 1px solid #333;
-        border-radius: 2mm;
+        border: 2px solid #2563eb;
+        border-radius: 4px;
         flex-shrink: 0;
       }
       
       .qr-code {
-        width: 14mm;
-        height: 14mm;
+        width: 16mm;
+        height: 16mm;
         object-fit: contain;
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
       }
       
       .qr-error {
         font-size: 5pt;
-        color: #e53e3e;
+        color: #dc2626;
         text-align: center;
         font-weight: bold;
       }
       
       .card-footer {
-        margin-top: 1mm;
-        padding-top: 0.5mm;
-        border-top: 1px solid #ccc;
+        margin-top: 1.5mm;
+        padding-top: 1mm;
+        border-top: 1px solid #e5e7eb;
+        text-align: center;
       }
       
       .generated-date {
         font-size: 5pt;
-        color: #666;
-        text-align: center;
+        color: #6b7280;
+        margin-bottom: 0.5mm;
+      }
+      
+      .validity {
+        font-size: 5pt;
+        color: #059669;
+        font-weight: bold;
       }
       
       .page-break {
@@ -384,6 +439,10 @@ export class IDCardPrinter {
           image-rendering: pixelated;
           image-rendering: -moz-crisp-edges;
           image-rendering: crisp-edges;
+        }
+        
+        .print-container {
+          max-width: none;
         }
       }
     `;
