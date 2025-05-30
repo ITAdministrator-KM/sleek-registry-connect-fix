@@ -123,6 +123,7 @@ function getNotifications($db) {
         http_response_code(200);
         echo json_encode([
             "status" => "success",
+            "message" => "Notifications retrieved successfully",
             "data" => $notifications,
             "meta" => [
                 "total" => (int)$totalCount,

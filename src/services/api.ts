@@ -1,4 +1,3 @@
-
 import { ApiBase } from './apiBase';
 
 export type UserRole = 'admin' | 'staff' | 'public';
@@ -91,6 +90,20 @@ export interface Division {
   description: string;
   status: string;
   created_at: string;
+}
+
+export interface NotificationMeta {
+  total: number;
+  unread: number;
+  limit: number;
+  offset: number;
+}
+
+export interface NotificationsResponse {
+  status: 'success' | 'error';
+  message: string;
+  data: NotificationData[];
+  meta: NotificationMeta;
 }
 
 class ApiService extends ApiBase {
@@ -267,20 +280,41 @@ class ApiService extends ApiBase {
   // Add alias for backward compatibility
   async updateToken(data: { id: number; status: Token['status'] }): Promise<Token> {
     return this.updateTokenStatus(data.id, data.status);
-  }
+  }  // Notifications
+  async getNotifications(): Promise<NotificationsResponse> {
+    try {
+      const userId = localStorage.getItem('userId');
+      const userRole = localStorage.getItem('userRole');
+      
+      if (!userId) {
+        throw new Error('User ID not found');
+      }
 
-  // Notifications
-  async getNotifications(): Promise<NotificationData[]> {
-    const response = await this.makeRequest('/notifications/');
-    return response.data;
+      let endpoint = `/notifications/index.php?recipient_id=${userId}`;
+      
+      // Map admin role to staff for backend compatibility
+      const recipientType = userRole === 'admin' ? 'staff' : userRole;
+      if (recipientType) {
+        endpoint += `&recipient_type=${recipientType}`;
+      }
+        const response = await this.makeRequest(endpoint);
+      return response as NotificationsResponse;
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      return {
+        status: 'error',
+        message: 'Failed to fetch notifications',
+        data: [],
+        meta: { total: 0, unread: 0, limit: 0, offset: 0 }
+      };
+    }
   }
-
-  async markNotificationAsRead(notificationId: number): Promise<any> {
-    const response = await this.makeRequest('/notifications/', {
+  async markNotificationAsRead(notificationId: number): Promise<{ status: string; message: string }> {
+    const response = await this.makeRequest('/notifications/index.php', {
       method: 'PUT',
       body: JSON.stringify({ id: notificationId, is_read: true }),
     });
-    return response.data;
+    return response;
   }
 
   // QR Scans
