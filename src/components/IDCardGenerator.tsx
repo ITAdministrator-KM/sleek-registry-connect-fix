@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +11,7 @@ import { IDCardPrinter } from './id-card/IDCardPrinter';
 import { IDCardValidator } from './id-card/IDCardValidator';
 import { UserSelectionControls } from './id-card/UserSelectionControls';
 import { UserCardList } from './id-card/UserCardList';
+import { EnhancedIDCardPrinter } from './id-card/EnhancedIDCardPrinter';
 
 const IDCardGenerator = () => {
   const [users, setUsers] = useState<PublicUser[]>([]);
@@ -84,7 +84,7 @@ const IDCardGenerator = () => {
       }
 
       setIsLoading(true);
-      await IDCardPrinter.printMultipleCards(usersToPrint, autoPrint, toast);
+      await EnhancedIDCardPrinter.printMultipleCards(usersToPrint, autoPrint, toast);
     } catch (error) {
       console.error('Error generating ID cards:', error);
       toast({
@@ -100,7 +100,7 @@ const IDCardGenerator = () => {
   const handleSinglePrint = async (user: PublicUser) => {
     try {
       setIsLoading(true);
-      await IDCardPrinter.printSingleCard(user, autoPrint, toast);
+      await EnhancedIDCardPrinter.printSingleCard(user, autoPrint, toast);
     } catch (error) {
       console.error('Error generating single ID card:', error);
       toast({

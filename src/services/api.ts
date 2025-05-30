@@ -1,4 +1,3 @@
-
 import { ApiBase } from './apiBase';
 
 export type UserRole = 'admin' | 'staff' | 'public';
@@ -281,6 +280,56 @@ class ApiService extends ApiBase {
   // Add alias for backward compatibility
   async updateToken(data: { id: number; status: Token['status'] }): Promise<Token> {
     return this.updateTokenStatus(data.id, data.status);
+  }
+
+  // Service History
+  async getServiceHistory(publicUserId: string, params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    department_id?: number;
+    from_date?: string;
+    to_date?: string;
+  }): Promise<{ data: any[]; meta: any }> {
+    const queryParams = new URLSearchParams({
+      public_user_id: publicUserId,
+      ...(params?.page && { page: params.page.toString() }),
+      ...(params?.limit && { limit: params.limit.toString() }),
+      ...(params?.status && { status: params.status }),
+      ...(params?.department_id && { department_id: params.department_id.toString() }),
+      ...(params?.from_date && { from_date: params.from_date }),
+      ...(params?.to_date && { to_date: params.to_date }),
+    });
+
+    const response = await this.makeRequest(`/service-history/?${queryParams}`);
+    return response;
+  }
+
+  async addServiceHistory(data: {
+    public_user_id: string;
+    department_id: number;
+    division_id: number;
+    service_name: string;
+    details?: string;
+    staff_user_id?: number;
+  }): Promise<any> {
+    const response = await this.makeRequest('/service-history/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async updateServiceHistory(data: {
+    id: number;
+    status: string;
+    details?: string;
+  }): Promise<any> {
+    const response = await this.makeRequest('/service-history/', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data;
   }
 
   // Notifications
