@@ -1,4 +1,3 @@
-
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -7,25 +6,44 @@ include_once '../../config/error_handler.php';
 function generateQRCode($data) {
     require_once '../../vendor/autoload.php';
     
-    $options = new \chillerlan\QRCode\QROptions([
-        'outputType' => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
-        'eccLevel' => \chillerlan\QRCode\QRCode::ECC_M, // Medium error correction for better scanning
-        'scale' => 10, // Increased scale for better visibility
-        'imageBase64' => true,
-        'imageTransparent' => false,
-        'drawCircularModules' => false,
-        'drawLightModules' => false,
-        'moduleValues' => [
-            1536 => [0, 0, 0], // Black modules
-            6 => [255, 255, 255], // White modules
-        ],
-        'addQuietzone' => true,
-        'quietzoneSize' => 2,
-    ]);
-    
-    $qrcode = new \chillerlan\QRCode\QRCode($options);
-    
-    return $qrcode->render(json_encode($data));
+    try {
+        $options = new \chillerlan\QRCode\QROptions([
+            'outputType' => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
+            'eccLevel' => \chillerlan\QRCode\QRCode::ECC_M,
+            'scale' => 12,
+            'imageBase64' => true,
+            'imageTransparent' => false,
+            'drawCircularModules' => false,
+            'drawLightModules' => false,
+            'addQuietzone' => true,
+            'quietzoneSize' => 3,
+            'moduleValues' => [
+                1536 => [0, 0, 0],
+                6 => [255, 255, 255],
+            ],
+        ]);
+        
+        $qrcode = new \chillerlan\QRCode\QRCode($options);
+        $qrData = is_array($data) ? json_encode($data) : $data;
+        
+        $result = $qrcode->render($qrData);
+        
+        // Validate the generated QR code
+        if (!$result || !str_starts_with($result, 'data:image/png;base64,')) {
+            throw new Exception("QR code generation failed - invalid format");
+        }
+        
+        // Verify base64 content
+        $base64Data = substr($result, strlen('data:image/png;base64,'));
+        if (strlen($base64Data) < 100) {
+            throw new Exception("QR code generation failed - insufficient data");
+        }
+        
+        return $result;
+    } catch (Exception $e) {
+        error_log("QR Code generation error: " . $e->getMessage());
+        throw new Exception("Failed to generate QR code: " . $e->getMessage());
+    }
 }
 
 function sendResponse($status, $data = null, $message = null) {
@@ -190,7 +208,8 @@ function createPublicUser($db) {
             'mobile' => $data->mobile,
             'issued' => date('Y-m-d'),
             'authority' => 'DSK',
-            'type' => 'public_user'
+            'type' => 'public_user',
+            'verified' => true
         ];
         
         $qrCode = generateQRCode($qrData);
@@ -320,7 +339,8 @@ function updatePublicUser($db) {
                     'mobile' => $data->mobile ?? $currentUser['mobile'],
                     'issued' => date('Y-m-d'),
                     'authority' => 'DSK',
-                    'type' => 'public_user'
+                    'type' => 'public_user',
+                    'verified' => true
                 ];
                 
                 $newQrCode = generateQRCode($qrData);

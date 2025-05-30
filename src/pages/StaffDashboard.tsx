@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import IDCardGenerator from '@/components/IDCardGenerator';
 import QRScanner from '@/components/QRScanner';
 import TokenManagement from '@/components/TokenManagement';
-import PublicAccountCreation from '@/components/PublicAccountCreation';
+import PublicAccountsManagement from '@/components/PublicAccountsManagement';
 import NotificationManagement from '@/components/NotificationManagement';
 import AppointmentManagement from '@/components/AppointmentManagement';
 import NotificationBell from '@/components/NotificationBell';
@@ -61,7 +62,7 @@ const StaffDashboard = () => {
 
   const sidebarItems = [
     { id: 'overview', label: 'Overview', icon: FileText },
-    { id: 'public-accounts', label: 'Public Accounts', icon: UserPlus },
+    { id: 'public-accounts', label: 'Public Accounts', icon: Users },
     { id: 'id-cards', label: 'ID Card Generator', icon: CreditCard },
     { id: 'qr-scanner', label: 'QR Scanner', icon: QrCode },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
@@ -200,17 +201,17 @@ const StaffDashboard = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center">
-                      <UserPlus className="mr-2 text-green-600" size={20} />
-                      Public Account Creation
+                      <Users className="mr-2 text-green-600" size={20} />
+                      Public Accounts Management
                     </CardTitle>
-                    <CardDescription>Create new public user accounts</CardDescription>
+                    <CardDescription>Create, edit, and manage public user accounts</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Button 
                       onClick={() => setActiveTab('public-accounts')}
                       className="w-full bg-green-600 hover:bg-green-700"
                     >
-                      Create Account
+                      Manage Accounts
                     </Button>
                   </CardContent>
                 </Card>
@@ -287,7 +288,7 @@ const StaffDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'public-accounts' && <PublicAccountCreation />}
+          {activeTab === 'public-accounts' && <PublicAccountsManagement />}
           {activeTab === 'id-cards' && <IDCardGenerator />}
           {activeTab === 'qr-scanner' && <QRScanner />}
           {activeTab === 'tokens' && <TokenManagement />}
