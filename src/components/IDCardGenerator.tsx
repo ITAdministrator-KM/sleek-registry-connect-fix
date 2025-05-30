@@ -331,11 +331,10 @@ const IDCardGenerator = () => {
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
+              <div className="flex items-center space-x-2">                <Checkbox 
                   id="auto-print" 
                   checked={autoPrint} 
-                  onCheckedChange={setAutoPrint}
+                  onCheckedChange={(checked) => setAutoPrint(checked === true)}
                 />
                 <label htmlFor="auto-print" className="text-sm font-medium">
                   Auto Print
@@ -379,12 +378,17 @@ const IDCardGenerator = () => {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {filteredUsers.map(user => (
-                  <Card key={user.id} className="relative">
-                    <CardContent className="p-4">
+                  <Card key={user.id} className="relative">                    <CardContent className="p-4">
                       <div className="absolute top-4 right-4">
                         <Checkbox
                           checked={selectedUsers.includes(user.id)}
-                          onCheckedChange={() => handleSelectUser(user.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked === true) {
+                              handleSelectUser(user.id);
+                            } else {
+                              handleSelectUser(user.id);
+                            }
+                          }}
                         />
                       </div>
                       <div className="pr-8 space-y-2">
