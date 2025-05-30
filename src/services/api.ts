@@ -13,6 +13,9 @@ export interface NotificationData {
   created_at: string;
 }
 
+// Add alias for backward compatibility
+export interface Notification extends NotificationData {}
+
 export interface Token {
   id: number;
   token_number: number;
@@ -100,10 +103,14 @@ class ApiService extends ApiBase {
     return response;
   }
 
-  async updatePassword(currentPassword: string, newPassword: string): Promise<any> {
+  async updatePassword(data: { id: number; currentPassword: string; newPassword: string }): Promise<any> {
     const response = await this.makeRequest('/users/password.php', {
       method: 'POST',
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+      body: JSON.stringify({ 
+        id: data.id,
+        current_password: data.currentPassword, 
+        new_password: data.newPassword 
+      }),
     });
     return response.data;
   }
@@ -179,10 +186,58 @@ class ApiService extends ApiBase {
     return response.data;
   }
 
+  async createDepartment(departmentData: { name: string; description: string }): Promise<Department> {
+    const response = await this.makeRequest('/departments/', {
+      method: 'POST',
+      body: JSON.stringify(departmentData),
+    });
+    return response.data;
+  }
+
+  async updateDepartment(data: { id: number; name: string; description: string }): Promise<Department> {
+    const response = await this.makeRequest('/departments/', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async deleteDepartment(id: number): Promise<any> {
+    const response = await this.makeRequest('/departments/', {
+      method: 'DELETE',
+      body: JSON.stringify({ id }),
+    });
+    return response.data;
+  }
+
   // Divisions
   async getDivisions(departmentId?: number): Promise<Division[]> {
     const endpoint = departmentId ? `/divisions/?department_id=${departmentId}` : '/divisions/';
     const response = await this.makeRequest(endpoint);
+    return response.data;
+  }
+
+  async createDivision(divisionData: { name: string; department_id: number; description: string }): Promise<Division> {
+    const response = await this.makeRequest('/divisions/', {
+      method: 'POST',
+      body: JSON.stringify(divisionData),
+    });
+    return response.data;
+  }
+
+  async updateDivision(data: { id: number; name: string; department_id: number; description: string }): Promise<Division> {
+    const response = await this.makeRequest('/divisions/', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async deleteDivision(id: number): Promise<any> {
+    const response = await this.makeRequest('/divisions/', {
+      method: 'DELETE',
+      body: JSON.stringify({ id }),
+    });
     return response.data;
   }
 
@@ -207,6 +262,11 @@ class ApiService extends ApiBase {
       body: JSON.stringify({ id: tokenId, status }),
     });
     return response.data;
+  }
+
+  // Add alias for backward compatibility
+  async updateToken(data: { id: number; status: Token['status'] }): Promise<Token> {
+    return this.updateTokenStatus(data.id, data.status);
   }
 
   // Notifications

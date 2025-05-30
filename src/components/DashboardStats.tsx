@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, FileText, Calendar, CheckCircle, Building, UserCheck } from 'lucide-react';
@@ -38,7 +37,7 @@ const DashboardStats = () => {
         apiService.getDepartments(),
         apiService.getDivisions(),
         apiService.getPublicUsers(),
-        apiService.getTokens(new Date().toISOString().split('T')[0])
+        apiService.getTokens()
       ]);
 
       const newStats: StatsData = {

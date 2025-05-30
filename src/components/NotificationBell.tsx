@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { apiService, Notification } from '@/services/api';
+import { apiService, NotificationData } from '@/services/api';
 
 const NotificationBell = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -16,20 +16,8 @@ const NotificationBell = () => {
 
   const fetchNotifications = async () => {
     try {
-      const userId = localStorage.getItem('userId');
-      const userRole = localStorage.getItem('userRole');
-      
-      if (!userId) return;
-
-      // Map admin role to staff for backend compatibility
-      const recipientType = userRole === 'admin' ? 'staff' : (userRole as 'public' | 'staff');
-      
-      const response = await apiService.getNotifications(
-        parseInt(userId), 
-        recipientType
-      );
-      
-      const notificationsList = Array.isArray(response) ? response as Notification[] : [];
+      const response = await apiService.getNotifications();
+      const notificationsList = Array.isArray(response) ? response as NotificationData[] : [];
       setNotifications(notificationsList);
       
       const unreadNotifications = notificationsList.filter(n => !n.is_read);

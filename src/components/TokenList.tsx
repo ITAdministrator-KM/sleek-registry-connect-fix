@@ -1,11 +1,10 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Printer } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { apiService } from '@/services/api';
+import { apiService, Token as ApiToken } from '@/services/api';
 
 interface Token {
   id: string;
@@ -15,7 +14,7 @@ interface Token {
   division: string;
   divisionId: number;
   timestamp: string;
-  status: 'active' | 'called' | 'completed';
+  status: 'waiting' | 'called' | 'serving' | 'completed' | 'cancelled';
 }
 
 interface TokenListProps {
@@ -34,15 +33,14 @@ const TokenList = ({ refreshTrigger }: TokenListProps) => {
   const fetchTodayTokens = async () => {
     try {
       setIsLoading(true);
-      const today = new Date().toISOString().split('T')[0];
-      const apiTokens = await apiService.getTokens(today);
+      const apiTokens = await apiService.getTokens();
       
       const formattedTokens: Token[] = Array.isArray(apiTokens) ? apiTokens.map(token => ({
         id: token.id.toString(),
         tokenNumber: token.token_number,
-        department: token.department_name,
+        department: token.department_name || 'Unknown',
         departmentId: token.department_id,
-        division: token.division_name,
+        division: token.division_name || 'Unknown',
         divisionId: token.division_id,
         timestamp: new Date(token.created_at).toLocaleString(),
         status: token.status
@@ -55,18 +53,11 @@ const TokenList = ({ refreshTrigger }: TokenListProps) => {
       setIsLoading(false);
     }
   };
+
   const updateTokenStatus = async (tokenId: string, status: 'called' | 'completed') => {
     try {
-      const response = await apiService.updateToken({
-        id: parseInt(tokenId),
-        status
-      });
+      await apiService.updateTokenStatus(parseInt(tokenId), status);
       
-      if (!response || response.status === 'error') {
-        throw new Error(response?.message || 'Failed to update token');
-      }
-      
-      // Only update local state if the API call was successful
       setTokens(prev => 
         prev.map(token => 
           token.id === tokenId ? { ...token, status } : token
@@ -119,9 +110,11 @@ const TokenList = ({ refreshTrigger }: TokenListProps) => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800 border-green-200';
+      case 'waiting': return 'bg-green-100 text-green-800 border-green-200';
       case 'called': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'serving': return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'completed': return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -161,7 +154,7 @@ const TokenList = ({ refreshTrigger }: TokenListProps) => {
                   <p className="text-xs text-gray-500">{token.timestamp}</p>
                 </div>
                 <div className="flex space-x-2">
-                  {token.status === 'active' && (
+                  {token.status === 'waiting' && (
                     <Button
                       size="sm"
                       className="bg-blue-500 hover:bg-blue-600 text-white"
