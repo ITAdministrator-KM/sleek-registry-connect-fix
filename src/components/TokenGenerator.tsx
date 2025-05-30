@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Printer, Ticket, Clock, MapPin } from 'lucide-react';
+import { Label } from "@/components/ui/label";
+import { Printer, Ticket, Clock, Settings } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/api';
 
@@ -82,14 +83,14 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
         throw new Error("Invalid response from server");
       }
 
-      const { token_number, token_id } = response;
+      const { token_number } = response;
       
-      if (!token_number || !token_id) {
-        throw new Error("Token generation failed - missing token details");
+      if (!token_number) {
+        throw new Error("Token generation failed - missing token number");
       }
 
       toast({
-        title: "Token Generated",
+        title: "Token Generated ✅",
         description: `Token #${token_number} for ${selectedDivision}`,
       });
 
@@ -107,7 +108,6 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
     }
   };
 
-  // Enhanced XP-58 thermal printer format (58mm width) with better formatting
   const printTokenXP58 = (tokenNumber: number, department: string, division: string) => {
     const now = new Date();
     const tokenStr = tokenNumber.toString().padStart(3, '0');
@@ -118,52 +118,15 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
       minute: '2-digit' 
     });
     
-    // XP-58 optimized formatting - 32 characters per line at standard font
-    const printContent = `
-${centerText('═══════════════════════════════', 32)}
-${centerText('DIVISIONAL SECRETARIAT', 32)}
-${centerText('KALMUNAI', 32)}
-${centerText('═══════════════════════════════', 32)}
-
-${centerText('QUEUE TOKEN', 32)}
-
-${centerText('█ █ █ █ █ █ █ █ █ █ █', 32)}
-${centerText(`TOKEN NO: ${tokenStr}`, 32)}
-${centerText('█ █ █ █ █ █ █ █ █ █ █', 32)}
-
-Division: ${division.length > 22 ? division.substring(0, 19) + '...' : division}
-Department: ${department.length > 20 ? department.substring(0, 17) + '...' : department}
-
-Date: ${dateStr}
-Time: ${timeStr}
-
-${centerText('─────────────────────────────', 32)}
-${centerText('Please wait for your', 32)}
-${centerText('number to be called', 32)}
-${centerText('Keep this token safe', 32)}
-${centerText('─────────────────────────────', 32)}
-
-${centerText('Thank you for visiting', 32)}
-${centerText('DSK - Kalmunai', 32)}
-
-${centerText('═══════════════════════════════', 32)}
-    `;
-
-    // Create optimized printable receipt for XP-58
-    createXP58PrintableReceipt(printContent, tokenStr, division, dateStr, timeStr);
+    createXP58PrintableReceipt(tokenStr, division, dateStr, timeStr);
     
     toast({
-      title: "Token Ready for Print",
-      description: "Token formatted for XP-58 thermal printer (58mm)",
+      title: "Ready for Print 🖨️",
+      description: "Token formatted for XP-58 thermal printer",
     });
   };
 
-  const centerText = (text: string, width: number): string => {
-    const padding = Math.max(0, Math.floor((width - text.length) / 2));
-    return ' '.repeat(padding) + text;
-  };
-
-  const createXP58PrintableReceipt = (content: string, tokenNumber: string, division: string, date: string, time: string) => {
+  const createXP58PrintableReceipt = (tokenNumber: string, division: string, date: string, time: string) => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
@@ -178,113 +141,103 @@ ${centerText('══════════════════════
               
               body {
                 font-family: 'Courier New', monospace;
-                font-size: 11px;
+                font-size: 10px;
                 line-height: 1.1;
                 margin: 0;
-                padding: 2mm;
-                width: 54mm;
+                padding: 1mm;
+                width: 56mm;
                 background: white;
                 color: black;
-                text-align: left;
-              }
-              
-              .receipt-container {
-                width: 100%;
-                max-width: 54mm;
-              }
-              
-              .center {
                 text-align: center;
+              }
+              
+              .header {
+                font-weight: bold;
+                font-size: 9px;
+                margin-bottom: 2mm;
+              }
+              
+              .token-section {
+                margin: 2mm 0;
+                border: 1px solid black;
+                padding: 1mm;
               }
               
               .token-number {
-                font-size: 16px;
+                font-size: 18px;
                 font-weight: bold;
-                text-align: center;
-                margin: 2mm 0;
                 letter-spacing: 2px;
+                margin: 1mm 0;
               }
               
-              .division-name {
-                font-size: 10px;
+              .division {
+                font-size: 8px;
                 font-weight: bold;
                 margin: 1mm 0;
+                word-wrap: break-word;
               }
               
               .datetime {
-                font-size: 9px;
+                font-size: 8px;
                 margin: 0.5mm 0;
               }
               
-              .separator {
-                text-align: center;
-                margin: 1mm 0;
-                font-size: 10px;
-              }
-              
               .footer {
-                text-align: center;
-                font-size: 9px;
+                font-size: 7px;
                 margin-top: 2mm;
+                line-height: 1.2;
               }
               
-              pre {
-                margin: 0;
-                white-space: pre-wrap;
-                word-wrap: break-word;
-                font-family: inherit;
-                font-size: inherit;
+              .separator {
+                border-top: 1px dashed black;
+                margin: 1mm 0;
               }
               
               @media print {
                 body { 
-                  font-size: 10px;
-                  padding: 1mm;
+                  font-size: 9px;
+                  padding: 0.5mm;
                 }
                 .token-number {
-                  font-size: 14px;
+                  font-size: 16px;
                 }
               }
             </style>
           </head>
           <body>
-            <div class="receipt-container">
-              <div class="separator">═══════════════════════════════</div>
-              <div class="center" style="font-weight: bold;">DIVISIONAL SECRETARIAT</div>
-              <div class="center" style="font-weight: bold;">KALMUNAI</div>
-              <div class="separator">═══════════════════════════════</div>
-              
-              <div class="center" style="margin: 3mm 0; font-weight: bold;">QUEUE TOKEN</div>
-              
-              <div class="center">█ █ █ █ █ █ █ █ █ █ █</div>
-              <div class="token-number">TOKEN NO: ${tokenNumber}</div>
-              <div class="center">█ █ █ █ █ █ █ █ █ █ █</div>
-              
-              <div class="division-name">Division: ${division}</div>
-              <div class="datetime">Date: ${date}</div>
-              <div class="datetime">Time: ${time}</div>
-              
-              <div class="separator">─────────────────────────────</div>
-              <div class="center">Please wait for your</div>
-              <div class="center">number to be called</div>
-              <div class="center">Keep this token safe</div>
-              <div class="separator">─────────────────────────────</div>
-              
-              <div class="footer">Thank you for visiting</div>
-              <div class="footer" style="font-weight: bold;">DSK - Kalmunai</div>
-              
-              <div class="separator">═══════════════════════════════</div>
+            <div class="header">
+              DIVISIONAL SECRETARIAT<br>
+              KALMUNAI
+            </div>
+            
+            <div class="separator"></div>
+            
+            <div class="token-section">
+              <div style="font-size: 9px; font-weight: bold;">QUEUE TOKEN</div>
+              <div class="token-number">NO: ${tokenNumber}</div>
+            </div>
+            
+            <div class="division">${division.length > 25 ? division.substring(0, 22) + '...' : division}</div>
+            
+            <div class="datetime">${date} | ${time}</div>
+            
+            <div class="separator"></div>
+            
+            <div class="footer">
+              Please wait for your<br>
+              number to be called<br><br>
+              Keep this token safe<br><br>
+              DSK - Kalmunai
             </div>
             
             <script>
               window.onload = function() {
-                // Auto print after 500ms delay
                 setTimeout(function() {
                   window.print();
                   setTimeout(function() {
                     window.close();
                   }, 1000);
-                }, 500);
+                }, 300);
               }
             </script>
           </body>
@@ -306,15 +259,15 @@ ${centerText('══════════════════════
       <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-t-lg">
         <CardTitle className="flex items-center text-purple-800">
           <Ticket className="mr-2" size={20} />
-          Token Generator (XP-58 Thermal Printer)
+          Token Generator - XP-58 Thermal Printer
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div className="space-y-2">
-            <label htmlFor="department-select" className="text-sm font-medium text-gray-700">Department</label>
+            <Label htmlFor="token-department-select" className="text-sm font-medium text-gray-700">Department</Label>
             <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-              <SelectTrigger id="department-select" className="border-gray-300 focus:border-purple-500">
+              <SelectTrigger id="token-department-select" name="department" className="border-gray-300 focus:border-purple-500">
                 <SelectValue placeholder="Select department" />
               </SelectTrigger>
               <SelectContent>
@@ -328,13 +281,13 @@ ${centerText('══════════════════════
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="division-select" className="text-sm font-medium text-gray-700">Division</label>
+            <Label htmlFor="token-division-select" className="text-sm font-medium text-gray-700">Division</Label>
             <Select 
               value={selectedDivision} 
               onValueChange={setSelectedDivision}
               disabled={!selectedDepartment}
             >
-              <SelectTrigger id="division-select" className="border-gray-300 focus:border-purple-500">
+              <SelectTrigger id="token-division-select" name="division" className="border-gray-300 focus:border-purple-500">
                 <SelectValue placeholder="Select division" />
               </SelectTrigger>
               <SelectContent>
@@ -363,13 +316,13 @@ ${centerText('══════════════════════
           <div className="p-3 bg-gray-50 rounded-lg">
             <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
               <Printer className="mr-1 h-4 w-4" />
-              XP-58 Printer Info:
+              XP-58 Printer Settings:
             </h4>
             <ul className="text-xs text-gray-600 space-y-1">
-              <li>• Paper width: 58mm thermal paper</li>
-              <li>• Auto-cut after printing</li>
-              <li>• High contrast black/white output</li>
-              <li>• USB and Bluetooth connectivity</li>
+              <li>• Paper: 58mm thermal paper</li>
+              <li>• Format: Compact receipt (optimized)</li>
+              <li>• Length: Single sheet (no overflow)</li>
+              <li>• Print: Auto-cut after completion</li>
             </ul>
           </div>
 
@@ -379,10 +332,10 @@ ${centerText('══════════════════════
               Token Features:
             </h4>
             <ul className="text-xs text-blue-600 space-y-1">
-              <li>• Auto-reset daily at midnight</li>
-              <li>• Department and division details</li>
-              <li>• Date and time stamp</li>
-              <li>• Professional thermal receipt format</li>
+              <li>• Auto-reset: Daily at midnight</li>
+              <li>• Contains: Division, date, time</li>
+              <li>• Format: Professional receipt layout</li>
+              <li>• Size: Standard thermal receipt</li>
             </ul>
           </div>
         </div>

@@ -1,18 +1,17 @@
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { X } from 'lucide-react';
-import type { PublicUser } from '@/services/api';
+import type { PublicUser, Department, Division } from '@/services/api';
 import { apiService } from '@/services/api';
 
 interface PublicUserFormProps {
   user?: PublicUser | null;
-  onSubmit: (userData: any) => void;
+  onSubmit: (data: any) => void;
   onClose: () => void;
   isLoading: boolean;
 }
@@ -26,15 +25,15 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
     email: '',
     username: '',
     password: '',
-    department_id: '',
-    division_id: ''
+    department_id: 0,
+    division_id: 0,
   });
-
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [divisions, setDivisions] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
 
   useEffect(() => {
     fetchDepartments();
+    fetchDivisions();
     
     if (user) {
       setFormData({
@@ -45,26 +44,25 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
         email: user.email || '',
         username: user.username || '',
         password: '',
-        department_id: user.department_id?.toString() || '',
-        division_id: user.division_id?.toString() || ''
+        department_id: user.department_id || 0,
+        division_id: user.division_id || 0,
       });
     }
   }, [user]);
 
   const fetchDepartments = async () => {
     try {
-      const depts = await apiService.getDepartments();
-      setDepartments(depts);
+      const response = await apiService.getDepartments();
+      setDepartments(response);
     } catch (error) {
       console.error('Error fetching departments:', error);
     }
   };
 
-  const fetchDivisions = async (departmentId: string) => {
+  const fetchDivisions = async () => {
     try {
-      const divs = await apiService.getDivisions();
-      const filteredDivisions = divs.filter(div => div.department_id === parseInt(departmentId));
-      setDivisions(filteredDivisions);
+      const response = await apiService.getDivisions();
+      setDivisions(response);
     } catch (error) {
       console.error('Error fetching divisions:', error);
     }
@@ -73,26 +71,15 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const submitData = {
-      ...formData,
-      department_id: formData.department_id ? parseInt(formData.department_id) : null,
-      division_id: formData.division_id ? parseInt(formData.division_id) : null
-    };
-
-    if (user) {
-      submitData.id = user.id;
-    }
-
+    const submitData = user 
+      ? { id: user.id, ...formData }
+      : formData;
+    
     onSubmit(submitData);
   };
 
-  const handleDepartmentChange = (value: string) => {
-    setFormData(prev => ({ ...prev, department_id: value, division_id: '' }));
-    if (value) {
-      fetchDivisions(value);
-    } else {
-      setDivisions([]);
-    }
+  const getFilteredDivisions = () => {
+    return divisions.filter(d => d.department_id === formData.department_id);
   };
 
   return (
@@ -100,7 +87,7 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>{user ? 'Edit Public Account' : 'Create Public Account'}</CardTitle>
+            <CardTitle>{user ? 'Edit Public User' : 'Create Public User'}</CardTitle>
             <Button variant="ghost" size="sm" onClick={onClose}>
               <X className="h-4 w-4" />
             </Button>
@@ -109,75 +96,96 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Full Name *</Label>
+              <div className="space-y-2">
+                <Label htmlFor="public-user-name">Full Name *</Label>
                 <Input
-                  id="name"
+                  id="public-user-name"
+                  name="name"
                   value={formData.name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) => setFormData(prev => ({...prev, name: e.target.value}))}
+                  placeholder="Enter full name"
                   required
+                  autoComplete="name"
                 />
               </div>
               
-              <div>
-                <Label htmlFor="nic">NIC Number *</Label>
+              <div className="space-y-2">
+                <Label htmlFor="public-user-nic">NIC *</Label>
                 <Input
-                  id="nic"
+                  id="public-user-nic"
+                  name="nic"
                   value={formData.nic}
-                  onChange={(e) => setFormData(prev => ({ ...prev, nic: e.target.value }))}
+                  onChange={(e) => setFormData(prev => ({...prev, nic: e.target.value}))}
+                  placeholder="Enter NIC number"
                   required
+                  autoComplete="off"
                 />
               </div>
-              
-              <div>
-                <Label htmlFor="mobile">Mobile Number *</Label>
+
+              <div className="space-y-2">
+                <Label htmlFor="public-user-mobile">Mobile *</Label>
                 <Input
-                  id="mobile"
+                  id="public-user-mobile"
+                  name="mobile"
                   value={formData.mobile}
-                  onChange={(e) => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
+                  onChange={(e) => setFormData(prev => ({...prev, mobile: e.target.value}))}
+                  placeholder="Enter mobile number"
                   required
+                  autoComplete="tel"
                 />
               </div>
-              
-              <div>
-                <Label htmlFor="email">Email Address *</Label>
+
+              <div className="space-y-2">
+                <Label htmlFor="public-user-email">Email</Label>
                 <Input
-                  id="email"
+                  id="public-user-email"
+                  name="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                  required
+                  onChange={(e) => setFormData(prev => ({...prev, email: e.target.value}))}
+                  placeholder="Enter email address"
+                  autoComplete="email"
                 />
               </div>
-              
-              <div>
-                <Label htmlFor="username">Username *</Label>
+
+              <div className="space-y-2">
+                <Label htmlFor="public-user-username">Username *</Label>
                 <Input
-                  id="username"
+                  id="public-user-username"
+                  name="username"
                   value={formData.username}
-                  onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                  onChange={(e) => setFormData(prev => ({...prev, username: e.target.value}))}
+                  placeholder="Enter username"
                   required
+                  autoComplete="username"
                 />
               </div>
-              
-              <div>
-                <Label htmlFor="password">{user ? 'New Password (optional)' : 'Password *'}</Label>
+
+              <div className="space-y-2">
+                <Label htmlFor="public-user-password">Password {!user && '*'}</Label>
                 <Input
-                  id="password"
+                  id="public-user-password"
+                  name="password"
                   type="password"
                   value={formData.password}
-                  onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                  onChange={(e) => setFormData(prev => ({...prev, password: e.target.value}))}
+                  placeholder={user ? "Leave blank to keep current" : "Enter password"}
                   required={!user}
+                  autoComplete="new-password"
                 />
               </div>
-              
-              <div>
-                <Label htmlFor="department">Department</Label>
-                <Select value={formData.department_id} onValueChange={handleDepartmentChange}>
-                  <SelectTrigger id="department">
+
+              <div className="space-y-2">
+                <Label htmlFor="public-user-department">Department</Label>
+                <Select 
+                  value={formData.department_id.toString()} 
+                  onValueChange={(value) => setFormData(prev => ({...prev, department_id: parseInt(value), division_id: 0}))}
+                >
+                  <SelectTrigger id="public-user-department" name="department">
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="0">No Department</SelectItem>
                     {departments.map((dept) => (
                       <SelectItem key={dept.id} value={dept.id.toString()}>
                         {dept.name}
@@ -186,15 +194,20 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
                   </SelectContent>
                 </Select>
               </div>
-              
-              <div>
-                <Label htmlFor="division">Division</Label>
-                <Select value={formData.division_id} onValueChange={(value) => setFormData(prev => ({ ...prev, division_id: value }))}>
-                  <SelectTrigger id="division">
+
+              <div className="space-y-2">
+                <Label htmlFor="public-user-division">Division</Label>
+                <Select 
+                  value={formData.division_id.toString()} 
+                  onValueChange={(value) => setFormData(prev => ({...prev, division_id: parseInt(value)}))}
+                  disabled={!formData.department_id}
+                >
+                  <SelectTrigger id="public-user-division" name="division">
                     <SelectValue placeholder="Select division" />
                   </SelectTrigger>
                   <SelectContent>
-                    {divisions.map((div) => (
+                    <SelectItem value="0">No Division</SelectItem>
+                    {getFilteredDivisions().map((div) => (
                       <SelectItem key={div.id} value={div.id.toString()}>
                         {div.name}
                       </SelectItem>
@@ -203,24 +216,26 @@ export const PublicUserForm = ({ user, onSubmit, onClose, isLoading }: PublicUse
                 </Select>
               </div>
             </div>
-            
-            <div>
-              <Label htmlFor="address">Address *</Label>
-              <Textarea
-                id="address"
+
+            <div className="space-y-2">
+              <Label htmlFor="public-user-address">Address *</Label>
+              <Input
+                id="public-user-address"
+                name="address"
                 value={formData.address}
-                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                onChange={(e) => setFormData(prev => ({...prev, address: e.target.value}))}
+                placeholder="Enter full address"
                 required
-                rows={3}
+                autoComplete="street-address"
               />
             </div>
-            
-            <div className="flex justify-end space-x-2">
+
+            <div className="flex gap-3 pt-4">
+              <Button type="submit" disabled={isLoading} className="flex-1">
+                {isLoading ? 'Processing...' : user ? 'Update User' : 'Create User'}
+              </Button>
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading} className="bg-green-600 hover:bg-green-700">
-                {isLoading ? 'Saving...' : user ? 'Update Account' : 'Create Account'}
               </Button>
             </div>
           </form>

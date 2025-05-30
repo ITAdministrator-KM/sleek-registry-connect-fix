@@ -1,3 +1,4 @@
+
 import { ApiBase } from './apiBase';
 
 export type UserRole = 'admin' | 'staff' | 'public';
@@ -22,7 +23,6 @@ export interface Token {
   status: 'waiting' | 'called' | 'serving' | 'completed' | 'cancelled';
   created_at: string;
   updated_at?: string;
-  message?: string;
 }
 
 export interface LoginResponseData {
@@ -55,7 +55,6 @@ export interface PublicUser {
   status: string;
   created_at: string;
   updated_at?: string;
-  message?: string;
 }
 
 export interface User {
@@ -91,13 +90,14 @@ export interface Division {
   created_at: string;
 }
 
-class ApiService extends ApiBase {  // Auth
+class ApiService extends ApiBase {
+  // Auth
   async login(data: { username: string; password: string; role: string }): Promise<LoginResponse> {
     const response = await this.makeRequest('/auth/login.php', {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    return response.data;
+    return response;
   }
 
   async updatePassword(currentPassword: string, newPassword: string): Promise<any> {
@@ -187,7 +187,7 @@ class ApiService extends ApiBase {  // Auth
   }
 
   // Tokens
-  async generateToken(tokenData: Partial<Token>): Promise<Token> {
+  async createToken(tokenData: { department_id: number; division_id: number }): Promise<Token> {
     const response = await this.makeRequest('/tokens/', {
       method: 'POST',
       body: JSON.stringify(tokenData),

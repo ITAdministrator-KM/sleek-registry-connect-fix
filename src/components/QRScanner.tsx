@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/api';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { Camera, Monitor, Smartphone, AlertCircle, RefreshCw } from 'lucide-react';
+import { Camera, Monitor, Smartphone, AlertCircle, RefreshCw, Settings } from 'lucide-react';
 
 interface ScanResult {
   id: string;
@@ -38,6 +38,7 @@ const QRScanner = () => {
   const [availableCameras, setAvailableCameras] = useState<any[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(false);
+  const [scannerError, setScannerError] = useState<string>('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const { toast } = useToast();
 
@@ -58,10 +59,12 @@ const QRScanner = () => {
   const initializeCameraSystem = async () => {
     try {
       setIsInitializing(true);
+      setScannerError('');
       await requestCameraPermission();
       await fetchAvailableCameras();
     } catch (error) {
       console.error('Failed to initialize camera system:', error);
+      setScannerError('Failed to initialize camera system');
     } finally {
       setIsInitializing(false);
     }
@@ -70,28 +73,35 @@ const QRScanner = () => {
   const requestCameraPermission = async () => {
     try {
       setPermissionRequested(true);
+      setScannerError('');
       
-      if ('permissions' in navigator) {
-        const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-        setHasPermission(permission.state === 'granted');
-        
-        permission.addEventListener('change', () => {
-          setHasPermission(permission.state === 'granted');
-        });
-        
-        if (permission.state === 'granted') {
-          return true;
+      // For desktop, try to detect USB scanners first
+      if (deviceType === 'desktop') {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(device => device.kind === 'videoinput');
+          
+          if (videoDevices.length === 0) {
+            setScannerError('No camera or QR scanner devices found. Please connect a USB QR scanner or webcam.');
+            setHasPermission(false);
+            return false;
+          }
+        } catch (error) {
+          console.warn('Device enumeration failed:', error);
         }
       }
       
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
-          facingMode: deviceType === 'mobile' ? 'environment' : 'user' 
+          facingMode: deviceType === 'mobile' ? 'environment' : 'user',
+          width: { min: 640, ideal: 1280 },
+          height: { min: 480, ideal: 720 }
         } 
       });
       
       stream.getTracks().forEach(track => track.stop());
       setHasPermission(true);
+      setScannerError('');
       return true;
       
     } catch (error) {
@@ -100,23 +110,25 @@ const QRScanner = () => {
       
       if (error instanceof Error) {
         if (error.name === 'NotAllowedError') {
+          setScannerError('Camera access denied. Please allow camera access in browser settings.');
           toast({
             title: "Camera Permission Denied",
-            description: "Please allow camera access in your browser settings to use QR scanning.",
+            description: "Please allow camera access to use QR scanning. Check browser settings and refresh the page.",
             variant: "destructive",
           });
         } else if (error.name === 'NotFoundError') {
+          setScannerError('No camera/scanner found. Please connect a USB QR scanner or camera device.');
           toast({
-            title: "No Camera/Scanner Found",
-            description: "No camera or QR scanner devices found. Please connect a device or enable camera access.",
+            title: "No Scanner Found",
+            description: deviceType === 'desktop' 
+              ? "No USB QR scanner or camera found. Please connect a device and refresh."
+              : "No camera found. Please check device permissions.",
             variant: "destructive",
           });
+        } else if (error.name === 'NotReadableError') {
+          setScannerError('Camera is being used by another application. Please close other camera apps.');
         } else {
-          toast({
-            title: "Camera Error",
-            description: `Camera access failed: ${error.message}`,
-            variant: "destructive",
-          });
+          setScannerError(`Camera error: ${error.message}`);
         }
       }
       return false;
@@ -126,7 +138,7 @@ const QRScanner = () => {
   const fetchAvailableCameras = async () => {
     try {
       const devices = await Html5Qrcode.getCameras();
-      console.log('Available cameras:', devices);
+      console.log('Available devices:', devices);
       setAvailableCameras(devices);
       
       if (devices.length > 0) {
@@ -135,28 +147,30 @@ const QRScanner = () => {
         if (deviceType === 'mobile') {
           const backCamera = devices.find(device => 
             device.label.toLowerCase().includes('back') || 
-            device.label.toLowerCase().includes('environment')
+            device.label.toLowerCase().includes('environment') ||
+            device.label.toLowerCase().includes('rear')
           );
           if (backCamera) preferredCamera = backCamera;
         } else {
+          // For desktop, prefer USB scanners or external cameras
           const usbScanner = devices.find(device => 
             device.label.toLowerCase().includes('usb') ||
             device.label.toLowerCase().includes('scanner') ||
             device.label.toLowerCase().includes('external') ||
-            device.label.toLowerCase().includes('webcam')
+            device.label.toLowerCase().includes('webcam') ||
+            device.label.toLowerCase().includes('camera')
           );
           if (usbScanner) preferredCamera = usbScanner;
         }
         
         setSelectedCamera(preferredCamera.id);
+        setScannerError('');
+      } else {
+        setScannerError('No camera devices detected. Please connect a camera or USB QR scanner.');
       }
     } catch (error) {
       console.error('Error fetching cameras:', error);
-      toast({
-        title: "Device Detection Failed",
-        description: "Could not detect available cameras/scanners. Please check your device connections.",
-        variant: "destructive",
-      });
+      setScannerError('Failed to detect camera devices. Please refresh and try again.');
     }
   };
 
@@ -179,7 +193,7 @@ const QRScanner = () => {
       if (user) {
         setUserDetails(user);
         toast({
-          title: "User Found",
+          title: "User Verified ✅",
           description: `Successfully loaded details for ${user.name}`,
         });
       } else {
@@ -202,6 +216,7 @@ const QRScanner = () => {
   const initializeScanner = async () => {
     try {
       setIsInitializing(true);
+      setScannerError('');
       
       if (!hasPermission) {
         const permissionGranted = await requestCameraPermission();
@@ -211,7 +226,7 @@ const QRScanner = () => {
       }
 
       if (!scannerRef.current) {
-        scannerRef.current = new Html5Qrcode("qr-reader");
+        scannerRef.current = new Html5Qrcode("qr-reader-scanner");
       }
 
       if (availableCameras.length === 0) {
@@ -257,7 +272,7 @@ const QRScanner = () => {
               public_user_id: parseInt(result.id.replace(/\D/g, ''), 10) || 1,
               staff_user_id: parseInt(localStorage.getItem('userId') || '1', 10),
               scan_purpose: 'verification',
-              scan_location: deviceType === 'mobile' ? 'mobile_device' : 'office_desktop'
+              scan_location: deviceType === 'mobile' ? 'mobile_device' : 'desktop_scanner'
             });
           } catch (recordError) {
             console.warn('Failed to record scan:', recordError);
@@ -273,7 +288,6 @@ const QRScanner = () => {
         }
       };
 
-      // Fixed configuration with proper types
       const config = {
         fps: deviceType === 'mobile' ? 10 : 15,
         qrbox: deviceType === 'mobile' 
@@ -300,14 +314,16 @@ const QRScanner = () => {
       );
 
       setIsScanning(true);
+      setScannerError('');
       toast({
-        title: "Scanner Started",
-        description: "QR scanner is now active. Point camera/scanner at QR code.",
+        title: "Scanner Started ✅",
+        description: `${deviceType === 'mobile' ? 'Camera' : 'QR Scanner'} is now active. Point at QR code to scan.`,
       });
 
     } catch (error) {
       console.error('Error starting scanner:', error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setScannerError(`Failed to start scanner: ${errorMessage}`);
       
       toast({
         title: "Scanner Error",
@@ -322,6 +338,7 @@ const QRScanner = () => {
 
   const stopScanner = async () => {
     await cleanupScanner();
+    setScannerError('');
     toast({
       title: "Scanner Stopped",
       description: "QR scanner has been stopped.",
@@ -330,10 +347,11 @@ const QRScanner = () => {
 
   const refreshCameras = async () => {
     setIsInitializing(true);
+    setScannerError('');
     await fetchAvailableCameras();
     setIsInitializing(false);
     toast({
-      title: "Cameras Refreshed",
+      title: "Devices Refreshed",
       description: "Camera/scanner list has been updated.",
     });
   };
@@ -344,42 +362,58 @@ const QRScanner = () => {
         <CardHeader>
           <CardTitle className="flex items-center">
             {deviceType === 'mobile' ? <Smartphone className="mr-2" /> : <Monitor className="mr-2" />}
-            QR Code Scanner - {deviceType === 'mobile' ? 'Mobile' : 'Desktop'} Mode
+            QR Code Scanner - {deviceType === 'mobile' ? 'Mobile Camera' : 'Desktop/USB Scanner'} Mode
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {hasPermission === false && (
+          {scannerError && (
             <div className="mb-4 p-4 bg-red-100 rounded-md flex items-center">
-              <AlertCircle className="mr-2 text-red-600" />
+              <AlertCircle className="mr-2 text-red-600 flex-shrink-0" />
               <div>
-                <p className="text-red-800 font-medium">Camera/Scanner Access Required</p>
-                <p className="text-red-700 text-sm">
-                  Please allow camera access or connect a USB QR scanner and refresh the page.
-                </p>
+                <p className="text-red-800 font-medium">Scanner Error</p>
+                <p className="text-red-700 text-sm">{scannerError}</p>
                 <Button 
                   onClick={requestCameraPermission} 
                   className="mt-2 bg-red-600 hover:bg-red-700 text-white"
                   size="sm"
                 >
-                  Request Permission
+                  Retry Permission
                 </Button>
               </div>
             </div>
           )}
 
-          {hasPermission === null && !permissionRequested && (
+          {hasPermission === false && !scannerError && (
             <div className="mb-4 p-4 bg-yellow-100 rounded-md flex items-center">
               <AlertCircle className="mr-2 text-yellow-600" />
-              <p className="text-yellow-800">
-                Camera/scanner permission status unknown. Click "Start Scanning" to request access.
-              </p>
+              <div>
+                <p className="text-yellow-800 font-medium">
+                  {deviceType === 'mobile' ? 'Camera Access Required' : 'USB Scanner/Camera Access Required'}
+                </p>
+                <p className="text-yellow-700 text-sm">
+                  {deviceType === 'mobile' 
+                    ? 'Please allow camera access to scan QR codes.'
+                    : 'Please connect a USB QR scanner or webcam and allow access.'
+                  }
+                </p>
+                <Button 
+                  onClick={requestCameraPermission} 
+                  className="mt-2 bg-yellow-600 hover:bg-yellow-700 text-white"
+                  size="sm"
+                >
+                  <Settings className="mr-1 h-3 w-3" />
+                  Grant Access
+                </Button>
+              </div>
             </div>
           )}
           
           {availableCameras.length > 1 && (
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium">Select Camera/Scanner:</label>
+                <Label htmlFor="camera-select" className="block text-sm font-medium">
+                  Select {deviceType === 'mobile' ? 'Camera' : 'Scanner/Camera'}:
+                </Label>
                 <Button 
                   onClick={refreshCameras} 
                   variant="outline" 
@@ -391,6 +425,8 @@ const QRScanner = () => {
                 </Button>
               </div>
               <select 
+                id="camera-select"
+                name="camera-select"
                 value={selectedCamera} 
                 onChange={(e) => setSelectedCamera(e.target.value)}
                 className="w-full p-2 border rounded-md"
@@ -398,14 +434,14 @@ const QRScanner = () => {
               >
                 {availableCameras.map((camera) => (
                   <option key={camera.id} value={camera.id}>
-                    {camera.label || `Camera ${camera.id}`}
+                    {camera.label || `Device ${camera.id}`}
                   </option>
                 ))}
               </select>
             </div>
           )}
           
-          <div id="qr-reader" className="mb-4 w-full" />
+          <div id="qr-reader-scanner" className="mb-4 w-full rounded-lg overflow-hidden border" />
           
           <Button
             onClick={isScanning ? stopScanner : initializeScanner}
@@ -419,7 +455,7 @@ const QRScanner = () => {
 
           {userDetails && (
             <div className="mt-6 p-4 bg-green-50 rounded-md border border-green-200">
-              <h3 className="font-semibold text-green-800 mb-3">✅ User Details Verified:</h3>
+              <h3 className="font-semibold text-green-800 mb-3">✅ User Verified Successfully:</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div><strong>ID:</strong> {userDetails.public_id}</div>
                 <div><strong>Name:</strong> {userDetails.name}</div>
@@ -444,13 +480,13 @@ const QRScanner = () => {
           )}
 
           <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">📋 Scanner Info:</h4>
+            <h4 className="text-sm font-medium text-gray-700 mb-2">📋 Scanner Status:</h4>
             <ul className="text-xs text-gray-600 space-y-1">
-              <li>• Device: {deviceType === 'mobile' ? 'Mobile/Tablet' : 'Desktop/PC'}</li>
+              <li>• Device: {deviceType === 'mobile' ? '📱 Mobile/Tablet' : '🖥️ Desktop/PC'}</li>
               <li>• Devices detected: {availableCameras.length}</li>
               <li>• Permission: {hasPermission ? '✅ Granted' : hasPermission === false ? '❌ Denied' : '⏳ Pending'}</li>
               <li>• Status: {isScanning ? '🟢 Active' : '🔴 Stopped'}</li>
-              <li>• Supports: USB QR scanners, webcams, built-in cameras</li>
+              <li>• Supports: {deviceType === 'mobile' ? 'Built-in cameras' : 'USB QR scanners, webcams'}</li>
             </ul>
           </div>
         </CardContent>
