@@ -143,7 +143,8 @@ const PublicAccountCreation = () => {
         division_id: data.division_id ? parseInt(data.division_id) : undefined
       });
 
-      if (response.status === 'success') {
+      // Handle both object response and direct user response
+      if (response && (response.id || (typeof response === 'object' && 'status' in response && response.status === 'success'))) {
         toast({
           title: "Success",
           description: "Public account created successfully",
@@ -152,7 +153,7 @@ const PublicAccountCreation = () => {
         setIsDialogOpen(false);
         fetchPublicUsers(); // Refresh the list
       } else {
-        throw new Error(response.message || 'Failed to create account');
+        throw new Error('Failed to create account');
       }
     } catch (error) {
       console.error('Error creating public account:', error);

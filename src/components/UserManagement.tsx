@@ -90,7 +90,7 @@ const UserManagement = () => {
       setEditingUser(null);
       
       if (editingUser) {
-        await apiService.updateUser({ 
+        await apiService.updateUser(editingUser.id, { 
           ...formData, 
           id: editingUser.id,
           role: formData.role 

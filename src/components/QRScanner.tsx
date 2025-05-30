@@ -134,7 +134,8 @@ const QRScanner = () => {
       
       if (permission !== 'granted') {
         await requestCameraPermission();
-        if (permission !== 'granted') {
+        // Check permission again after request
+        if (permission === 'denied') {
           throw new Error('Camera permission required');
         }
       }
@@ -153,8 +154,7 @@ const QRScanner = () => {
         ],
         videoConstraints: {
           deviceId: selectedCamera ? { exact: selectedCamera } : undefined,
-          facingMode: scannerMode === 'camera' ? 'environment' : undefined,
-          advanced: [{ focusMode: 'continuous' }]
+          facingMode: scannerMode === 'camera' ? 'environment' : undefined
         }
       };
 
@@ -343,9 +343,9 @@ const QRScanner = () => {
               {/* Camera Selection */}
               {availableCameras.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Select Camera/Scanner</Label>
+                  <Label htmlFor="camera-select">Select Camera/Scanner</Label>
                   <Select value={selectedCamera} onValueChange={setSelectedCamera}>
-                    <SelectTrigger>
+                    <SelectTrigger id="camera-select">
                       <SelectValue placeholder="Choose device" />
                     </SelectTrigger>
                     <SelectContent>

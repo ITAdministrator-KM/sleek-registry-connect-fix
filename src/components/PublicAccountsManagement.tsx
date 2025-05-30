@@ -77,7 +77,7 @@ const PublicAccountsManagement = () => {
   const handleUpdateUser = async (userData: any) => {
     try {
       setIsLoading(true);
-      const updatedUser = await apiService.updatePublicUser(userData);
+      const updatedUser = await apiService.updatePublicUser(userData.id, userData);
       setUsers(prev => prev.map(user => 
         user.id === updatedUser.id ? updatedUser : user
       ));
