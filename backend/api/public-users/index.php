@@ -1,26 +1,26 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
 
 function generateQRCode($data) {
-    // Use chillerlan/php-qrcode library
     require_once '../../vendor/autoload.php';
     
     $options = new \chillerlan\QRCode\QROptions([
         'outputType' => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
-        'eccLevel' => \chillerlan\QRCode\QRCode::ECC_L,
-        'scale' => 8, // Increased scale for better black and white printing
+        'eccLevel' => \chillerlan\QRCode\QRCode::ECC_M, // Medium error correction for better scanning
+        'scale' => 10, // Increased scale for better visibility
         'imageBase64' => true,
         'imageTransparent' => false,
         'drawCircularModules' => false,
         'drawLightModules' => false,
         'moduleValues' => [
-            // Black modules for dark areas
-            1536 => [0, 0, 0],
-            // White modules for light areas  
-            6 => [255, 255, 255],
-        ]
+            1536 => [0, 0, 0], // Black modules
+            6 => [255, 255, 255], // White modules
+        ],
+        'addQuietzone' => true,
+        'quietzoneSize' => 2,
     ]);
     
     $qrcode = new \chillerlan\QRCode\QRCode($options);
@@ -38,12 +38,39 @@ function sendResponse($status, $data = null, $message = null) {
     exit;
 }
 
+function validateAuthToken() {
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? '';
+    
+    if (!preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+        return false;
+    }
+
+    $token = $matches[1];
+    $tokenParts = explode('.', $token);
+    
+    if (count($tokenParts) !== 3) {
+        return false;
+    }
+    
+    $payload = json_decode(base64_decode($tokenParts[1]), true);
+    
+    return $payload && isset($payload['exp']) && $payload['exp'] > time();
+}
+
 try {
     $database = new Database();
     $db = $database->getConnection();
 
     if (!$db) {
         sendResponse(500, null, "Database connection failed");
+    }
+
+    // Validate authentication for write operations
+    if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE'])) {
+        if (!validateAuthToken()) {
+            sendResponse(401, null, "Authentication required");
+        }
     }
 
     switch ($_SERVER['REQUEST_METHOD']) {
@@ -87,7 +114,6 @@ function getPublicUsers($db) {
         
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // Remove sensitive data
         foreach ($users as &$user) {
             unset($user['password_hash']);
         }
@@ -119,7 +145,6 @@ function getPublicUserById($db, $id) {
             sendResponse(404, null, "User not found");
         }
         
-        // Remove sensitive data
         unset($user['password_hash']);
         
         sendResponse(200, $user);
@@ -140,33 +165,44 @@ function createPublicUser($db) {
         
         $db->beginTransaction();
         
+        // Check for existing username or NIC
+        $checkQuery = "SELECT id FROM public_users WHERE username = :username OR nic = :nic";
+        $checkStmt = $db->prepare($checkQuery);
+        $checkStmt->bindValue(':username', $data->username);
+        $checkStmt->bindValue(':nic', $data->nic);
+        $checkStmt->execute();
+        
+        if ($checkStmt->fetch()) {
+            throw new Exception("Username or NIC already exists", 409);
+        }
+        
         // Generate next public_id
         $stmt = $db->query("SELECT MAX(CAST(SUBSTRING(public_id, 4) AS UNSIGNED)) as max_id FROM public_users WHERE public_id REGEXP '^PUB[0-9]+$'");
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         $nextId = ($result['max_id'] ?? 0) + 1;
         $publicId = 'PUB' . str_pad($nextId, 5, '0', STR_PAD_LEFT);
         
-        // Generate QR code data - optimized for scanning and black/white printing
+        // Generate enhanced QR code data
         $qrData = [
             'id' => $publicId,
             'name' => $data->name,
             'nic' => $data->nic,
             'mobile' => $data->mobile,
             'issued' => date('Y-m-d'),
-            'authority' => 'DSK'
+            'authority' => 'DSK',
+            'type' => 'public_user'
         ];
         
         $qrCode = generateQRCode($qrData);
         
-        // Hash password using Argon2id
         $passwordHash = password_hash($data->password, PASSWORD_ARGON2ID);
         
         $query = "INSERT INTO public_users (
             public_id, name, nic, address, mobile, email, username, password_hash,
-            qr_code, department_id, division_id, status
+            qr_code, department_id, division_id, status, created_at
         ) VALUES (
             :public_id, :name, :nic, :address, :mobile, :email, :username, :password_hash,
-            :qr_code, :department_id, :division_id, 'active'
+            :qr_code, :department_id, :division_id, 'active', NOW()
         )";
         
         $stmt = $db->prepare($query);
@@ -191,7 +227,11 @@ function createPublicUser($db) {
         $db->commit();
         
         // Fetch created user
-        $query = "SELECT * FROM public_users WHERE id = :id";
+        $query = "SELECT pu.*, d.name as department_name, dv.name as division_name 
+                  FROM public_users pu 
+                  LEFT JOIN departments d ON pu.department_id = d.id 
+                  LEFT JOIN divisions dv ON pu.division_id = dv.id 
+                  WHERE pu.id = :id";
         $stmt = $db->prepare($query);
         $stmt->bindValue(':id', $userId);
         $stmt->execute();
@@ -199,12 +239,13 @@ function createPublicUser($db) {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         unset($user['password_hash']);
         
-        sendResponse(201, $user, "Public user created successfully with QR code");
+        sendResponse(201, $user, "Public user created successfully with enhanced QR code");
     } catch (Exception $e) {
         if ($db->inTransaction()) {
             $db->rollBack();
         }
-        sendResponse(500, null, $e->getMessage());
+        $code = $e->getCode() ?: 500;
+        sendResponse($code, null, $e->getMessage());
     }
 }
 
@@ -221,7 +262,6 @@ function updatePublicUser($db) {
         $updates = [];
         $params = [':id' => $data->id];
         
-        // Build dynamic update query
         if (isset($data->name)) {
             $updates[] = "name = :name";
             $params[':name'] = $data->name;
@@ -263,6 +303,32 @@ function updatePublicUser($db) {
             $params[':status'] = $data->status;
         }
         
+        // Regenerate QR code if basic info changed
+        if (isset($data->name) || isset($data->nic) || isset($data->mobile)) {
+            // Fetch current user data
+            $currentQuery = "SELECT * FROM public_users WHERE id = :id";
+            $currentStmt = $db->prepare($currentQuery);
+            $currentStmt->bindValue(':id', $data->id);
+            $currentStmt->execute();
+            $currentUser = $currentStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($currentUser) {
+                $qrData = [
+                    'id' => $currentUser['public_id'],
+                    'name' => $data->name ?? $currentUser['name'],
+                    'nic' => $data->nic ?? $currentUser['nic'],
+                    'mobile' => $data->mobile ?? $currentUser['mobile'],
+                    'issued' => date('Y-m-d'),
+                    'authority' => 'DSK',
+                    'type' => 'public_user'
+                ];
+                
+                $newQrCode = generateQRCode($qrData);
+                $updates[] = "qr_code = :qr_code";
+                $params[':qr_code'] = $newQrCode;
+            }
+        }
+        
         if (empty($updates)) {
             throw new Exception("No fields to update", 400);
         }
@@ -290,12 +356,13 @@ function updatePublicUser($db) {
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         unset($user['password_hash']);
         
-        sendResponse(200, $user);
+        sendResponse(200, $user, "Public user updated successfully");
     } catch (Exception $e) {
         if ($db->inTransaction()) {
             $db->rollBack();
         }
-        sendResponse(500, null, $e->getMessage());
+        $code = $e->getCode() ?: 500;
+        sendResponse($code, null, $e->getMessage());
     }
 }
 
@@ -307,7 +374,7 @@ function deletePublicUser($db) {
             throw new Exception("User ID is required", 400);
         }
         
-        $query = "UPDATE public_users SET status = 'inactive' WHERE id = :id";
+        $query = "UPDATE public_users SET status = 'inactive', updated_at = NOW() WHERE id = :id";
         $stmt = $db->prepare($query);
         $stmt->bindValue(':id', $data->id);
         
@@ -315,9 +382,14 @@ function deletePublicUser($db) {
             throw new Exception("Failed to delete public user");
         }
         
+        if ($stmt->rowCount() === 0) {
+            throw new Exception("User not found", 404);
+        }
+        
         sendResponse(200, null, "User deleted successfully");
     } catch (Exception $e) {
-        sendResponse(500, null, $e->getMessage());
+        $code = $e->getCode() ?: 500;
+        sendResponse($code, null, $e->getMessage());
     }
 }
 ?>

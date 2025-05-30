@@ -229,6 +229,44 @@ class ApiService extends ApiBase {
     }
   }
 
+  async updatePublicUser(data: {
+    id: number;
+    name?: string;
+    nic?: string;
+    address?: string;
+    mobile?: string;
+    email?: string;
+    username?: string;
+    password?: string;
+    department_id?: number;
+    division_id?: number;
+    status?: string;
+  }): Promise<{ status: string; data?: PublicUser; message?: string }> {
+    try {
+      const response = await this.makeRequest('/public-users/index.php', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+      return response;
+    } catch (error) {
+      console.error('Error updating public user:', error);
+      throw error;
+    }
+  }
+
+  async deletePublicUser(id: number): Promise<{ status: string; message?: string }> {
+    try {
+      const response = await this.makeRequest('/public-users/index.php', {
+        method: 'DELETE',
+        body: JSON.stringify({ id }),
+      });
+      return response;
+    } catch (error) {
+      console.error('Error deleting public user:', error);
+      throw error;
+    }
+  }
+
   // Notification methods - delegate to notificationService
   async getNotifications(recipientId: number, recipientType?: 'public' | 'staff') {
     return notificationService.getNotifications(recipientId, recipientType);
@@ -248,12 +286,16 @@ class ApiService extends ApiBase {
     return notificationService.markNotificationAsRead(id);
   }
 
-  // Token methods
+  // Token methods with improved error handling
   async getTokens(date?: string): Promise<Token[]> {
     try {
       let endpoint = '/tokens/index.php';
       if (date) endpoint += `?date=${date}`;
       const response = await this.makeRequest(endpoint);
+      
+      if (response?.status === 'success' && Array.isArray(response.data)) {
+        return response.data;
+      }
       return Array.isArray(response) ? response : [];
     } catch (error) {
       console.error('Error fetching tokens:', error);
@@ -268,7 +310,6 @@ class ApiService extends ApiBase {
         body: JSON.stringify(data),
       });
       
-      // Handle the corrected response format from backend
       if (!response || typeof response !== 'object') {
         throw new Error('Invalid response format from server');
       }
@@ -277,7 +318,7 @@ class ApiService extends ApiBase {
         throw new Error(response.message || 'Token creation failed');
       }
 
-      // Extract token details from the corrected response format
+      // Handle the response format from the backend
       const tokenNumber = response.token_number;
       const tokenId = response.token_id;
 
