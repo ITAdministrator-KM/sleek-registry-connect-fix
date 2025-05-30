@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -291,14 +290,19 @@ const QRScanner = () => {
           : { width: 300, height: 300 },
         aspectRatio: 1.0,
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-        videoConstraints: deviceType === 'mobile' ? {
-          facingMode: 'environment',
-          advanced: [{ focusMode: 'continuous' }]
-        } : {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          focusMode: 'continuous'
-        }
+        videoConstraints: deviceType === 'mobile' 
+          ? {
+              width: { min: 640, ideal: 1280, max: 1920 },
+              height: { min: 480, ideal: 720, max: 1080 },
+              facingMode: { ideal: 'environment' },
+              focusMode: { ideal: 'continuous' }
+            }
+          : {
+              width: { min: 640, ideal: 1280, max: 1920 },
+              height: { min: 480, ideal: 720, max: 1080 },
+              facingMode: { ideal: 'user' },
+              focusMode: { ideal: 'continuous' }
+            }
       };
 
       await scannerRef.current.start(
