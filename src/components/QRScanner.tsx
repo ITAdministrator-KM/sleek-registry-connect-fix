@@ -93,9 +93,7 @@ const QRScanner = () => {
   const startScanning = async () => {
     if (cameraPermission !== 'granted') {
       await checkCameraPermission();
-      if (cameraPermission !== 'granted') {
-        return;
-      }
+      return;
     }
 
     try {
