@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, User, FileText, Calendar, Ticket, Clock, LogOut, Settings, History, Home, Service } from 'lucide-react';
+import { Bell, User, FileText, Calendar, Ticket, Clock, LogOut, Settings, History, Home, Briefcase } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { PublicAccountsManagement } from '@/components/PublicAccountsManagement';
 import ServiceRequest from '@/components/public/ServiceRequest';
@@ -57,7 +57,7 @@ const PublicDashboard = () => {
 
   const menuItems = [
     { id: 'overview', label: 'Dashboard', icon: Home },
-    { id: 'services', label: 'Available Services', icon: Service },
+    { id: 'services', label: 'Available Services', icon: Briefcase },
     { id: 'applications', label: 'My Applications', icon: FileText },
     { id: 'appointments', label: 'Appointments', icon: Calendar },
     { id: 'tokens', label: 'Digital Tokens', icon: Ticket },
@@ -94,7 +94,7 @@ const PublicDashboard = () => {
                 <p className="text-2xl font-bold text-green-800">12</p>
                 <p className="text-green-600 text-sm">Services</p>
               </div>
-              <Service className="h-12 w-12 text-green-600" />
+              <Briefcase className="h-12 w-12 text-green-600" />
             </div>
           </CardContent>
         </Card>
@@ -150,7 +150,7 @@ const PublicDashboard = () => {
               onClick={() => setActiveTab('services')} 
               className="w-full justify-start bg-green-500 hover:bg-green-600 text-white"
             >
-              <Service className="mr-2" size={16} />
+              <Briefcase className="mr-2" size={16} />
               Request New Service
             </Button>
             <Button 
