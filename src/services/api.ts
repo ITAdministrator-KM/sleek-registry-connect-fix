@@ -59,6 +59,12 @@ export interface PublicUser {
   updated_at?: string;
 }
 
+export interface PublicUserPasswordUpdate {
+  id: number;
+  currentPassword?: string;
+  newPassword: string;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -104,6 +110,14 @@ export interface NotificationsResponse {
   message: string;
   data: NotificationData[];
   meta: NotificationMeta;
+}
+
+export interface QRScanData {
+  public_user_id: number;
+  staff_user_id: number;
+  scan_purpose: string;
+  scan_location: string;
+  scan_data?: string;
 }
 
 class ApiService extends ApiBase {
@@ -161,6 +175,14 @@ class ApiService extends ApiBase {
       body: JSON.stringify({ id }),
     });
     return response.data;
+  }
+
+  async updatePublicUserPassword(data: PublicUserPasswordUpdate): Promise<any> {
+    const response = await this.makeRequest('/public-users/password.php', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response;
   }
 
   // Users
@@ -372,17 +394,12 @@ class ApiService extends ApiBase {
   }
 
   // QR Scans
-  async recordQRScan(scanData: {
-    public_user_id: number;
-    staff_user_id: number;
-    scan_purpose: string;
-    scan_location: string;
-  }): Promise<any> {
-    const response = await this.makeRequest('/qr-scans/', {
+  async recordQRScan(data: QRScanData): Promise<any> {
+    const response = await this.makeRequest('/qr-scans/index.php', {
       method: 'POST',
-      body: JSON.stringify(scanData),
+      body: JSON.stringify(data),
     });
-    return response.data;
+    return response;
   }
 }
 

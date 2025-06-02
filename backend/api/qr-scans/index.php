@@ -58,14 +58,22 @@ function recordQRScan($db) {
     }
     
     try {
-        $query = "INSERT INTO qr_scans (public_user_id, staff_user_id, scan_location, scan_purpose) 
-                  VALUES (:public_user_id, :staff_user_id, :scan_location, :scan_purpose)";
+        // First ensure we have the scan_data column
+        try {
+            $db->exec("ALTER TABLE qr_scans ADD COLUMN IF NOT EXISTS scan_data TEXT NULL");
+        } catch (Exception $e) {
+            error_log("Error checking/adding scan_data column: " . $e->getMessage());
+        }
+
+        $query = "INSERT INTO qr_scans (public_user_id, staff_user_id, scan_location, scan_purpose, scan_data) 
+                  VALUES (:public_user_id, :staff_user_id, :scan_location, :scan_purpose, :scan_data)";
         
         $stmt = $db->prepare($query);
         $stmt->bindParam(":public_user_id", $data->public_user_id);
         $stmt->bindParam(":staff_user_id", $data->staff_user_id);
         $stmt->bindParam(":scan_location", $data->scan_location ?? null);
         $stmt->bindParam(":scan_purpose", $data->scan_purpose ?? null);
+        $stmt->bindParam(":scan_data", $data->scan_data ?? null);
         
         if ($stmt->execute()) {
             http_response_code(201);

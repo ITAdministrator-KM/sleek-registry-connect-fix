@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,23 +33,32 @@ const Login = () => {
       return;
     }
 
-    setIsLoading(true);    try {
+    setIsLoading(true);
+    try {
       const loginData = { username, password, role };
-      console.log('Attempting login with:', loginData);
+      console.log('Attempting login with:', { username, role }); // Don't log password
       
       const response = await apiService.login(loginData);
-      console.log('Login response:', response);
+      console.log('Raw login response:', JSON.stringify(response, null, 2));
 
       if (response.status === 'success' && response.data) {
         const { user: userData, token: authToken } = response.data;
-        // Store all necessary authentication data
+        console.log('Login successful, user data:', { 
+          id: userData.id,
+          username: userData.username,
+          role: userData.role,
+          department_id: userData.department_id,
+          division_id: userData.division_id
+        });
+        
+        // Store auth data
         localStorage.setItem('userRole', userData.role);
         localStorage.setItem('username', userData.username);
         localStorage.setItem('authToken', authToken);
         localStorage.setItem('userId', userData.id?.toString() || '');
         localStorage.setItem('userFullName', userData.name || '');
-        
-        // Store additional user data for dashboard use
+
+        // Store department/division if available
         if (userData.department_id) {
           localStorage.setItem('userDepartmentId', userData.department_id.toString());
         }
@@ -64,19 +72,21 @@ const Login = () => {
         });
 
         // Navigate based on role
+        let targetPath = '/';
         switch (userData.role) {
           case 'admin':
-            navigate('/admin-dashboard');
+            targetPath = '/admin';
             break;
           case 'staff':
-            navigate('/staff-dashboard');
+            targetPath = '/staff';
             break;
           case 'public':
-            navigate('/public-dashboard');
+            targetPath = '/public';
             break;
-          default:
-            navigate('/');
         }
+        
+        console.log('Navigation target:', targetPath);
+        navigate(targetPath);
       } else {
         throw new Error('Invalid response format - missing user data or token');
       }

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,15 +22,23 @@ const AdminDashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('Checking admin authentication...');
     const role = localStorage.getItem('userRole');
-    const user = localStorage.getItem('username') || localStorage.getItem('userFullName');
+    const user = localStorage.getItem('username');
+    const token = localStorage.getItem('authToken');
     
-    if (role !== 'admin') {
+    console.log('Auth state:', { role, user, hasToken: !!token });
+    
+    // Strict role and token validation
+    if (role !== 'admin' || !token) {
+      console.log('Invalid admin session, redirecting to login');
+      localStorage.clear(); // Clear any invalid session data
       navigate('/login');
       return;
     }
     
     if (user) {
+      console.log('Setting admin username:', user);
       setUsername(user);
     }
   }, [navigate]);

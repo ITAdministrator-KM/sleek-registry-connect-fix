@@ -4,19 +4,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { FileText, Calendar, User, LogOut, Menu, X, CheckCircle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { apiService, type PublicUser } from '@/services/api';
 import NotificationBell from '@/components/NotificationBell';
 import ServiceHistory from '@/components/public/ServiceHistory';
+import { ProfileSettings } from '@/components/public-accounts/ProfileSettings';
 
 const PublicDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [username, setUsername] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
+  const [userData, setUserData] = useState<PublicUser | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
     const role = localStorage.getItem('userRole');
     const user = localStorage.getItem('username');
+    const userId = localStorage.getItem('userId');
     
     if (role !== 'public') {
       navigate('/login');
@@ -25,8 +29,25 @@ const PublicDashboard = () => {
     
     if (user) {
       setUsername(user);
+      if (userId) {
+        fetchUserData(parseInt(userId));
+      }
     }
   }, [navigate]);
+
+  const fetchUserData = async (userId: number) => {
+    try {
+      const user = await apiService.getPublicUserById(userId);
+      setUserData(user);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load user profile",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('userRole');
@@ -287,7 +308,19 @@ const PublicDashboard = () => {
                   <CardDescription>View and manage your account details</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-600">Profile management features will be implemented here.</p>
+                  {userData ? (
+                    <ProfileSettings 
+                      user={userData} 
+                      onUpdate={() => {
+                        const userId = localStorage.getItem('userId');
+                        if (userId) {
+                          fetchUserData(parseInt(userId));
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div>Loading profile...</div>
+                  )}
                 </CardContent>
               </Card>
             </div>

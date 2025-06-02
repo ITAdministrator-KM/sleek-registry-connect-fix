@@ -3,24 +3,51 @@ include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
 
+function calculateQRChecksum($data) {
+    // Remove existing checksum if present
+    if (isset($data['checksum'])) {
+        $checksum = $data['checksum'];
+        unset($data['checksum']);
+    }
+    
+    // Sort keys for consistent ordering
+    ksort($data);
+    
+    // Create string from data
+    $str = '';
+    foreach ($data as $key => $value) {
+        if ($value !== null && $value !== '') {
+            $str .= $key . '=' . $value . '&';
+        }
+    }
+    $str = rtrim($str, '&');
+    
+    // Calculate checksum using sha256
+    return hash('sha256', $str . 'DSK-QR-2024');
+}
+
 function generateQRCode($data) {
     require_once '../../vendor/autoload.php';
     
     try {
         $options = new \chillerlan\QRCode\QROptions([
             'outputType' => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
-            'eccLevel' => \chillerlan\QRCode\QRCode::ECC_M,
-            'scale' => 12,
+            'eccLevel' => \chillerlan\QRCode\QRCode::ECC_H, // Highest error correction
+            'scale' => 15, // Larger size for better readability
             'imageBase64' => true,
             'imageTransparent' => false,
             'drawCircularModules' => false,
-            'drawLightModules' => false,
+            'drawLightModules' => true,
             'addQuietzone' => true,
-            'quietzoneSize' => 3,
+            'quietzoneSize' => 4, // Larger quiet zone for better scanning
             'moduleValues' => [
+                // High contrast black and white for better scanning
                 1536 => [0, 0, 0],
                 6 => [255, 255, 255],
             ],
+            // Additional options for better compatibility
+            'version' => 7, // Fixed version for consistent size
+            'maskPattern' => -1, // Auto-select best mask pattern
         ]);
         
         $qrcode = new \chillerlan\QRCode\QRCode($options);
@@ -330,10 +357,12 @@ function updatePublicUser($db) {
             $currentStmt->bindValue(':id', $data->id);
             $currentStmt->execute();
             $currentUser = $currentStmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($currentUser) {
+              if ($currentUser) {
+                // Generate QR data in a format optimized for scanning
                 $qrData = [
+                    'v' => 1, // version number for future compatibility
                     'id' => $currentUser['public_id'],
+                    'public_id' => $currentUser['public_id'], // duplicate for compatibility
                     'name' => $data->name ?? $currentUser['name'],
                     'nic' => $data->nic ?? $currentUser['nic'],
                     'mobile' => $data->mobile ?? $currentUser['mobile'],
@@ -342,6 +371,9 @@ function updatePublicUser($db) {
                     'type' => 'public_user',
                     'verified' => true
                 ];
+                
+                // Add checksum for data integrity
+                $qrData['checksum'] = calculateQRChecksum($qrData);
                 
                 $newQrCode = generateQRCode($qrData);
                 $updates[] = "qr_code = :qr_code";

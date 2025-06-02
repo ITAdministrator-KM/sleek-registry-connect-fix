@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import IDCardGenerator from '@/components/IDCardGenerator';
 import QRScanner from '@/components/QRScanner';
 import TokenManagement from '@/components/TokenManagement';
-import PublicAccountsManagement from '@/components/PublicAccountsManagement';
+import { PublicAccountsManagement } from '@/components/PublicAccountsManagement';
 import NotificationManagement from '@/components/NotificationManagement';
 import AppointmentManagement from '@/components/AppointmentManagement';
 import NotificationBell from '@/components/NotificationBell';
@@ -34,15 +33,23 @@ const StaffDashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('Checking staff authentication...');
     const role = localStorage.getItem('userRole');
     const user = localStorage.getItem('username');
+    const token = localStorage.getItem('authToken');
     
-    if (role !== 'staff') {
+    console.log('Auth state:', { role, user, hasToken: !!token });
+    
+    // Strict role and token validation
+    if (role !== 'staff' || !token) {
+      console.log('Invalid staff session, redirecting to login');
+      localStorage.clear(); // Clear any invalid session data
       navigate('/login');
       return;
     }
     
     if (user) {
+      console.log('Setting staff username:', user);
       setUsername(user);
     }
   }, [navigate]);

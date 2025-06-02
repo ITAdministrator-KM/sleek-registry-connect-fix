@@ -160,6 +160,10 @@ export class EnhancedIDCardPrinter {
             </div>
             <div class="detail-row">
               <span class="label">ID:</span>
+              <span class="value id-highlight">${user.address}</span>
+            </div>
+            <div class="detail-row">
+              <span class="label">ID:</span>
               <span class="value id-highlight">${user.public_id}</span>
             </div>
           </div>

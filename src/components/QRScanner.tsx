@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { QrCode, Camera, Usb, CheckCircle, XCircle, AlertTriangle, RefreshCw, User, Building, Calendar, Hash } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/api';
+import { useNavigate } from 'react-router-dom';
 
 interface ScanResult {
   id: string;
@@ -23,19 +24,36 @@ interface ScanResult {
     nic: string;
     department: string;
     division: string;
+    public_id?: string;
   };
 }
 
 interface QRData {
-  publicUserId: number;
+  id?: string;
+  publicUserId?: number;
+  public_id?: string;
   name: string;
   nic: string;
-  department: string;
-  division: string;
-  issuedDate: string;
+  mobile?: string;
+  email?: string;
+  issued?: string;
+  authority?: string;
+  type?: string;
+  verified?: boolean;
+  department?: string;
+  division?: string;
+}
+
+interface QRScanData {
+  public_user_id: number;
+  staff_user_id: number;
+  scan_purpose: string;
+  scan_location: string;
+  scan_data?: string;
 }
 
 const QRScanner = () => {
+  const navigate = useNavigate();
   const [isScanning, setIsScanning] = useState(false);
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const [scannerMode, setScannerMode] = useState<'camera' | 'usb'>('camera');
@@ -49,6 +67,27 @@ const QRScanner = () => {
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const scannerElementId = "qr-reader";
   const { toast } = useToast();
+
+  // Handle both camera and USB scanner input formats
+  const qrConfig = {
+    fps: 10,
+    qrbox: { width: 250, height: 250 },
+    // Support more barcode formats for USB scanners
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.EAN_13,
+    ],
+    // Enable both camera and USB scanner inputs
+    supportedScanTypes: [
+      Html5QrcodeScanType.SCAN_TYPE_CAMERA,
+      Html5QrcodeScanType.SCAN_TYPE_FILE,
+    ],
+    experimentalFeatures: {
+      useBarCodeDetectorIfSupported: true
+    }
+  };
 
   useEffect(() => {
     if (autoDetect) {
@@ -66,38 +105,61 @@ const QRScanner = () => {
 
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
+      // For mobile devices, prefer rear camera
       if (isMobile) {
         setScannerMode('camera');
-        await requestCameraPermission();
-      } else {
-        // For desktop, try to detect USB scanners first
+        // Try to get rear camera if available
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
         
-        if (videoDevices.length > 0) {
-          // Check if any device looks like a USB scanner
-          const usbScanner = videoDevices.find(device => 
-            device.label.toLowerCase().includes('scanner') ||
-            device.label.toLowerCase().includes('barcode') ||
-            device.label.toLowerCase().includes('qr')
-          );
-          
-          if (usbScanner) {
-            setScannerMode('usb');
-            setSelectedCamera(usbScanner.deviceId);
-          } else {
-            setScannerMode('camera');
-          }
-          
-          setAvailableCameras(videoDevices.map(device => ({
-            id: device.deviceId,
-            label: device.label || `Camera ${device.deviceId.slice(0, 8)}...`
-          })));
-          
-          await requestCameraPermission();
+        // Try to find rear-facing camera
+        const rearCamera = videoDevices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear') ||
+          device.label.toLowerCase().includes('environment')
+        );
+        
+        if (rearCamera) {
+          setSelectedCamera(rearCamera.deviceId);
+        } else if (videoDevices.length > 0) {
+          // Fall back to first available camera
+          setSelectedCamera(videoDevices[0].deviceId);
+        }
+
+        setAvailableCameras(videoDevices.map(device => ({
+          id: device.deviceId,
+          label: device.label || `Camera ${device.deviceId.slice(0, 8)}...`
+        })));
+        
+        await requestCameraPermission();
+      } else {
+        // Desktop behavior
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        
+        setAvailableCameras(videoDevices.map(device => ({
+          id: device.deviceId,
+          label: device.label || `Camera ${device.deviceId.slice(0, 8)}...`
+        })));
+
+        // Check for USB scanners or webcams
+        const usbScanner = videoDevices.find(device => 
+          device.label.toLowerCase().includes('scanner') ||
+          device.label.toLowerCase().includes('barcode') ||
+          device.label.toLowerCase().includes('qr')
+        );
+        
+        if (usbScanner) {
+          setScannerMode('usb');
+          setSelectedCamera(usbScanner.deviceId);
+        } else if (videoDevices.length > 0) {
+          setScannerMode('camera');
+          setSelectedCamera(videoDevices[0].deviceId);
         } else {
           setError('No camera or scanner devices found');
         }
+
+        await requestCameraPermission();
       }
     } catch (error) {
       console.error('Error detecting device type:', error);
@@ -109,19 +171,36 @@ const QRScanner = () => {
 
   const requestCameraPermission = async () => {
     try {
+      // Check if permissions API is available
+      if ('permissions' in navigator) {
+        const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        if (permissionStatus.state === 'denied') {
+          setPermission('denied');
+          throw new Error('Camera access is blocked. Please allow camera access in your browser settings.');
+        }
+      }
+
+      // Try to get camera stream with optimal mobile settings
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+        video: {
           deviceId: selectedCamera ? { exact: selectedCamera } : undefined,
-          facingMode: scannerMode === 'camera' ? 'environment' : undefined
-        } 
+          facingMode: scannerMode === 'camera' ? 'environment' : undefined,
+          // Add recommended mobile camera constraints
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          aspectRatio: { ideal: 1.777778 },
+          frameRate: { ideal: 30 }
+        }
       });
       
+      // Camera access granted
       setPermission('granted');
+      // Always stop the stream after permission check
       stream.getTracks().forEach(track => track.stop());
     } catch (error) {
       console.error('Camera permission error:', error);
       setPermission('denied');
-      setError('Camera access denied. Please enable camera permissions.');
+      setError(error instanceof Error ? error.message : 'Failed to access camera. Please check permissions.');
     }
   };
 
@@ -134,7 +213,6 @@ const QRScanner = () => {
       
       if (permission !== 'granted') {
         await requestCameraPermission();
-        // Check permission again after request
         if (permission === 'denied') {
           throw new Error('Camera permission required');
         }
@@ -142,19 +220,37 @@ const QRScanner = () => {
 
       stopScanner();
 
+      // Determine if running on mobile
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+      // Configure scanner based on device type
       const config = {
-        fps: 10,
-        qrbox: { width: 300, height: 300 },
-        aspectRatio: 1.0,
-        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+        fps: isMobile ? 15 : 10, // Higher FPS for mobile
+        qrbox: isMobile 
+          ? { width: Math.min(250, window.innerWidth - 50), height: Math.min(250, window.innerWidth - 50) }
+          : { width: 300, height: 300 },
+        aspectRatio: isMobile ? 1.777778 : 1.0,
+        supportedScanTypes: [
+          Html5QrcodeScanType.SCAN_TYPE_CAMERA,
+          ...(scannerMode === 'usb' ? [Html5QrcodeScanType.SCAN_TYPE_FILE] : [])
+        ],
         formatsToSupport: [
           Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39
+          ...(scannerMode === 'usb' ? [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13
+          ] : [])
         ],
         videoConstraints: {
           deviceId: selectedCamera ? { exact: selectedCamera } : undefined,
-          facingMode: scannerMode === 'camera' ? 'environment' : undefined
+          facingMode: scannerMode === 'camera' ? 'environment' : undefined,
+          width: isMobile ? { ideal: 1920 } : { ideal: 1280 },
+          height: isMobile ? { ideal: 1080 } : { ideal: 720 },
+          frameRate: isMobile ? { ideal: 30 } : { ideal: 24 }
+        },
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
         }
       };
 
@@ -165,7 +261,7 @@ const QRScanner = () => {
           handleScanSuccess(decodedText, decodedResult);
         },
         (error) => {
-          // Ignore frequent scan errors
+          // Only log non-standard errors
           if (!error.includes('NotFoundException')) {
             console.warn('QR Scan error:', error);
           }
@@ -180,6 +276,7 @@ const QRScanner = () => {
     } catch (error) {
       console.error('Failed to start scanner:', error);
       setError(`Failed to start scanner: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setIsScanning(false);
     } finally {
       setIsLoading(false);
     }
@@ -196,26 +293,35 @@ const QRScanner = () => {
     }
     setIsScanning(false);
   };
-
   const handleScanSuccess = async (decodedText: string, decodedResult: any) => {
     try {
-      console.log('QR Code scanned:', decodedText);
+      console.log('QR scan successful:', decodedText);
       
       let qrData: QRData;
       try {
         qrData = JSON.parse(decodedText);
       } catch {
-        // If not JSON, treat as simple text
-        qrData = {
-          publicUserId: 0,
-          name: 'Unknown',
-          nic: decodedText,
-          department: 'N/A',
-          division: 'N/A',
-          issuedDate: new Date().toISOString()
-        };
+        // If not JSON, check if it's a public_id
+        if (decodedText.match(/^PUB\d+$/)) {
+          qrData = {
+            public_id: decodedText,
+            name: 'Unknown',
+            nic: decodedText,
+            type: 'public_user'
+          };
+        } else {
+          throw new Error('Invalid QR code format');
+        }
       }
 
+      // Try to get public_id from different possible fields
+      const publicId = qrData.public_id || qrData.id;
+      
+      if (!publicId) {
+        throw new Error('QR code missing public ID');
+      }
+
+      // Record the scan result
       const result: ScanResult = {
         id: Date.now().toString(),
         data: decodedText,
@@ -224,41 +330,38 @@ const QRScanner = () => {
         userInfo: {
           name: qrData.name,
           nic: qrData.nic,
-          department: qrData.department,
-          division: qrData.division
+          department: qrData.department || 'N/A',
+          division: qrData.division || 'N/A',
+          public_id: publicId
         }
       };
 
       setScanResults(prev => [result, ...prev.slice(0, 9)]);
 
-      // Record scan in backend
-      if (qrData.publicUserId) {
+      // Record scan in backend if staff is logged in
+      const staffUserId = localStorage.getItem('userId');
+      if (staffUserId) {
         try {
-          const staffUserId = localStorage.getItem('userId');
-          if (staffUserId) {
-            await apiService.recordQRScan({
-              public_user_id: qrData.publicUserId,
-              staff_user_id: parseInt(staffUserId),
-              scan_purpose: 'verification',
-              scan_location: 'staff_dashboard'
-            });
-          }
+          await apiService.recordQRScan({
+            public_user_id: qrData.publicUserId || 0,
+            staff_user_id: parseInt(staffUserId),
+            scan_purpose: 'verification',
+            scan_location: 'staff_dashboard',
+            scan_data: JSON.stringify(qrData)
+          });
         } catch (error) {
           console.error('Failed to record scan:', error);
         }
       }
 
+      // Show success message
       toast({
         title: "QR Code Scanned",
         description: `Verified: ${qrData.name}`,
       });
 
-      // Auto-restart scanning after a short delay
-      setTimeout(() => {
-        if (isScanning) {
-          startScanner();
-        }
-      }, 2000);
+      // Navigate to the public user's page
+      navigate(`/qr-scan/${publicId}`);
 
     } catch (error) {
       console.error('Error processing scan result:', error);

@@ -1,50 +1,43 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { PublicUserPasswordForm } from './forms/PublicUserPasswordForm';
+import { apiService, type PublicUser } from '@/services/api';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/services/api';
-import type { PublicUser } from '@/services/api';
-import { Search, UserPlus } from 'lucide-react';
-import { PublicUserForm } from './public-accounts/PublicUserForm';
-import { PublicUserTable } from './public-accounts/PublicUserTable';
-import { ConfirmDialog } from './public-accounts/ConfirmDialog';
-
-const PublicAccountsManagement = () => {
-  const [users, setUsers] = useState<PublicUser[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<PublicUser[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [editingUser, setEditingUser] = useState<PublicUser | null>(null);
-  const [deletingUser, setDeletingUser] = useState<PublicUser | null>(null);
+export function PublicAccountsManagement() {
   const { toast } = useToast();
+  const [users, setUsers] = useState<PublicUser[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<PublicUser | null>(null);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  useEffect(() => {
-    const safeUsers = Array.isArray(users) ? users : [];
-    const filtered = safeUsers.filter(user => 
-      user.public_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.nic?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredUsers(filtered);
-  }, [searchTerm, users]);
-
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getPublicUsers();
-      const safeResponse = Array.isArray(response) ? response : [];
-      setUsers(safeResponse);
+      const fetchedUsers = await apiService.getPublicUsers();
+      setUsers(fetchedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
-      setUsers([]);
       toast({
         title: "Error",
         description: "Failed to fetch public users",
@@ -66,67 +59,13 @@ const PublicAccountsManagement = () => {
       setShowForm(false);
       toast({
         title: "Success",
-        description: "Public user created successfully with sequential ID",
+        description: "Public user created successfully",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating user:', error);
       toast({
         title: "Error",
-        description: "Failed to create public user",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleUpdateUser = async (userData: any) => {
-    try {
-      setIsLoading(true);
-      const updatedUser = await apiService.updatePublicUser(userData.id, userData);
-      setUsers(prev => {
-        const safePrev = Array.isArray(prev) ? prev : [];
-        return safePrev.map(user => 
-          user.id === updatedUser.id ? updatedUser : user
-        );
-      });
-      setEditingUser(null);
-      toast({
-        title: "Success",
-        description: "Public user updated successfully",
-      });
-    } catch (error) {
-      console.error('Error updating user:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update public user",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteUser = async () => {
-    if (!deletingUser) return;
-
-    try {
-      setIsLoading(true);
-      await apiService.deletePublicUser(deletingUser.id);
-      setUsers(prev => {
-        const safePrev = Array.isArray(prev) ? prev : [];
-        return safePrev.filter(user => user.id !== deletingUser.id);
-      });
-      setDeletingUser(null);
-      toast({
-        title: "Success",
-        description: "Public user deleted successfully from database",
-      });
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete public user from database",
+        description: error.message || "Failed to create public user",
         variant: "destructive",
       });
     } finally {
@@ -135,89 +74,119 @@ const PublicAccountsManagement = () => {
   };
 
   const handleEdit = (user: PublicUser) => {
-    setEditingUser(user);
+    setSelectedUser(user);
     setShowForm(true);
   };
 
-  const handleDelete = (user: PublicUser) => {
-    setDeletingUser(user);
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+
+    try {
+      setIsLoading(true);
+      await apiService.deletePublicUser(id);
+      setUsers(prev => prev.filter(user => user.id !== id));
+      toast({
+        title: "Success",
+        description: "Public user deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete public user",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const closeForm = () => {
-    setShowForm(false);
-    setEditingUser(null);
+  const handlePasswordUpdate = (user: PublicUser) => {
+    setSelectedUser(user);
+    setShowPasswordForm(true);
   };
 
-  const safeUsers = Array.isArray(users) ? users : [];
-  const safeFilteredUsers = Array.isArray(filteredUsers) ? filteredUsers : [];
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Public Accounts Management</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Total accounts: {safeUsers.length} | Sequential ID assignment from PUB00001
-              </p>
-            </div>
-            <Button
-              onClick={() => setShowForm(true)}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <UserPlus className="mr-2 h-4 w-4" />
-              Create Account
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <Input
-                id="search-public-accounts"
-                name="search-public-accounts"
-                placeholder="Search accounts by ID, name, NIC, or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            
-            {isLoading ? (
-              <div className="text-center py-8">Loading accounts...</div>
-            ) : (
-              <PublicUserTable
-                users={safeFilteredUsers}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
-            )}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="w-full space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Public Users Management</h2>
+        <Button onClick={() => setShowForm(true)}>Create New User</Button>
+      </div>
 
-      {showForm && (
-        <PublicUserForm
-          user={editingUser}
-          onSubmit={editingUser ? handleUpdateUser : handleCreateUser}
-          onClose={closeForm}
-          isLoading={isLoading}
-        />
+      {showPasswordForm && selectedUser && (
+        <Dialog open={showPasswordForm} onOpenChange={setShowPasswordForm}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update Password for {selectedUser.name}</DialogTitle>
+              <DialogDescription>
+                Enter a new password for this user.
+              </DialogDescription>
+            </DialogHeader>
+            <PublicUserPasswordForm
+              userId={selectedUser.id}
+              isStaffUpdate={true}
+              onSuccess={() => setShowPasswordForm(false)}
+            />
+          </DialogContent>
+        </Dialog>
       )}
 
-      {deletingUser && (
-        <ConfirmDialog
-          title="Delete Public Account"
-          message={`Are you sure you want to delete the account for ${deletingUser.name}? This will permanently remove the record from the database and cannot be undone.`}
-          onConfirm={handleDeleteUser}
-          onCancel={() => setDeletingUser(null)}
-          isLoading={isLoading}
-        />
-      )}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Public ID</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>NIC</TableHead>
+              <TableHead>Mobile</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Department</TableHead>
+              <TableHead>Division</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell>{user.public_id}</TableCell>
+                <TableCell>{user.name}</TableCell>
+                <TableCell>{user.nic}</TableCell>
+                <TableCell>{user.mobile}</TableCell>
+                <TableCell>{user.email}</TableCell>
+                <TableCell>{user.department_name || '-'}</TableCell>
+                <TableCell>{user.division_name || '-'}</TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(user)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePasswordUpdate(user)}
+                  >
+                    Set Password
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(user.id)}
+                  >
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
-};
-
-export default PublicAccountsManagement;
+}

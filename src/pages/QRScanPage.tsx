@@ -28,7 +28,6 @@ const QRScanPage = () => {
     details: '',
     staff_user_id: localStorage.getItem('userId') || ''
   });
-
   useEffect(() => {
     if (publicId) {
       fetchUserData();
@@ -39,10 +38,21 @@ const QRScanPage = () => {
 
   const fetchUserData = async () => {
     try {
+      // First try to find user by public_id
       const users = await apiService.getPublicUsers();
-      const foundUser = users.find(u => u.public_id === publicId);
+      let foundUser = users.find(u => u.public_id === publicId);
+      
+      // If not found, try alternative formats
+      if (!foundUser && publicId.match(/^PUB\d+$/)) {
+        foundUser = users.find(u => u.public_id.replace(/[^0-9]/g, '') === publicId.replace(/[^0-9]/g, ''));
+      }
+
       if (foundUser) {
         setUser(foundUser);
+        toast({
+          title: "User Found",
+          description: `Verified: ${foundUser.name}`,
+        });
       } else {
         toast({
           title: "User Not Found",
