@@ -1,6 +1,24 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
+include_once '../../config/error_handler.php';
+include_once '../../utils/auth.php';
+
+header('Content-Type: application/json');
+
+// Verify authentication
+$authHeader = getAuthorizationHeader();
+if (!$authHeader) {
+    sendError(401, "No authorization header present");
+    exit;
+}
+
+$token = validateToken($authHeader);
+if (!$token) {
+    sendError(401, "Invalid or expired token");
+    exit;
+}
 
 $database = new Database();
 $db = $database->getConnection();
@@ -13,78 +31,63 @@ switch ($_SERVER['REQUEST_METHOD']) {
         recordQRScan($db);
         break;
     default:
-        http_response_code(405);
-        echo json_encode(array("message" => "Method not allowed"));
+        sendError(405, "Method not allowed");
         break;
 }
 
 function getQRScans($db) {
     try {
-        $public_user_id = $_GET['public_user_id'] ?? null;
-        
-        if (!$public_user_id) {
-            http_response_code(400);
-            echo json_encode(array("message" => "Public user ID is required"));
-            return;
-        }
-
-        $query = "SELECT qr.*, u.name as staff_name 
-                  FROM qr_scans qr 
-                  LEFT JOIN users u ON qr.staff_user_id = u.id 
-                  WHERE qr.public_user_id = :public_user_id 
-                  ORDER BY qr.created_at DESC";
+        $query = "SELECT qs.*, pu.name as public_user_name, pu.nic as public_user_nic, 
+                         u.name as staff_user_name
+                  FROM qr_scans qs 
+                  LEFT JOIN public_users pu ON qs.public_user_id = pu.id 
+                  LEFT JOIN users u ON qs.staff_user_id = u.id 
+                  ORDER BY qs.created_at DESC LIMIT 100";
         
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":public_user_id", $public_user_id);
         $stmt->execute();
         
         $scans = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        http_response_code(200);
-        echo json_encode($scans);
+        sendResponse(200, ["data" => $scans]);
+    } catch (PDOException $e) {
+        sendError(500, "Database error", $e);
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $e->getMessage()));
+        sendError(500, "Internal server error", $e);
     }
 }
 
 function recordQRScan($db) {
-    $data = json_decode(file_get_contents("php://input"));
-    
-    if (!isset($data->public_user_id) || !isset($data->staff_user_id)) {
-        http_response_code(400);
-        echo json_encode(array("message" => "Public user ID and staff user ID are required"));
-        return;
-    }
-    
     try {
-        // First ensure we have the scan_data column
-        try {
-            $db->exec("ALTER TABLE qr_scans ADD COLUMN IF NOT EXISTS scan_data TEXT NULL");
-        } catch (Exception $e) {
-            error_log("Error checking/adding scan_data column: " . $e->getMessage());
+        $data = json_decode(file_get_contents("php://input"));
+        
+        // Validate required fields
+        if (!isset($data->staff_user_id) || !isset($data->scan_purpose) || !isset($data->scan_location)) {
+            sendError(400, "Missing required fields: staff_user_id, scan_purpose, scan_location");
+            return;
         }
-
-        $query = "INSERT INTO qr_scans (public_user_id, staff_user_id, scan_location, scan_purpose, scan_data) 
-                  VALUES (:public_user_id, :staff_user_id, :scan_location, :scan_purpose, :scan_data)";
+        
+        $query = "INSERT INTO qr_scans (public_user_id, staff_user_id, scan_purpose, scan_location, scan_data) 
+                  VALUES (:public_user_id, :staff_user_id, :scan_purpose, :scan_location, :scan_data)";
         
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":public_user_id", $data->public_user_id);
+        $stmt->bindValue(":public_user_id", $data->public_user_id ?? null, PDO::PARAM_INT);
         $stmt->bindParam(":staff_user_id", $data->staff_user_id);
-        $stmt->bindParam(":scan_location", $data->scan_location ?? null);
-        $stmt->bindParam(":scan_purpose", $data->scan_purpose ?? null);
-        $stmt->bindParam(":scan_data", $data->scan_data ?? null);
+        $stmt->bindParam(":scan_purpose", $data->scan_purpose);
+        $stmt->bindParam(":scan_location", $data->scan_location);
+        $stmt->bindParam(":scan_data", $data->scan_data ?? '');
         
-        if ($stmt->execute()) {
-            http_response_code(201);
-            echo json_encode(array("message" => "QR scan recorded successfully"));
-        } else {
-            http_response_code(400);
-            echo json_encode(array("message" => "Failed to record QR scan"));
-        }
+        $stmt->execute();
+        
+        sendResponse(201, [
+            "message" => "QR scan recorded successfully",
+            "scan_id" => $db->lastInsertId()
+        ]);
+        
+    } catch (PDOException $e) {
+        sendError(500, "Database error", $e);
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $e->getMessage()));
+        sendError(500, "Internal server error", $e);
     }
 }
 ?>

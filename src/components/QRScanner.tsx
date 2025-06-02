@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeScanType, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +15,6 @@ const QRScanner = () => {
   const [scannedData, setScannedData] = useState<any>(null);
   const [scanResult, setScanResult] = useState<string>('');
   const [cameraPermission, setCameraPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
-  const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const [scanHistory, setScanHistory] = useState<any[]>([]);
   const [serviceForm, setServiceForm] = useState({
     scan_purpose: '',
@@ -36,7 +36,6 @@ const QRScanner = () => {
 
   const checkCameraPermission = async () => {
     try {
-      // Check if navigator.mediaDevices is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast({
           title: "Camera Not Supported",
@@ -47,7 +46,7 @@ const QRScanner = () => {
         return;
       }
 
-      // Try to get camera devices
+      // Check for available cameras
       const devices = await navigator.mediaDevices.enumerateDevices();
       const cameras = devices.filter(device => device.kind === 'videoinput');
       
@@ -61,28 +60,47 @@ const QRScanner = () => {
         return;
       }
 
-      setAvailableCameras(cameras);
-      
-      // Test camera permission
+      // Test camera access with fallback options
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            facingMode: 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          } 
-        });
+        const constraints = {
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 }
+          }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         setCameraPermission('granted');
-        // Stop the test stream
         stream.getTracks().forEach(track => track.stop());
-      } catch (error) {
-        console.error('Camera permission error:', error);
-        setCameraPermission('denied');
+        
         toast({
-          title: "Camera Permission Required",
-          description: "Please allow camera access to use the QR scanner.",
-          variant: "destructive",
+          title: "Camera Ready",
+          description: "Camera access granted. You can now start scanning QR codes.",
         });
+      } catch (error: any) {
+        console.error('Camera permission error:', error);
+        
+        if (error.name === 'NotFoundError') {
+          toast({
+            title: "Camera Not Found",
+            description: "No camera device found. Please ensure a camera is connected.",
+            variant: "destructive",
+          });
+        } else if (error.name === 'NotAllowedError') {
+          toast({
+            title: "Camera Permission Denied",
+            description: "Please allow camera access in your browser settings.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Camera Error",
+            description: "Unable to access camera. Please check your browser settings.",
+            variant: "destructive",
+          });
+        }
+        setCameraPermission('denied');
       }
     } catch (error) {
       console.error('Error checking camera:', error);
@@ -104,7 +122,10 @@ const QRScanner = () => {
         qrbox: { width: 300, height: 300 },
         aspectRatio: 1.0,
         supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        }
       };
 
       scannerRef.current = new Html5QrcodeScanner('qr-reader', config, false);
@@ -114,8 +135,8 @@ const QRScanner = () => {
           handleScanSuccess(decodedText, decodedResult);
         },
         (error: string) => {
-          // Ignore frequent scanning errors
-          if (!error.includes('NotFoundException')) {
+          // Only log actual errors, not scanning attempts
+          if (!error.includes('NotFoundException') && !error.includes('No QR code found')) {
             console.warn('QR Scan Error:', error);
           }
         }

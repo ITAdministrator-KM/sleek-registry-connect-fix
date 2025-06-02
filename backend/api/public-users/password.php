@@ -1,3 +1,4 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -6,115 +7,74 @@ include_once '../../utils/auth.php';
 
 header('Content-Type: application/json');
 
-// Verify content type
-if ($_SERVER["CONTENT_TYPE"] !== "application/json") {
-    http_response_code(415);
-    echo json_encode(["status" => "error", "message" => "Content-Type must be application/json"]);
-    exit;
-}
-
-// Verify authentication for staff/admin setting passwords
+// Verify authentication
 $authHeader = getAuthorizationHeader();
-$isStaffRequest = false;
-
-if ($authHeader) {
-    $token = validateToken($authHeader);
-    if ($token && in_array($token['role'], ['admin', 'staff'])) {
-        $isStaffRequest = true;
-    }
-}
-
-// Only allow PUT method
-if ($_SERVER['REQUEST_METHOD'] !== 'PUT') {
-    http_response_code(405);
-    echo json_encode(["status" => "error", "message" => "Method not allowed"]);
+if (!$authHeader) {
+    sendError(401, "No authorization header present");
     exit;
 }
 
-try {
-    $data = json_decode(file_get_contents("php://input"));
-    
-    if (!isset($data->id)) {
-        throw new Exception("Public user ID is required", 400);
-    }
+$token = validateToken($authHeader);
+if (!$token) {
+    sendError(401, "Invalid or expired token");
+    exit;
+}
 
-    $database = new Database();
-    $db = $database->getConnection();
+$database = new Database();
+$db = $database->getConnection();
 
-    // Staff/admin setting password for user
-    if ($isStaffRequest) {
-        if (!isset($data->password)) {
-            throw new Exception("New password is required", 400);
-        }
+switch ($_SERVER['REQUEST_METHOD']) {
+    case 'PUT':
+        updatePublicUserPassword($db);
+        break;
+    default:
+        sendError(405, "Method not allowed");
+        break;
+}
 
-        // Validate password
-        if (strlen($data->password) < 8) {
-            throw new Exception("Password must be at least 8 characters long", 400);
-        }
-
-        $passwordHash = password_hash($data->password, PASSWORD_ARGON2ID);
+function updatePublicUserPassword($db) {
+    try {
+        $data = json_decode(file_get_contents("php://input"));
         
-        $stmt = $db->prepare("UPDATE public_users SET password_hash = :password_hash WHERE id = :id");
-        $stmt->bindParam(":password_hash", $passwordHash);
-        $stmt->bindParam(":id", $data->id);
+        if (!isset($data->id) || !isset($data->newPassword)) {
+            sendError(400, "User ID and new password are required");
+            return;
+        }
         
-        if (!$stmt->execute()) {
-            throw new Exception("Failed to update password", 500);
+        if (strlen($data->newPassword) < 6) {
+            sendError(400, "Password must be at least 6 characters long");
+            return;
         }
-
-        if ($stmt->rowCount() === 0) {
-            throw new Exception("Public user not found", 404);
-        }
-
-        http_response_code(200);
-        echo json_encode([
-            "status" => "success",
-            "message" => "Password updated successfully"
-        ]);
-    } 
-    // Public user changing their own password
-    else {
-        if (!isset($data->currentPassword) || !isset($data->newPassword)) {
-            throw new Exception("Current password and new password are required", 400);
-        }
-
-        // Validate password
-        if (strlen($data->newPassword) < 8) {
-            throw new Exception("New password must be at least 8 characters long", 400);
-        }
-
-        $stmt = $db->prepare("SELECT password_hash FROM public_users WHERE id = :id AND status = 'active'");
+        
+        // Check if user exists
+        $stmt = $db->prepare("SELECT id FROM public_users WHERE id = :id AND status = 'active'");
         $stmt->bindParam(":id", $data->id);
         $stmt->execute();
         
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$user || !password_verify($data->currentPassword, $user['password_hash'])) {
-            throw new Exception("Current password is incorrect", 401);
+        if ($stmt->rowCount() === 0) {
+            sendError(404, "User not found");
+            return;
         }
-
-        $newHash = password_hash($data->newPassword, PASSWORD_ARGON2ID);
         
-        $stmt = $db->prepare("UPDATE public_users SET password_hash = :password_hash WHERE id = :id");
-        $stmt->bindParam(":password_hash", $newHash);
+        // Hash the new password
+        $hashedPassword = password_hash($data->newPassword, PASSWORD_ARGON2ID);
+        
+        // Update password
+        $query = "UPDATE public_users SET password = :password, updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(":password", $hashedPassword);
         $stmt->bindParam(":id", $data->id);
         
-        if (!$stmt->execute()) {
-            throw new Exception("Failed to update password", 500);
+        if ($stmt->execute()) {
+            sendResponse(200, ["message" => "Password updated successfully"]);
+        } else {
+            sendError(500, "Failed to update password");
         }
-
-        http_response_code(200);
-        echo json_encode([
-            "status" => "success",
-            "message" => "Password updated successfully"
-        ]);
+        
+    } catch (PDOException $e) {
+        sendError(500, "Database error", $e);
+    } catch (Exception $e) {
+        sendError(500, "Internal server error", $e);
     }
-} catch (Exception $e) {
-    $code = $e->getCode() ?: 500;
-    http_response_code($code);
-    echo json_encode([
-        "status" => "error",
-        "message" => $e->getMessage()
-    ]);
 }
 ?>
