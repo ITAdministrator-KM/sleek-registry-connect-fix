@@ -1,3 +1,4 @@
+
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Index from './pages/Index';
 import Login from './pages/Login';
@@ -7,7 +8,8 @@ import PublicDashboard from './pages/PublicDashboard';
 import { Toaster } from "@/components/ui/toaster"
 import QRScanPage from './pages/QRScanPage';
 
-function App() {  return (
+function App() {
+  return (
     <Router>
       <Routes>
         <Route path="/" element={<Index />} />

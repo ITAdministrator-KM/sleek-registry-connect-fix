@@ -77,8 +77,8 @@ export class EnhancedIDCardPrinter {
       };
 
       toast({
-        title: "✅ Enhanced ID Cards Generated",
-        description: `${users.length} professional ID card(s) prepared with QR codes`,
+        title: "✅ ID Cards Generated Successfully",
+        description: `${users.length} professional ID card(s) ready for printing`,
       });
 
     } catch (error) {
@@ -160,9 +160,9 @@ export class EnhancedIDCardPrinter {
             </div>
             <div class="detail-row">
               <span class="label">ID:</span>
-              <span class="value id-highlight">${user.address}</span>
+              <span class="value address-text">${user.address}</span>
             </div>
-            <div class="detail-row">
+            <div class="detail-row id-row">
               <span class="label">ID:</span>
               <span class="value id-highlight">${user.public_id}</span>
             </div>
@@ -177,8 +177,10 @@ export class EnhancedIDCardPrinter {
         </div>
         
         <div class="card-footer">
-          <div class="issue-info">
-            <span class="issue-text">Generated: ${currentDate}</span>
+          <div class="footer-left">
+            <span class="generated-text">Generated: ${currentDate}</span>
+          </div>
+          <div class="footer-right">
             <span class="validity-text">Valid for official purposes</span>
           </div>
         </div>
@@ -190,7 +192,7 @@ export class EnhancedIDCardPrinter {
     return `
       @page {
         size: A4;
-        margin: 6mm;
+        margin: 8mm;
       }
       
       * {
@@ -203,7 +205,7 @@ export class EnhancedIDCardPrinter {
         font-family: 'Arial', 'Helvetica', sans-serif;
         background: white;
         color: black;
-        line-height: 1.3;
+        line-height: 1.4;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
@@ -217,21 +219,21 @@ export class EnhancedIDCardPrinter {
       .card-row {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 5mm;
+        margin-bottom: 6mm;
         width: 100%;
-        gap: 4mm;
+        gap: 5mm;
       }
       
       .id-card {
         width: 85.6mm;
         height: 54mm;
-        border: 2.5px solid #1e40af;
-        border-radius: 6px;
+        border: 3px solid #3b82f6;
+        border-radius: 8px;
         background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
         overflow: hidden;
         position: relative;
         page-break-inside: avoid;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       }
       
       .empty-card {
@@ -239,13 +241,14 @@ export class EnhancedIDCardPrinter {
       }
       
       .card-header {
-        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
         color: white;
-        padding: 2.5mm;
+        padding: 3mm 3mm 2.5mm 3mm;
         display: flex;
         align-items: center;
-        gap: 2mm;
+        gap: 2.5mm;
         border-bottom: 2px solid #1e40af;
+        height: 16mm;
       }
       
       .logo-container {
@@ -264,80 +267,94 @@ export class EnhancedIDCardPrinter {
       .header-text {
         flex: 1;
         text-align: center;
+        line-height: 1.1;
       }
       
       .org-title {
-        font-size: 10pt;
+        font-size: 11pt;
         font-weight: bold;
-        line-height: 1.1;
         text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        margin-bottom: 1px;
       }
       
       .org-subtitle {
-        font-size: 8pt;
+        font-size: 9pt;
         font-weight: 600;
-        opacity: 0.9;
-        margin-top: 1px;
+        opacity: 0.95;
       }
       
       .card-content {
-        padding: 3mm;
+        padding: 3.5mm;
         display: flex;
         gap: 3mm;
-        height: 32mm;
+        height: 30mm;
+        align-items: stretch;
       }
       
       .user-details {
         flex: 1;
         display: flex;
         flex-direction: column;
-        justify-content: space-around;
+        justify-content: space-between;
+        padding-top: 1mm;
       }
       
       .detail-row {
         display: flex;
         align-items: baseline;
-        margin-bottom: 1.5mm;
+        margin-bottom: 1.8mm;
+        line-height: 1.2;
+      }
+      
+      .id-row {
+        margin-bottom: 0;
       }
       
       .label {
-        font-size: 8pt;
+        font-size: 9pt;
         font-weight: bold;
         color: #374151;
-        min-width: 16mm;
+        min-width: 18mm;
         flex-shrink: 0;
       }
       
       .value {
-        font-size: 9pt;
+        font-size: 10pt;
         color: #111827;
         font-weight: 600;
         word-break: break-word;
+        line-height: 1.3;
+      }
+      
+      .address-text {
+        font-size: 9pt;
         line-height: 1.2;
       }
       
       .id-highlight {
-        color: #1e40af;
+        color: #3b82f6;
         font-weight: bold;
-        font-size: 10pt;
+        font-size: 11pt;
+        text-transform: uppercase;
       }
       
       .qr-container {
-        width: 20mm;
-        height: 20mm;
+        width: 22mm;
+        height: 22mm;
         display: flex;
         align-items: center;
         justify-content: center;
         background: white;
-        border: 2px solid #1e40af;
+        border: 2.5px solid #3b82f6;
         border-radius: 4px;
         flex-shrink: 0;
-        margin-top: 2mm;
+        margin-top: 1mm;
+        align-self: flex-start;
       }
       
       .qr-code {
-        width: 18mm;
-        height: 18mm;
+        width: 20mm;
+        height: 20mm;
         object-fit: contain;
         image-rendering: pixelated;
         image-rendering: -moz-crisp-edges;
@@ -345,37 +362,42 @@ export class EnhancedIDCardPrinter {
       }
       
       .qr-error {
-        font-size: 6pt;
+        font-size: 7pt;
         color: #dc2626;
         text-align: center;
         font-weight: bold;
       }
       
       .card-footer {
-        background: #f3f4f6;
-        padding: 1.5mm 3mm;
-        border-top: 1px solid #e5e7eb;
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        padding: 1.8mm 3mm;
+        border-top: 1px solid #cbd5e1;
         position: absolute;
         bottom: 0;
         left: 0;
         right: 0;
-      }
-      
-      .issue-info {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        height: 8mm;
       }
       
-      .issue-text {
-        font-size: 6pt;
-        color: #6b7280;
+      .footer-left,
+      .footer-right {
+        flex: 1;
+      }
+      
+      .generated-text {
+        font-size: 7pt;
+        color: #64748b;
+        font-weight: 500;
       }
       
       .validity-text {
-        font-size: 6pt;
+        font-size: 7pt;
         color: #059669;
         font-weight: bold;
+        text-align: right;
       }
       
       .page-break {
