@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { ProfileSettings } from '@/components/public-accounts/ProfileSettings';
-import { ServiceHistory } from '@/components/public/ServiceHistory';
+import ServiceHistory from '@/components/public/ServiceHistory';
 import NotificationBell from '@/components/NotificationBell';
 import { apiService, type PublicUser } from '@/services/api';
 
@@ -347,7 +346,7 @@ const PublicDashboard = () => {
       case 'services':
         return renderServicesContent();
       case 'history':
-        return userInfo ? <ServiceHistory publicUser={userInfo} /> : <div>Loading...</div>;
+        return userInfo ? <ServiceHistory /> : <div>Loading...</div>;
       case 'profile':
         return userInfo ? <ProfileSettings user={userInfo} /> : <div>Loading...</div>;
       case 'applications':

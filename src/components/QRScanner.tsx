@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeScanType, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -107,11 +106,7 @@ const QRScanner = () => {
         qrbox: { width: 300, height: 300 },
         aspectRatio: 1.0,
         supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-        videoConstraints: {
-          facingMode: 'environment',
-          advanced: [{ focusMode: 'continuous' }]
-        }
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
       };
 
       scannerRef.current = new Html5QrcodeScanner('qr-reader', config, false);
