@@ -69,67 +69,51 @@ try {
     $user = null;
     $passwordField = '';
 
-    // Check for admin/staff users first
+    error_log("[Login] Attempting login for username: " . $data['username'] . " with role: " . $data['role']);
+
+    // Check for admin/staff users in the users table
     if ($data['role'] === 'admin' || $data['role'] === 'staff') {
-        error_log("[Login] Attempting {$data['role']} login for username: " . $data['username']);
-        
         $query = "SELECT id, user_id, name, username, password, role, email, department_id, division_id, status 
                   FROM users 
-                  WHERE username = ? AND role = ? AND status = 'active'";
+                  WHERE username = ? AND status = 'active'";
         
         $stmt = $db->prepare($query);
-        $stmt->execute([$data['username'], $data['role']]);
+        $stmt->execute([$data['username']]);
         
         if ($stmt->rowCount() > 0) {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             $passwordField = 'password';
-            error_log("[Login] Found {$data['role']} user: " . $data['username']);
+            
+            // Check if the role matches what was requested
+            if ($user['role'] !== $data['role']) {
+                error_log("[Login] Role mismatch for user {$data['username']}. Found: {$user['role']}, Expected: {$data['role']}");
+                throw new Exception("Invalid credentials", 401);
+            }
+            
+            error_log("[Login] Found {$user['role']} user: " . $data['username']);
         } else {
-            error_log("[Login] No active {$data['role']} user found with username: " . $data['username']);
-        }
-    }
-    
-    // If not found in users table or role is public, check public_users
-    if (!$user && ($data['role'] === 'public' || $data['role'] === 'admin' || $data['role'] === 'staff')) {
-        error_log("[Login] Checking public_users table for username: " . $data['username']);
-        
-        // First check if we need to update the public_users table
-        $checkColumnsQuery = "SELECT 
-            SUM(CASE WHEN COLUMN_NAME IN ('username', 'password_hash') THEN 1 ELSE 0 END) as required_columns,
-            GROUP_CONCAT(COLUMN_NAME) as existing_columns
-        FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = DATABASE() 
-        AND TABLE_NAME = 'public_users'";
-        
-        $checkStmt = $db->query($checkColumnsQuery);
-        $columnInfo = $checkStmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($columnInfo['required_columns'] < 2) {
-            error_log("Public users table missing required columns. Found: " . $columnInfo['existing_columns']);
+            error_log("[Login] No active user found with username: " . $data['username']);
             
-            // Add missing columns one by one to avoid errors if some already exist
-            $alterQueries = [];
-            if (strpos($columnInfo['existing_columns'], 'username') === false) {
-                $alterQueries[] = "ADD COLUMN username VARCHAR(50) NULL";
-            }
-            if (strpos($columnInfo['existing_columns'], 'password_hash') === false) {
-                $alterQueries[] = "ADD COLUMN password_hash VARCHAR(255) NULL";
-            }
-            
-            if (!empty($alterQueries)) {
-                try {
-                    $updateQuery = "ALTER TABLE public_users " . implode(", ", $alterQueries);
-                    $db->exec($updateQuery);
-                    error_log("Successfully added missing columns to public_users table");
-                    
-                    // Update any existing rows to have valid usernames based on their ID
-                    $db->exec("UPDATE public_users SET username = CONCAT('public_', id) WHERE username IS NULL OR username = ''");
-                } catch (PDOException $e) {
-                    error_log("Error updating public_users schema: " . $e->getMessage());
-                    // Continue anyway as columns might have been added by another process
+            // If admin login fails, let's check if there's an admin user with different username
+            if ($data['role'] === 'admin') {
+                $adminQuery = "SELECT id, user_id, name, username, password, role, email, department_id, division_id, status 
+                              FROM users 
+                              WHERE role = 'admin' AND status = 'active'";
+                $adminStmt = $db->prepare($adminQuery);
+                $adminStmt->execute();
+                $adminUsers = $adminStmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                error_log("[Login] Found " . count($adminUsers) . " admin users in database");
+                foreach ($adminUsers as $adminUser) {
+                    error_log("[Login] Admin user found: " . $adminUser['username']);
                 }
             }
         }
+    }
+    
+    // If not found in users table, check public_users for public role
+    if (!$user && $data['role'] === 'public') {
+        error_log("[Login] Checking public_users table for username: " . $data['username']);
         
         $query = "SELECT id, public_id as user_id, name, username, COALESCE(password_hash, '') as password_hash, 'public' as role, 
                          email, department_id, division_id, status 
@@ -141,7 +125,7 @@ try {
         
         if ($stmt->rowCount() > 0) {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
-            $user['role'] = 'public'; // Ensure role is set to public
+            $user['role'] = 'public';
             $passwordField = 'password_hash';
             error_log("[Login] Found public user: " . $data['username']);
         } else {
@@ -180,6 +164,7 @@ try {
     
     if (!$success) {
         error_log("[Login] Failed password verification for user: {$data['username']}");
+        error_log("[Login] Stored password exists: " . (!empty($storedPassword) ? 'Yes' : 'No'));
         throw new Exception("Invalid credentials", 401);
     }
 
@@ -198,7 +183,7 @@ try {
             'exp' => $expirationTime,
             'user_id' => $user['id'],
             'role' => $user['role'],
-            'jti' => bin2hex(random_bytes(16)) // Add unique token ID
+            'jti' => bin2hex(random_bytes(16))
         ];
         
         $header = base64url_encode(json_encode(['typ' => 'JWT', 'alg' => 'HS256']));
