@@ -1,48 +1,38 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Bell, User, FileText, Calendar, Ticket, Clock, LogOut, Settings, History, Home, Briefcase } from 'lucide-react';
+import { FileText, Clock, User, Bell, CreditCard, MapPin, Settings } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { PublicAccountsManagement } from '@/components/PublicAccountsManagement';
+import DigitalTokens from '@/components/public/DigitalTokens';
 import ServiceRequest from '@/components/public/ServiceRequest';
 import MyApplications from '@/components/public/MyApplications';
-import DigitalTokens from '@/components/public/DigitalTokens';
 import ServiceHistory from '@/components/public/ServiceHistory';
-import IDCardGenerator from '@/components/IDCardGenerator';
+import ProfileSettings from '@/components/public-accounts/ProfileSettings';
 
 const PublicDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
-  const [userInfo, setUserInfo] = useState<any>(null);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [userFullName, setUserFullName] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('Checking public user authentication...');
     const role = localStorage.getItem('userRole');
     const user = localStorage.getItem('username');
+    const fullName = localStorage.getItem('userFullName') || user;
     const token = localStorage.getItem('authToken');
     
-    console.log('Auth state:', { role, user, hasToken: !!token });
-    
     if (role !== 'public' || !token) {
-      console.log('Invalid public session, redirecting to login');
       localStorage.clear();
       navigate('/login');
       return;
     }
     
     if (user) {
-      console.log('Setting public username:', user);
       setUsername(user);
-      // Load additional user info from localStorage
-      const fullName = localStorage.getItem('userFullName');
-      const userId = localStorage.getItem('userId');
-      setUserInfo({ username: user, fullName, userId });
+      setUserFullName(fullName);
     }
   }, [navigate]);
 
@@ -56,147 +46,136 @@ const PublicDashboard = () => {
   };
 
   const menuItems = [
-    { id: 'overview', label: 'Dashboard', icon: Home },
-    { id: 'services', label: 'Available Services', icon: Briefcase },
-    { id: 'applications', label: 'My Applications', icon: FileText },
-    { id: 'appointments', label: 'Appointments', icon: Calendar },
-    { id: 'tokens', label: 'Digital Tokens', icon: Ticket },
-    { id: 'history', label: 'Service History', icon: History },
-    { id: 'id-card', label: 'My ID Card', icon: User },
+    { id: 'overview', label: 'Dashboard', icon: User },
+    { id: 'tokens', label: 'Digital Tokens', icon: CreditCard },
+    { id: 'services', label: 'Request Service', icon: FileText },
+    { id: 'applications', label: 'My Applications', icon: Clock },
+    { id: 'history', label: 'Service History', icon: Bell },
     { id: 'profile', label: 'Profile Settings', icon: Settings },
   ];
 
-  const handleServiceRequested = () => {
-    // Refresh the applications and tokens when a service is requested
-    if (activeTab === 'applications') {
-      window.location.reload();
-    }
-    setActiveTab('applications');
-    toast({
-      title: "Service Requested",
-      description: "Your service request has been submitted successfully!",
-    });
-  };
-
   const renderOverviewContent = () => (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6 text-white">
-        <h1 className="text-3xl font-bold mb-2">Welcome, {userInfo?.fullName || username}!</h1>
-        <p className="text-blue-100">Access government services efficiently through our digital platform</p>
+    <div className="space-y-8">
+      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-2xl p-8 text-white shadow-2xl">
+        <h2 className="text-4xl font-bold mb-3">Welcome to DSK Portal</h2>
+        <p className="text-indigo-100 text-lg">Hello, {userFullName}!</p>
+        <p className="text-indigo-200 text-sm">Access government services digitally</p>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setActiveTab('services')}>
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-green-600 text-sm font-medium">Available</p>
-                <p className="text-2xl font-bold text-green-800">12</p>
-                <p className="text-green-600 text-sm">Services</p>
-              </div>
-              <Briefcase className="h-12 w-12 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setActiveTab('applications')}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-600 text-sm font-medium">My</p>
                 <p className="text-2xl font-bold text-blue-800">3</p>
-                <p className="text-blue-600 text-sm">Applications</p>
+                <p className="text-blue-600 text-sm font-medium">Active Tokens</p>
               </div>
-              <FileText className="h-12 w-12 text-blue-600" />
+              <CreditCard className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setActiveTab('appointments')}>
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-green-50 to-green-100 border-l-4 border-l-green-500">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-600 text-sm font-medium">Upcoming</p>
+                <p className="text-2xl font-bold text-green-800">7</p>
+                <p className="text-green-600 text-sm font-medium">Completed</p>
+              </div>
+              <FileText className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-4 border-l-yellow-500">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-bold text-yellow-800">2</p>
+                <p className="text-yellow-600 text-sm font-medium">Pending</p>
+              </div>
+              <Clock className="h-8 w-8 text-yellow-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-2xl font-bold text-purple-800">1</p>
-                <p className="text-purple-600 text-sm">Appointment</p>
+                <p className="text-purple-600 text-sm font-medium">Notifications</p>
               </div>
-              <Calendar className="h-12 w-12 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setActiveTab('tokens')}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-orange-600 text-sm font-medium">Active</p>
-                <p className="text-2xl font-bold text-orange-800">1</p>
-                <p className="text-orange-600 text-sm">Token</p>
-              </div>
-              <Ticket className="h-12 w-12 text-orange-600" />
+              <Bell className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-gray-200 shadow-md">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-t-lg">
-            <CardTitle className="text-blue-800">Quick Actions</CardTitle>
-            <CardDescription className="text-blue-600">Common services and actions</CardDescription>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-slate-50 to-slate-100">
+          <CardHeader>
+            <CardTitle className="text-slate-800 flex items-center gap-3">
+              <MapPin className="h-6 w-6" />
+              Quick Services
+            </CardTitle>
+            <CardDescription className="text-slate-600">Access popular government services</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 p-6">
+          <CardContent className="space-y-4">
+            <Button 
+              onClick={() => setActiveTab('tokens')} 
+              className="w-full justify-start bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
+            >
+              <CreditCard className="mr-3" size={20} />
+              Get Digital Token
+            </Button>
             <Button 
               onClick={() => setActiveTab('services')} 
-              className="w-full justify-start bg-green-500 hover:bg-green-600 text-white"
+              className="w-full justify-start bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
             >
-              <Briefcase className="mr-2" size={16} />
-              Request New Service
+              <FileText className="mr-3" size={20} />
+              Request Certificate
             </Button>
             <Button 
               onClick={() => setActiveTab('applications')} 
-              className="w-full justify-start bg-blue-500 hover:bg-blue-600 text-white"
+              className="w-full justify-start bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
             >
-              <FileText className="mr-2" size={16} />
-              View My Applications
-            </Button>
-            <Button 
-              onClick={() => setActiveTab('appointments')} 
-              className="w-full justify-start bg-purple-500 hover:bg-purple-600 text-white"
-            >
-              <Calendar className="mr-2" size={16} />
-              Book Appointment
+              <Clock className="mr-3" size={20} />
+              Track Applications
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="border-gray-200 shadow-md">
-          <CardHeader className="bg-gradient-to-r from-green-50 to-green-100 rounded-t-lg">
-            <CardTitle className="text-green-800">Recent Activity</CardTitle>
-            <CardDescription className="text-green-600">Your latest interactions with our services</CardDescription>
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-indigo-50 to-indigo-100">
+          <CardHeader>
+            <CardTitle className="text-indigo-800 flex items-center gap-3">
+              <Bell className="h-6 w-6" />
+              Recent Activity
+            </CardTitle>
+            <CardDescription className="text-indigo-600">Your latest service interactions</CardDescription>
           </CardHeader>
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
-                <div className="h-2 w-2 bg-blue-600 rounded-full"></div>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border-l-4 border-blue-400">
                 <div>
-                  <p className="text-sm font-medium text-gray-800">Birth Certificate request submitted</p>
-                  <p className="text-xs text-gray-500">2 hours ago</p>
+                  <p className="font-semibold text-gray-800">Birth Certificate</p>
+                  <p className="text-sm text-gray-600">Application submitted</p>
                 </div>
+                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">Processing</span>
               </div>
-              <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
-                <div className="h-2 w-2 bg-green-600 rounded-full"></div>
+              <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl border-l-4 border-green-400">
                 <div>
-                  <p className="text-sm font-medium text-gray-800">Token #45 called for service</p>
-                  <p className="text-xs text-gray-500">1 day ago</p>
+                  <p className="font-semibold text-gray-800">Police Report</p>
+                  <p className="text-sm text-gray-600">Ready for collection</p>
                 </div>
+                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">Ready</span>
               </div>
-              <div className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-                <div className="h-2 w-2 bg-yellow-600 rounded-full"></div>
+              <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-xl border-l-4 border-yellow-400">
                 <div>
-                  <p className="text-sm font-medium text-gray-800">Appointment scheduled</p>
-                  <p className="text-xs text-gray-500">3 days ago</p>
+                  <p className="font-semibold text-gray-800">Business License</p>
+                  <p className="text-sm text-gray-600">Under review</p>
                 </div>
+                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">Review</span>
               </div>
             </div>
           </CardContent>
@@ -209,119 +188,67 @@ const PublicDashboard = () => {
     switch (activeTab) {
       case 'overview':
         return renderOverviewContent();
-      case 'services':
-        return <ServiceRequest onServiceRequested={handleServiceRequested} />;
-      case 'applications':
-        return <MyApplications />;
-      case 'appointments':
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Appointments</CardTitle>
-              <CardDescription>Manage your scheduled appointments</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-center text-gray-500 py-8">Appointment management feature coming soon...</p>
-            </CardContent>
-          </Card>
-        );
       case 'tokens':
         return <DigitalTokens />;
+      case 'services':
+        return <ServiceRequest />;
+      case 'applications':
+        return <MyApplications />;
       case 'history':
         return <ServiceHistory />;
-      case 'id-card':
-        return <IDCardGenerator />;
       case 'profile':
-        return <PublicAccountsManagement />;
+        return <ProfileSettings />;
       default:
         return renderOverviewContent();
     }
   };
 
-  const getCurrentTitle = () => {
-    const currentMenu = menuItems.find(item => item.id === activeTab);
-    return currentMenu?.label || 'Dashboard';
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex">
-      {/* Sidebar */}
-      <div className="w-64 bg-white shadow-lg border-r">
-        <div className="p-6 border-b bg-gradient-to-r from-blue-600 to-purple-600">
-          <div className="flex items-center space-x-3">
-            <div className="bg-white p-2 rounded-full">
-              <User className="h-6 w-6 text-blue-600" />
-            </div>
-            <div className="text-white">
-              <h2 className="font-semibold">DSK Public</h2>
-              <p className="text-sm text-blue-100">{username}</p>
-            </div>
-          </div>
-        </div>
-
-        <nav className="mt-6">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center px-6 py-3 text-left transition-colors ${
-                  activeTab === item.id
-                    ? 'bg-blue-50 text-blue-600 border-r-2 border-blue-600'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <Icon className="mr-3 h-5 w-5" />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
-
-        <div className="absolute bottom-0 w-64 p-6 border-t">
-          <Button
-            variant="outline"
-            className="w-full text-red-600 border-red-200 hover:bg-red-50"
-            onClick={handleLogout}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Logout
-          </Button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">{getCurrentTitle()}</h1>
-              <p className="text-gray-600">Divisional Secretariat Kalmunai - Public Portal</p>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50 to-purple-100">
+      <nav className="bg-white/80 backdrop-blur-sm shadow-lg border-b border-indigo-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              DSK Public Portal
+            </h1>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm" className="relative">
-                <Bell className="h-4 w-4" />
-                {notifications.length > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-red-500">
-                    {notifications.length}
-                  </Badge>
-                )}
+              <span className="text-gray-700 font-medium">Welcome, {userFullName}</span>
+              <Button 
+                onClick={handleLogout}
+                variant="outline" 
+                className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+              >
+                Logout
               </Button>
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-white" />
-                </div>
-                <span className="text-sm font-medium text-gray-700">{username}</span>
-              </div>
             </div>
           </div>
-        </header>
+        </div>
+      </nav>
 
-        {/* Main Content Area */}
-        <main className="flex-1 p-6 overflow-auto">
-          <div className="max-w-7xl mx-auto">
+      <div className="flex">
+        <aside className="w-64 bg-white/80 backdrop-blur-sm shadow-lg min-h-screen border-r border-indigo-200">
+          <div className="p-6">
+            <nav className="space-y-2">
+              {menuItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                    activeTab === item.id
+                      ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg'
+                      : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-700'
+                  }`}
+                >
+                  <item.icon size={20} />
+                  <span className="font-medium">{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </aside>
+
+        <main className="flex-1 p-8">
+          <div className="max-w-6xl mx-auto">
             {renderContent()}
           </div>
         </main>

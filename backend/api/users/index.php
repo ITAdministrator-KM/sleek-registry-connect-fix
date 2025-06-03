@@ -6,52 +6,67 @@ include_once '../../utils/auth.php';
 
 header('Content-Type: application/json');
 
-// Verify content type for POST/PUT requests
-if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT'])) {
-    if ($_SERVER["CONTENT_TYPE"] !== "application/json") {
-        sendError(415, "Content-Type must be application/json");
+// Set error handlers
+set_error_handler('handleError');
+set_exception_handler('handleException');
+
+try {
+    // Verify content type for POST/PUT requests
+    if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT'])) {
+        $contentType = $_SERVER["CONTENT_TYPE"] ?? '';
+        if (strpos($contentType, 'application/json') === false) {
+            sendError(415, "Content-Type must be application/json");
+            exit;
+        }
+    }
+
+    // Verify authentication
+    $authHeader = getAuthorizationHeader();
+    if (!$authHeader) {
+        sendError(401, "No authorization header present");
         exit;
     }
-}
 
-// Verify authentication
-$authHeader = getAuthorizationHeader();
-if (!$authHeader) {
-    sendError(401, "No authorization header present");
-    exit;
-}
+    $token = validateToken($authHeader);
+    if (!$token) {
+        sendError(401, "Invalid or expired token");
+        exit;
+    }
 
-$token = validateToken($authHeader);
-if (!$token) {
-    sendError(401, "Invalid or expired token");
-    exit;
-}
+    // Check if user has admin privileges
+    if ($token['role'] !== 'admin') {
+        sendError(403, "Insufficient privileges");
+        exit;
+    }
 
-// Check if user has admin privileges
-if ($token['role'] !== 'admin') {
-    sendError(403, "Insufficient privileges");
-    exit;
-}
+    $database = new Database();
+    $db = $database->getConnection();
 
-$database = new Database();
-$db = $database->getConnection();
+    if (!$db) {
+        sendError(500, "Database connection failed");
+        exit;
+    }
 
-switch ($_SERVER['REQUEST_METHOD']) {
-    case 'GET':
-        getUsers($db);
-        break;
-    case 'POST':
-        createUser($db);
-        break;
-    case 'PUT':
-        updateUser($db);
-        break;
-    case 'DELETE':
-        deleteUser($db);
-        break;
-    default:
-        sendError(405, "Method not allowed");
-        break;
+    switch ($_SERVER['REQUEST_METHOD']) {
+        case 'GET':
+            getUsers($db);
+            break;
+        case 'POST':
+            createUser($db);
+            break;
+        case 'PUT':
+            updateUser($db);
+            break;
+        case 'DELETE':
+            deleteUser($db);
+            break;
+        default:
+            sendError(405, "Method not allowed");
+            break;
+    }
+} catch (Exception $e) {
+    error_log("Users API Error: " . $e->getMessage());
+    sendError(500, "Internal server error: " . $e->getMessage());
 }
 
 function getUsers($db) {
@@ -64,8 +79,11 @@ function getUsers($db) {
                  ORDER BY u.role, u.name";
         
         $stmt = $db->prepare($query);
-        $stmt->execute();
+        if (!$stmt) {
+            throw new Exception("Failed to prepare query");
+        }
         
+        $stmt->execute();
         $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Remove sensitive data from response
@@ -76,16 +94,25 @@ function getUsers($db) {
         }
         
         sendResponse(200, ["data" => $users]);
-    } catch (PDOException $e) {
-        sendError(500, "Database error", $e);
     } catch (Exception $e) {
-        sendError(500, "Internal server error", $e);
+        error_log("Get users error: " . $e->getMessage());
+        sendError(500, "Failed to fetch users: " . $e->getMessage());
     }
 }
 
 function createUser($db) {
     try {
-        $data = json_decode(file_get_contents("php://input"));
+        $input = file_get_contents("php://input");
+        if (empty($input)) {
+            sendError(400, "Empty request body");
+            return;
+        }
+
+        $data = json_decode($input);
+        if (!$data) {
+            sendError(400, "Invalid JSON data");
+            return;
+        }
         
         // Validate required fields
         $requiredFields = ['name', 'nic', 'email', 'username', 'password', 'role'];
@@ -126,7 +153,7 @@ function createUser($db) {
         // Generate user_id
         $user_id = generateUserId($data->role);
         
-        // Hash password with strong algorithm
+        // Hash password
         $hashed_password = password_hash($data->password, PASSWORD_ARGON2ID);
         
         $query = "INSERT INTO users (user_id, name, nic, email, username, password, role, department_id, division_id, status) 
@@ -150,7 +177,9 @@ function createUser($db) {
             (isset($data->division_id) && !empty($data->division_id)) ? $data->division_id : null, 
             PDO::PARAM_INT);
         
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to create user");
+        }
         
         // Commit transaction
         $db->commit();
@@ -160,16 +189,15 @@ function createUser($db) {
             "user_id" => $user_id
         ]);
         
-    } catch (PDOException $e) {
-        $db->rollBack();
-        sendError(500, "Database error", $e);
     } catch (Exception $e) {
-        $db->rollBack();
-        sendError(500, "Internal server error", $e);
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        error_log("Create user error: " . $e->getMessage());
+        sendError(500, "Failed to create user: " . $e->getMessage());
     }
 }
 
-// Helper function to generate a unique user ID based on role
 function generateUserId($role) {
     $prefix = substr(strtoupper($role), 0, 3);
     $timestamp = time();
@@ -179,9 +207,10 @@ function generateUserId($role) {
 
 function updateUser($db) {
     try {
-        $data = json_decode(file_get_contents("php://input"));
+        $input = file_get_contents("php://input");
+        $data = json_decode($input);
         
-        if (!isset($data->id)) {
+        if (!$data || !isset($data->id)) {
             sendError(400, "User ID is required");
             return;
         }
@@ -199,7 +228,7 @@ function updateUser($db) {
             return;
         }
         
-        // Build update query dynamically based on provided fields
+        // Build update query dynamically
         $updateFields = [];
         $params = [];
         
@@ -215,17 +244,6 @@ function updateUser($db) {
             }
             $updateFields[] = "email = :email";
             $params[':email'] = $data->email;
-            
-            // Check if email is already used by another user
-            $stmt = $db->prepare("SELECT id FROM users WHERE email = :email AND id != :id");
-            $stmt->bindParam(":email", $data->email);
-            $stmt->bindParam(":id", $data->id);
-            $stmt->execute();
-            
-            if ($stmt->rowCount() > 0) {
-                sendError(409, "Email already in use");
-                return;
-            }
         }
         
         if (isset($data->role)) {
@@ -239,10 +257,6 @@ function updateUser($db) {
         }
         
         if (isset($data->password)) {
-            if (strlen($data->password) < 8) {
-                sendError(400, "Password must be at least 8 characters long");
-                return;
-            }
             $updateFields[] = "password = :password";
             $params[':password'] = password_hash($data->password, PASSWORD_ARGON2ID);
         }
@@ -266,25 +280,24 @@ function updateUser($db) {
         $stmt = $db->prepare($query);
         $stmt->execute($params);
         
-        // Commit transaction
         $db->commit();
-        
         sendResponse(200, ["message" => "User updated successfully"]);
         
-    } catch (PDOException $e) {
-        $db->rollBack();
-        sendError(500, "Database error", $e);
     } catch (Exception $e) {
-        $db->rollBack();
-        sendError(500, "Internal server error", $e);
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        error_log("Update user error: " . $e->getMessage());
+        sendError(500, "Failed to update user: " . $e->getMessage());
     }
 }
 
 function deleteUser($db) {
     try {
-        $data = json_decode(file_get_contents("php://input"));
+        $input = file_get_contents("php://input");
+        $data = json_decode($input);
         
-        if (!isset($data->id)) {
+        if (!$data || !isset($data->id)) {
             sendError(400, "User ID is required");
             return;
         }
@@ -292,7 +305,7 @@ function deleteUser($db) {
         // Start transaction
         $db->beginTransaction();
         
-        // Check if user exists and is not already deleted
+        // Check if user exists
         $stmt = $db->prepare("SELECT id FROM users WHERE id = :id AND status = 'active'");
         $stmt->bindParam(":id", $data->id);
         $stmt->execute();
@@ -302,29 +315,27 @@ function deleteUser($db) {
             return;
         }
         
-        // Soft delete by updating status
+        // Soft delete
         $query = "UPDATE users SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = :id";
         $stmt = $db->prepare($query);
         $stmt->bindParam(":id", $data->id);
         $stmt->execute();
         
-        // Also invalidate any active sessions
+        // Invalidate sessions
         $query = "UPDATE user_sessions SET is_valid = 0 WHERE user_id = :id";
         $stmt = $db->prepare($query);
         $stmt->bindParam(":id", $data->id);
         $stmt->execute();
         
-        // Commit transaction
         $db->commit();
-        
         sendResponse(200, ["message" => "User deleted successfully"]);
         
-    } catch (PDOException $e) {
-        $db->rollBack();
-        sendError(500, "Database error", $e);
     } catch (Exception $e) {
-        $db->rollBack();
-        sendError(500, "Internal server error", $e);
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        error_log("Delete user error: " . $e->getMessage());
+        sendError(500, "Failed to delete user: " . $e->getMessage());
     }
 }
 ?>

@@ -1,28 +1,39 @@
-
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
+include_once '../../config/error_handler.php';
 
-$database = new Database();
-$db = $database->getConnection();
+header('Content-Type: application/json');
 
-switch ($_SERVER['REQUEST_METHOD']) {
-    case 'GET':
-        getDivisions($db);
-        break;
-    case 'POST':
-        createDivision($db);
-        break;
-    case 'PUT':
-        updateDivision($db);
-        break;
-    case 'DELETE':
-        deleteDivision($db);
-        break;
-    default:
-        http_response_code(405);
-        echo json_encode(array("message" => "Method not allowed"));
-        break;
+try {
+    $database = new Database();
+    $db = $database->getConnection();
+
+    if (!$db) {
+        sendError(500, "Database connection failed");
+        exit;
+    }
+
+    switch ($_SERVER['REQUEST_METHOD']) {
+        case 'GET':
+            getDivisions($db);
+            break;
+        case 'POST':
+            createDivision($db);
+            break;
+        case 'PUT':
+            updateDivision($db);
+            break;
+        case 'DELETE':
+            deleteDivision($db);
+            break;
+        default:
+            sendError(405, "Method not allowed");
+            break;
+    }
+} catch (Exception $e) {
+    error_log("Divisions API Error: " . $e->getMessage());
+    sendError(500, "Internal server error: " . $e->getMessage());
 }
 
 function getDivisions($db) {
@@ -36,36 +47,41 @@ function getDivisions($db) {
         
         $stmt = $db->prepare($query);
         if (!$stmt) {
-            throw new Exception("Failed to prepare query", 500);
+            throw new Exception("Failed to prepare query");
         }
         
         if (!$stmt->execute()) {
-            throw new Exception("Failed to execute query", 500);
+            throw new Exception("Failed to execute query");
         }
         
         $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if ($divisions === false) {
-            $divisions = [];
-        }
         
-        http_response_code(200);
-        echo json_encode($divisions);
+        sendResponse(200, ["data" => $divisions]);
     } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode(array("message" => "Error: " . $e->getMessage()));
+        error_log("Get divisions error: " . $e->getMessage());
+        sendError(500, "Failed to fetch divisions: " . $e->getMessage());
     }
 }
 
 function createDivision($db) {
-    $data = json_decode(file_get_contents("php://input"));
-    
-    if (!isset($data->name) || !isset($data->department_id)) {
-        http_response_code(400);
-        echo json_encode(array("message" => "Division name and department are required"));
-        return;
-    }
-    
     try {
+        $input = file_get_contents("php://input");
+        if (empty($input)) {
+            sendError(400, "Empty request body");
+            return;
+        }
+
+        $data = json_decode($input);
+        if (!$data) {
+            sendError(400, "Invalid JSON data");
+            return;
+        }
+        
+        if (!isset($data->name) || !isset($data->department_id)) {
+            sendError(400, "Division name and department are required");
+            return;
+        }
+        
         // Check if department exists and is active
         $checkQuery = "SELECT id FROM departments WHERE id = :id AND status = 'active'";
         $checkStmt = $db->prepare($checkQuery);
@@ -73,10 +89,11 @@ function createDivision($db) {
         $checkStmt->execute();
         
         if ($checkStmt->rowCount() === 0) {
-            throw new Exception("Invalid or inactive department", 400);
+            sendError(400, "Invalid or inactive department");
+            return;
         }
 
-        // Check for duplicate division name in the same department
+        // Check for duplicate division name
         $duplicateQuery = "SELECT id FROM divisions WHERE name = :name AND department_id = :dept_id AND status = 'active'";
         $dupStmt = $db->prepare($duplicateQuery);
         $dupStmt->bindParam(":name", $data->name);
@@ -84,90 +101,68 @@ function createDivision($db) {
         $dupStmt->execute();
         
         if ($dupStmt->rowCount() > 0) {
-            throw new Exception("A division with this name already exists in the selected department", 409);
+            sendError(409, "A division with this name already exists in the selected department");
+            return;
         }
 
         $query = "INSERT INTO divisions (name, department_id, description) VALUES (:name, :department_id, :description)";
         $stmt = $db->prepare($query);
         $stmt->bindParam(":name", $data->name);
         $stmt->bindParam(":department_id", $data->department_id);
-        $stmt->bindParam(":description", $data->description);
+        $stmt->bindParam(":description", $data->description ?? '');
         
         if ($stmt->execute()) {
-            http_response_code(201);
-            echo json_encode(array(
-                "status" => "success",
+            sendResponse(201, [
                 "message" => "Division created successfully",
-                "data" => array(
+                "data" => [
                     "id" => $db->lastInsertId(),
                     "name" => $data->name
-                )
-            ));
+                ]
+            ]);
         } else {
-            throw new Exception("Failed to create division", 400);
+            throw new Exception("Failed to create division");
         }
     } catch (Exception $e) {
-        http_response_code($e->getCode() ?: 500);
-        echo json_encode(array(
-            "status" => "error",
-            "message" => $e->getMessage()
-        ));
+        error_log("Create division error: " . $e->getMessage());
+        sendError(500, "Failed to create division: " . $e->getMessage());
     }
 }
 
 function updateDivision($db) {
-    $data = json_decode(file_get_contents("php://input"));
-    
-    if (!isset($data->id) || !isset($data->name) || !isset($data->department_id)) {
-        http_response_code(400);
-        echo json_encode(array("message" => "ID, name and department are required"));
-        return;
-    }
-    
     try {
+        $input = file_get_contents("php://input");
+        $data = json_decode($input);
+        
+        if (!$data || !isset($data->id) || !isset($data->name) || !isset($data->department_id)) {
+            sendError(400, "ID, name and department are required");
+            return;
+        }
+        
         $db->beginTransaction();
 
-        // Check if division exists and is active
+        // Check if division exists
         $checkDivQuery = "SELECT id FROM divisions WHERE id = :id AND status = 'active'";
         $checkDivStmt = $db->prepare($checkDivQuery);
         $checkDivStmt->bindParam(":id", $data->id);
         $checkDivStmt->execute();
         
         if ($checkDivStmt->rowCount() === 0) {
-            throw new Exception("Division not found or is inactive", 404);
+            sendError(404, "Division not found or is inactive");
+            return;
         }
 
-        // Check if department exists and is active
+        // Check if department exists
         $checkDeptQuery = "SELECT id FROM departments WHERE id = :id AND status = 'active'";
         $checkDeptStmt = $db->prepare($checkDeptQuery);
         $checkDeptStmt->bindParam(":id", $data->department_id);
         $checkDeptStmt->execute();
         
         if ($checkDeptStmt->rowCount() === 0) {
-            throw new Exception("Invalid or inactive department", 400);
+            sendError(400, "Invalid or inactive department");
+            return;
         }
 
-        // Check if there are any active users in the division before allowing department change
-        $usersQuery = "SELECT COUNT(*) as user_count FROM public_users WHERE division_id = :div_id AND status = 'active'";
-        $usersStmt = $db->prepare($usersQuery);
-        $usersStmt->bindParam(":div_id", $data->id);
-        $usersStmt->execute();
-        $userResult = $usersStmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($userResult['user_count'] > 0) {
-            // Only check if department is being changed
-            $currentDeptQuery = "SELECT department_id FROM divisions WHERE id = :id";
-            $currentDeptStmt = $db->prepare($currentDeptQuery);
-            $currentDeptStmt->bindParam(":id", $data->id);
-            $currentDeptStmt->execute();
-            $currentDept = $currentDeptStmt->fetch(PDO::FETCH_ASSOC);
-
-            if ($currentDept['department_id'] != $data->department_id) {
-                throw new Exception("Cannot change department of division with active users. Please reassign users first.", 409);
-            }
-        }
-
-        // Check for duplicate name in the target department (excluding current division)
+        // Check for duplicate name
         $duplicateQuery = "SELECT id FROM divisions 
                         WHERE name = :name 
                         AND department_id = :dept_id 
@@ -180,7 +175,8 @@ function updateDivision($db) {
         $dupStmt->execute();
         
         if ($dupStmt->rowCount() > 0) {
-            throw new Exception("A division with this name already exists in the selected department", 409);
+            sendError(409, "A division with this name already exists in the selected department");
+            return;
         }
 
         $query = "UPDATE divisions 
@@ -192,43 +188,35 @@ function updateDivision($db) {
         $stmt->bindParam(":id", $data->id);
         $stmt->bindParam(":name", $data->name);
         $stmt->bindParam(":department_id", $data->department_id);
-        $stmt->bindParam(":description", $data->description);
+        $stmt->bindParam(":description", $data->description ?? '');
         
         if ($stmt->execute()) {
             $db->commit();
-            http_response_code(200);
-            echo json_encode(array(
-                "status" => "success",
-                "message" => "Division updated successfully"
-            ));
+            sendResponse(200, ["message" => "Division updated successfully"]);
         } else {
-            throw new Exception("Failed to update division", 400);
+            throw new Exception("Failed to update division");
         }
     } catch (Exception $e) {
         if ($db && $db->inTransaction()) {
             $db->rollBack();
         }
-        http_response_code($e->getCode() ?: 500);
-        echo json_encode(array(
-            "status" => "error",
-            "message" => $e->getMessage()
-        ));
+        error_log("Update division error: " . $e->getMessage());
+        sendError(500, "Failed to update division: " . $e->getMessage());
     }
 }
 
 function deleteDivision($db) {
-    $id = $_GET['id'] ?? null;
-    
-    if (!$id) {
-        http_response_code(400);
-        echo json_encode(array("message" => "Division ID is required"));
-        return;
-    }
-    
     try {
+        $id = $_GET['id'] ?? null;
+        
+        if (!$id) {
+            sendError(400, "Division ID is required");
+            return;
+        }
+        
         $db->beginTransaction();
 
-        // Check if division exists and is active
+        // Check if division exists
         $checkQuery = "SELECT d.*, dept.status as dept_status 
                     FROM divisions d 
                     INNER JOIN departments dept ON d.department_id = dept.id 
@@ -239,22 +227,23 @@ function deleteDivision($db) {
         $division = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$division) {
-            throw new Exception("Division not found or is already inactive", 404);
-        }
-
-        if ($division['dept_status'] !== 'active') {
-            throw new Exception("Cannot modify division: parent department is inactive", 400);
+            sendError(404, "Division not found or is already inactive");
+            return;
         }
 
         // Check for active users
-        $usersQuery = "SELECT COUNT(*) as user_count FROM public_users WHERE division_id = :id AND status = 'active'";
+        $usersQuery = "SELECT COUNT(*) as user_count FROM users WHERE division_id = :id AND status = 'active'
+                      UNION ALL
+                      SELECT COUNT(*) as user_count FROM public_users WHERE division_id = :id AND status = 'active'";
         $usersStmt = $db->prepare($usersQuery);
         $usersStmt->bindParam(":id", $id);
         $usersStmt->execute();
-        $userResult = $usersStmt->fetch(PDO::FETCH_ASSOC);
+        $userCounts = $usersStmt->fetchAll(PDO::FETCH_COLUMN);
+        $totalUsers = array_sum($userCounts);
 
-        if ($userResult['user_count'] > 0) {
-            throw new Exception("Cannot delete division with active users. Please reassign users first.", 409);
+        if ($totalUsers > 0) {
+            sendError(409, "Cannot delete division with active users. Please reassign users first.");
+            return;
         }
 
         // Deactivate the division
@@ -264,23 +253,16 @@ function deleteDivision($db) {
         
         if ($stmt->execute()) {
             $db->commit();
-            http_response_code(200);
-            echo json_encode(array(
-                "status" => "success",
-                "message" => "Division deleted successfully"
-            ));
+            sendResponse(200, ["message" => "Division deleted successfully"]);
         } else {
-            throw new Exception("Failed to delete division", 500);
+            throw new Exception("Failed to delete division");
         }
     } catch (Exception $e) {
         if ($db && $db->inTransaction()) {
             $db->rollBack();
         }
-        http_response_code($e->getCode() ?: 500);
-        echo json_encode(array(
-            "status" => "error",
-            "message" => $e->getMessage()
-        ));
+        error_log("Delete division error: " . $e->getMessage());
+        sendError(500, "Failed to delete division: " . $e->getMessage());
     }
 }
 ?>

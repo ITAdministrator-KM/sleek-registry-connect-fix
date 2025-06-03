@@ -187,32 +187,52 @@ class ApiService extends ApiBase {
 
   // Users
   async getUsers(): Promise<User[]> {
-    const response = await this.makeRequest('/users/');
-    return Array.isArray(response.data) ? response.data : [];
+    try {
+      const response = await this.makeRequest('/users/');
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+      throw new Error('Failed to fetch users. Please try again.');
+    }
   }
 
   async createUser(userData: Partial<User>): Promise<User> {
-    const response = await this.makeRequest('/users/', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
-    return response.data;
+    try {
+      const response = await this.makeRequest('/users/', {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      throw new Error('Failed to create user. Please check your input and try again.');
+    }
   }
 
   async updateUser(id: number, userData: Partial<User>): Promise<User> {
-    const response = await this.makeRequest('/users/', {
-      method: 'PUT',
-      body: JSON.stringify({ id, ...userData }),
-    });
-    return response.data;
+    try {
+      const response = await this.makeRequest('/users/', {
+        method: 'PUT',
+        body: JSON.stringify({ id, ...userData }),
+      });
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      throw new Error('Failed to update user. Please try again.');
+    }
   }
 
   async deleteUser(id: number): Promise<any> {
-    const response = await this.makeRequest('/users/', {
-      method: 'DELETE',
-      body: JSON.stringify({ id }),
-    });
-    return response.data;
+    try {
+      const response = await this.makeRequest('/users/', {
+        method: 'DELETE',
+        body: JSON.stringify({ id }),
+      });
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      throw new Error('Failed to delete user. Please try again.');
+    }
   }
 
   // Departments
@@ -247,33 +267,52 @@ class ApiService extends ApiBase {
 
   // Divisions
   async getDivisions(departmentId?: number): Promise<Division[]> {
-    const endpoint = departmentId ? `/divisions/?department_id=${departmentId}` : '/divisions/';
-    const response = await this.makeRequest(endpoint);
-    return Array.isArray(response.data) ? response.data : [];
+    try {
+      const endpoint = departmentId ? `/divisions/?department_id=${departmentId}` : '/divisions/';
+      const response = await this.makeRequest(endpoint);
+      return Array.isArray(response.data) ? response.data : (Array.isArray(response) ? response : []);
+    } catch (error) {
+      console.error('Failed to fetch divisions:', error);
+      throw new Error('Failed to fetch divisions. Please try again.');
+    }
   }
 
   async createDivision(divisionData: { name: string; department_id: number; description: string }): Promise<Division> {
-    const response = await this.makeRequest('/divisions/', {
-      method: 'POST',
-      body: JSON.stringify(divisionData),
-    });
-    return response.data;
+    try {
+      const response = await this.makeRequest('/divisions/', {
+        method: 'POST',
+        body: JSON.stringify(divisionData),
+      });
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to create division:', error);
+      throw new Error('Failed to create division. Please check your input and try again.');
+    }
   }
 
   async updateDivision(data: { id: number; name: string; department_id: number; description: string }): Promise<Division> {
-    const response = await this.makeRequest('/divisions/', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
-    return response.data;
+    try {
+      const response = await this.makeRequest('/divisions/', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to update division:', error);
+      throw new Error('Failed to update division. Please try again.');
+    }
   }
 
   async deleteDivision(id: number): Promise<any> {
-    const response = await this.makeRequest('/divisions/', {
-      method: 'DELETE',
-      body: JSON.stringify({ id }),
-    });
-    return response.data;
+    try {
+      const response = await this.makeRequest(`/divisions/?id=${id}`, {
+        method: 'DELETE',
+      });
+      return response.data || response;
+    } catch (error) {
+      console.error('Failed to delete division:', error);
+      throw new Error('Failed to delete division. Please try again.');
+    }
   }
 
   // Tokens
