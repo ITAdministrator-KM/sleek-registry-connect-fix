@@ -63,10 +63,11 @@ const LoginForm = ({ onSubmit, isLoading, errors }: LoginFormProps) => {
             autoComplete="username"
             required
             aria-required="true"
+            aria-describedby={errors.username ? "username-error" : undefined}
           />
         </div>
         {errors.username && (
-          <div className="text-sm text-red-600">{errors.username}</div>
+          <div id="username-error" className="text-sm text-red-600" role="alert">{errors.username}</div>
         )}
       </div>
 
@@ -87,10 +88,11 @@ const LoginForm = ({ onSubmit, isLoading, errors }: LoginFormProps) => {
             autoComplete="current-password"
             required
             aria-required="true"
+            aria-describedby={errors.password ? "password-error" : undefined}
           />
         </div>
         {errors.password && (
-          <div className="text-sm text-red-600">{errors.password}</div>
+          <div id="password-error" className="text-sm text-red-600" role="alert">{errors.password}</div>
         )}
       </div>
 
@@ -98,9 +100,13 @@ const LoginForm = ({ onSubmit, isLoading, errors }: LoginFormProps) => {
         type="submit" 
         className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700 text-white h-12 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300"
         disabled={isLoading}
+        aria-describedby="submit-button-description"
       >
         {isLoading ? 'Signing In...' : 'Sign In'}
       </Button>
+      <div id="submit-button-description" className="sr-only">
+        Submit the login form to authenticate with the selected role
+      </div>
     </form>
   );
 };

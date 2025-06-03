@@ -95,6 +95,28 @@ class ApiService extends ApiBase {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  private handleApiError(error: any, operation: string): Error {
+    console.error(`${operation} failed:`, error);
+    
+    // Parse error response for user-friendly messages
+    let message = `Failed to ${operation.toLowerCase()}. Please try again.`;
+    
+    if (error.response?.data) {
+      const errorData = error.response.data;
+      if (errorData.message) {
+        message = errorData.message;
+      } else if (errorData.details) {
+        message = `${operation} failed: ${errorData.details}`;
+      }
+    } else if (error.message) {
+      message = error.message.includes('500') 
+        ? `Server error while ${operation.toLowerCase()}. Please contact support if this persists.`
+        : error.message;
+    }
+    
+    return new Error(message);
+  }
+
   // Users API
   async getUsers(): Promise<User[]> {
     try {
@@ -103,8 +125,7 @@ class ApiService extends ApiBase {
       );
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.error('Failed to fetch users:', error);
-      throw new Error('Failed to fetch users. Please try again.');
+      throw this.handleApiError(error, 'fetch users');
     }
   }
 
@@ -116,8 +137,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to create user:', error);
-      throw new Error('Failed to create user. Please check your input and try again.');
+      throw this.handleApiError(error, 'create user');
     }
   }
 
@@ -129,20 +149,19 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to update user:', error);
-      throw new Error('Failed to update user. Please try again.');
+      throw this.handleApiError(error, 'update user');
     }
   }
 
   async deleteUser(id: number): Promise<any> {
     try {
-      const response = await this.makeRequest(`/users/?id=${id}`, {
+      const response = await this.makeRequest('/users/', {
         method: 'DELETE',
+        body: JSON.stringify({ id }),
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to delete user:', error);
-      throw new Error('Failed to delete user. Please try again.');
+      throw this.handleApiError(error, 'delete user');
     }
   }
 
@@ -154,8 +173,7 @@ class ApiService extends ApiBase {
       );
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.error('Failed to fetch departments:', error);
-      throw new Error('Failed to fetch departments. Please try again.');
+      throw this.handleApiError(error, 'fetch departments');
     }
   }
 
@@ -167,8 +185,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to create department:', error);
-      throw new Error('Failed to create department. Please try again.');
+      throw this.handleApiError(error, 'create department');
     }
   }
 
@@ -180,8 +197,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to update department:', error);
-      throw new Error('Failed to update department. Please try again.');
+      throw this.handleApiError(error, 'update department');
     }
   }
 
@@ -192,8 +208,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to delete department:', error);
-      throw new Error('Failed to delete department. Please try again.');
+      throw this.handleApiError(error, 'delete department');
     }
   }
 
@@ -206,8 +221,7 @@ class ApiService extends ApiBase {
       );
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.error('Failed to fetch divisions:', error);
-      throw new Error('Failed to fetch divisions. Please try again.');
+      throw this.handleApiError(error, 'fetch divisions');
     }
   }
 
@@ -219,8 +233,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to create division:', error);
-      throw new Error('Failed to create division. Please try again.');
+      throw this.handleApiError(error, 'create division');
     }
   }
 
@@ -232,8 +245,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to update division:', error);
-      throw new Error('Failed to update division. Please try again.');
+      throw this.handleApiError(error, 'update division');
     }
   }
 
@@ -244,8 +256,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to delete division:', error);
-      throw new Error('Failed to delete division. Please try again.');
+      throw this.handleApiError(error, 'delete division');
     }
   }
 
@@ -257,8 +268,7 @@ class ApiService extends ApiBase {
       );
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
-      console.error('Failed to fetch public users:', error);
-      throw new Error('Failed to fetch public users. Please try again.');
+      throw this.handleApiError(error, 'fetch public users');
     }
   }
 
@@ -267,8 +277,7 @@ class ApiService extends ApiBase {
       const response = await this.makeRequest(`/public-users/?id=${id}`);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch public user:', error);
-      throw new Error('Failed to fetch public user. Please try again.');
+      throw this.handleApiError(error, 'fetch public user');
     }
   }
 
@@ -280,8 +289,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to create public user:', error);
-      throw new Error('Failed to create public user. Please try again.');
+      throw this.handleApiError(error, 'create public user');
     }
   }
 
@@ -293,8 +301,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to update public user:', error);
-      throw new Error('Failed to update public user. Please try again.');
+      throw this.handleApiError(error, 'update public user');
     }
   }
 
@@ -306,8 +313,7 @@ class ApiService extends ApiBase {
       });
       return response.data || response;
     } catch (error) {
-      console.error('Failed to delete public user:', error);
-      throw new Error('Failed to delete public user. Please try again.');
+      throw this.handleApiError(error, 'delete public user');
     }
   }
 }

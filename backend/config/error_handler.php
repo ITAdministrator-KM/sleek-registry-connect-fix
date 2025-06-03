@@ -48,6 +48,14 @@ function sendSuccess($data = null, $message = "Success") {
     exit;
 }
 
+// Add the missing sendResponse function
+function sendResponse($httpCode, $response) {
+    http_response_code($httpCode);
+    header('Content-Type: application/json');
+    echo json_encode($response);
+    exit;
+}
+
 // Set error handlers
 set_error_handler("handleError");
 set_exception_handler("handleException");
