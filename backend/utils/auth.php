@@ -1,4 +1,3 @@
-
 <?php
 function getAuthorizationHeader() {
     $headers = null;
@@ -28,26 +27,38 @@ function getBearerToken() {
 
 function validateToken($authHeader) {
     if (!$authHeader) {
+        error_log("[Auth] No authorization header present");
         return false;
     }
     
     $token = getBearerToken();
     if (!$token) {
+        error_log("[Auth] No bearer token found in header");
         return false;
     }
     
     try {
-        // Simple token validation - you can enhance this with JWT validation
         $database = new Database();
         $db = $database->getConnection();
         
-        $stmt = $db->prepare("SELECT u.*, s.expires_at FROM user_sessions s 
+        // First verify the token exists and is valid in the sessions table
+        $stmt = $db->prepare("SELECT u.id, u.username, u.role, u.department_id, u.division_id, s.expires_at 
+                             FROM user_sessions s 
                              JOIN users u ON s.user_id = u.id 
-                             WHERE s.token = :token AND s.is_valid = 1 AND s.expires_at > NOW()");
+                             WHERE s.token = :token 
+                             AND s.is_valid = 1 
+                             AND s.expires_at > NOW()");
         $stmt->bindParam(":token", $token);
         $stmt->execute();
         
         $session = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$session) {
+            error_log("[Auth] No valid session found for token");
+            // Invalidate expired or invalid tokens
+            $db->prepare("UPDATE user_sessions SET is_valid = 0 WHERE token = ?")->execute([$token]);
+            return false;
+        }
         
         if ($session) {
             return [
@@ -62,6 +73,43 @@ function validateToken($authHeader) {
         return false;
     } catch (Exception $e) {
         error_log("Token validation error: " . $e->getMessage());
+        return false;
+    }
+}
+
+function invalidateToken($token) {
+    try {
+        $database = new Database();
+        $db = $database->getConnection();
+        
+        $stmt = $db->prepare("UPDATE user_sessions SET is_valid = 0 WHERE token = ?");
+        return $stmt->execute([$token]);
+    } catch (Exception $e) {
+        error_log("[Auth] Error invalidating token: " . $e->getMessage());
+        return false;
+    }
+}
+
+function cleanupExpiredSessions() {
+    try {
+        $database = new Database();
+        $db = $database->getConnection();
+        
+        // Mark expired sessions as invalid
+        $stmt = $db->prepare("UPDATE user_sessions 
+                             SET is_valid = FALSE 
+                             WHERE expires_at < NOW() AND is_valid = TRUE");
+        $stmt->execute();
+        
+        // Log cleanup results
+        $rowCount = $stmt->rowCount();
+        if ($rowCount > 0) {
+            error_log("[Auth] Cleaned up {$rowCount} expired sessions");
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("[Auth] Error cleaning up sessions: " . $e->getMessage());
         return false;
     }
 }

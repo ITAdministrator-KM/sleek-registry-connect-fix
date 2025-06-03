@@ -3,6 +3,7 @@
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
+include_once '../../utils/auth.php';
 
 // Set error handlers
 set_error_handler('handleError');
@@ -16,6 +17,14 @@ function base64url_encode($data) {
 }
 
 try {
+    // Try to cleanup expired sessions, but continue even if it fails
+    try {
+        cleanupExpiredSessions();
+    } catch (Exception $e) {
+        error_log("[Login] Session cleanup error: " . $e->getMessage());
+        // Continue with login process even if cleanup fails
+    }
+    
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         sendError(405, "Only POST method allowed");
     }
@@ -190,8 +199,7 @@ try {
         $storedPassword = $hashedPassword;
         error_log("[Login] Password created for user: " . $data['username']);
     }
-    
-    $success = password_verify($data['password'], $storedPassword);
+      $success = password_verify($data['password'], $storedPassword);
     
     if (!$success) {
         error_log("[Login] Failed password verification for user: {$data['username']}");
@@ -199,8 +207,8 @@ try {
         error_log("[Login] Stored password exists: " . (!empty($storedPassword) ? 'Yes' : 'No'));
         
         // For debugging, let's try creating a new password hash and see if it works
-        if ($user['role'] === 'admin' && $data['username'] === 'admin') {
-            error_log("[Login] Testing password hash for admin user");
+        if ($user['role'] === 'admin') {
+            error_log("[Login] Testing password hash for admin user: {$data['username']}");
             $testHash = password_hash($data['password'], PASSWORD_ARGON2ID);
             error_log("[Login] Test hash created successfully");
             
@@ -241,8 +249,14 @@ try {
         $secretKey = getenv('JWT_SECRET_KEY') ?: 'dsk-secret-key-2024';
         $signature = hash_hmac('sha256', "$header.$payload_encoded", $secretKey, true);
         $signature_encoded = base64url_encode($signature);
+          $token = "$header.$payload_encoded.$signature_encoded";
         
-        $token = "$header.$payload_encoded.$signature_encoded";
+        // Store the token in user_sessions table
+        $insertSessionQuery = "INSERT INTO user_sessions (user_id, token, expires_at) VALUES (?, ?, FROM_UNIXTIME(?))";
+        $sessionStmt = $db->prepare($insertSessionQuery);
+        $sessionStmt->execute([$user['id'], $token, $expirationTime]);
+        
+        error_log("[Login] Session created for user: {$data['username']} with expiration: " . date('Y-m-d H:i:s', $expirationTime));
     } catch (Exception $e) {
         error_log("Token generation error: " . $e->getMessage());
         throw new Exception("Error generating authentication token", 500);
