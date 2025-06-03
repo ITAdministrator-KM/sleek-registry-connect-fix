@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,11 +9,13 @@ import ServiceRequest from '@/components/public/ServiceRequest';
 import MyApplications from '@/components/public/MyApplications';
 import ServiceHistory from '@/components/public/ServiceHistory';
 import { ProfileSettings } from '@/components/public-accounts/ProfileSettings';
+import { apiService, type PublicUser } from '@/services/api';
 
 const PublicDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
   const [userFullName, setUserFullName] = useState('');
+  const [currentUser, setCurrentUser] = useState<PublicUser | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -24,6 +25,7 @@ const PublicDashboard = () => {
     const user = localStorage.getItem('username');
     const fullName = localStorage.getItem('userFullName') || user;
     const token = localStorage.getItem('authToken');
+    const userId = localStorage.getItem('userId');
     
     if (role !== 'public' || !token) {
       localStorage.clear();
@@ -35,7 +37,35 @@ const PublicDashboard = () => {
       setUsername(user);
       setUserFullName(fullName);
     }
+
+    // Fetch current user data for profile
+    if (userId) {
+      fetchCurrentUser(parseInt(userId));
+    }
   }, [navigate]);
+
+  const fetchCurrentUser = async (userId: number) => {
+    try {
+      const userData = await apiService.getPublicUserById(userId);
+      setCurrentUser(userData);
+    } catch (error) {
+      console.error('Failed to fetch user data:', error);
+      // Create a fallback user object if API fails
+      const fallbackUser: PublicUser = {
+        id: userId,
+        public_id: localStorage.getItem('username') || '',
+        name: localStorage.getItem('userFullName') || '',
+        nic: '',
+        address: '',
+        mobile: '',
+        email: '',
+        username: localStorage.getItem('username') || '',
+        status: 'active',
+        created_at: new Date().toISOString(),
+      };
+      setCurrentUser(fallbackUser);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.clear();
@@ -206,7 +236,7 @@ const PublicDashboard = () => {
       case 'history':
         return <ServiceHistory />;
       case 'profile':
-        return <ProfileSettings user={{}} />;
+        return currentUser ? <ProfileSettings user={currentUser} /> : <div>Loading profile...</div>;
       default:
         return renderOverviewContent();
     }
