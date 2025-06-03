@@ -1,4 +1,3 @@
-
 import { ApiBase } from './apiBase';
 
 export type UserRole = 'admin' | 'staff' | 'public';
@@ -314,6 +313,88 @@ class ApiService extends ApiBase {
       return response.data || response;
     } catch (error) {
       throw this.handleApiError(error, 'delete public user');
+    }
+  }
+
+  // Service History API
+  async getServiceHistory(publicUserId: number): Promise<any[]> {
+    try {
+      const response = await this.retryRequest(() =>
+        this.makeRequest(`/service-history/?public_user_id=${publicUserId}`)
+      );
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      throw this.handleApiError(error, 'fetch service history');
+    }
+  }
+
+  async addServiceHistory(data: {
+    public_user_id: number;
+    service_name: string;
+    department_id: number;
+    division_id: number;
+    details?: string;
+  }): Promise<any> {
+    try {
+      const response = await this.makeRequest('/service-history/', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      return response.data || response;
+    } catch (error) {
+      throw this.handleApiError(error, 'add service history');
+    }
+  }
+
+  async updateServiceHistory(id: number, data: { status?: string; details?: string }): Promise<any> {
+    try {
+      const response = await this.makeRequest('/service-history/', {
+        method: 'PUT',
+        body: JSON.stringify({ id, ...data }),
+      });
+      return response.data || response;
+    } catch (error) {
+      throw this.handleApiError(error, 'update service history');
+    }
+  }
+
+  // Token API
+  async getTokens(): Promise<any[]> {
+    try {
+      const response = await this.retryRequest(() =>
+        this.makeRequest('/tokens/')
+      );
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (error) {
+      throw this.handleApiError(error, 'fetch tokens');
+    }
+  }
+
+  async createToken(tokenData: {
+    department_id: number;
+    division_id: number;
+    purpose?: string;
+  }): Promise<any> {
+    try {
+      const response = await this.makeRequest('/tokens/', {
+        method: 'POST',
+        body: JSON.stringify(tokenData),
+      });
+      return response.data || response;
+    } catch (error) {
+      throw this.handleApiError(error, 'create token');
+    }
+  }
+
+  async updateTokenStatus(id: number, status: string): Promise<any> {
+    try {
+      const response = await this.makeRequest('/tokens/', {
+        method: 'PUT',
+        body: JSON.stringify({ id, status }),
+      });
+      return response.data || response;
+    } catch (error) {
+      throw this.handleApiError(error, 'update token status');
     }
   }
 }

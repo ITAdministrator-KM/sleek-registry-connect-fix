@@ -1,18 +1,30 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings } from 'lucide-react';
+import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings, UserPlus, QrCode, CreditCard, Scan } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import TokenManagement from '@/components/TokenManagement';
 import { PublicAccountsManagement } from '@/components/PublicAccountsManagement';
 import AccountSettings from '@/components/AccountSettings';
+import { PublicUserForm } from '@/components/public-accounts/PublicUserForm';
+import { IDCardGenerator } from '@/components/IDCardGenerator';
+import { QRScanner } from '@/components/QRScanner';
+import { apiService } from '@/services/api';
 
 const StaffDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
   const [userDepartment, setUserDepartment] = useState('');
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [showIDCardGenerator, setShowIDCardGenerator] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [stats, setStats] = useState({
+    activeTokens: 0,
+    servedToday: 0,
+    waitingTokens: 0,
+    publicUsers: 0
+  });
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -32,7 +44,31 @@ const StaffDashboard = () => {
       setUsername(user);
       setUserDepartment(department);
     }
+    
+    fetchStats();
   }, [navigate]);
+
+  const fetchStats = async () => {
+    try {
+      const [tokens, publicUsers] = await Promise.all([
+        apiService.getTokens(),
+        apiService.getPublicUsers()
+      ]);
+      
+      const activeTokens = tokens.filter(t => t.status === 'waiting' || t.status === 'called').length;
+      const waitingTokens = tokens.filter(t => t.status === 'waiting').length;
+      const servedToday = tokens.filter(t => t.status === 'completed').length;
+      
+      setStats({
+        activeTokens,
+        servedToday,
+        waitingTokens,
+        publicUsers: publicUsers.length
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.clear();
@@ -43,10 +79,30 @@ const StaffDashboard = () => {
     navigate('/');
   };
 
+  const handleCreateUser = async (userData: any) => {
+    try {
+      await apiService.createPublicUser(userData);
+      setShowCreateUserModal(false);
+      fetchStats(); // Refresh stats
+      toast({
+        title: "Success",
+        description: "Public user created successfully with QR code",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create public user",
+        variant: "destructive",
+      });
+    }
+  };
+
   const menuItems = [
     { id: 'overview', label: 'Dashboard', icon: Clock },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
     { id: 'public-accounts', label: 'Public Accounts', icon: Users },
+    { id: 'id-cards', label: 'ID Card Generator', icon: CreditCard },
+    { id: 'qr-scanner', label: 'QR Scanner', icon: QrCode },
     { id: 'settings', label: 'Account Settings', icon: Settings },
   ];
 
@@ -63,7 +119,7 @@ const StaffDashboard = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-blue-800">24</p>
+                <p className="text-2xl font-bold text-blue-800">{stats.activeTokens}</p>
                 <p className="text-blue-600 text-sm font-medium">Active Tokens</p>
               </div>
               <Ticket className="h-8 w-8 text-blue-500" />
@@ -75,7 +131,7 @@ const StaffDashboard = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-green-800">156</p>
+                <p className="text-2xl font-bold text-green-800">{stats.servedToday}</p>
                 <p className="text-green-600 text-sm font-medium">Served Today</p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-500" />
@@ -87,7 +143,7 @@ const StaffDashboard = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-yellow-800">8</p>
+                <p className="text-2xl font-bold text-yellow-800">{stats.waitingTokens}</p>
                 <p className="text-yellow-600 text-sm font-medium">Waiting</p>
               </div>
               <Clock className="h-8 w-8 text-yellow-500" />
@@ -99,7 +155,7 @@ const StaffDashboard = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold text-purple-800">342</p>
+                <p className="text-2xl font-bold text-purple-800">{stats.publicUsers}</p>
                 <p className="text-purple-600 text-sm font-medium">Public Users</p>
               </div>
               <Users className="h-8 w-8 text-purple-500" />
@@ -109,6 +165,46 @@ const StaffDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-indigo-50 to-indigo-100">
+          <CardHeader>
+            <CardTitle className="text-indigo-800 flex items-center gap-3">
+              <Settings className="h-6 w-6" />
+              Quick Actions
+            </CardTitle>
+            <CardDescription className="text-indigo-600">Staff management tools</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button 
+              onClick={() => setShowCreateUserModal(true)} 
+              className="w-full justify-start bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
+            >
+              <UserPlus className="mr-3" size={20} />
+              Create Public Account
+            </Button>
+            <Button 
+              onClick={() => setActiveTab('tokens')} 
+              className="w-full justify-start bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
+            >
+              <Ticket className="mr-3" size={20} />
+              Manage Tokens
+            </Button>
+            <Button 
+              onClick={() => setActiveTab('id-cards')} 
+              className="w-full justify-start bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
+            >
+              <CreditCard className="mr-3" size={20} />
+              Generate ID Cards
+            </Button>
+            <Button 
+              onClick={() => setActiveTab('qr-scanner')} 
+              className="w-full justify-start bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
+            >
+              <Scan className="mr-3" size={20} />
+              Scan QR Code
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-slate-50 to-slate-100">
           <CardHeader>
             <CardTitle className="text-slate-800 flex items-center gap-3">
@@ -143,32 +239,6 @@ const StaffDashboard = () => {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-indigo-50 to-indigo-100">
-          <CardHeader>
-            <CardTitle className="text-indigo-800 flex items-center gap-3">
-              <Settings className="h-6 w-6" />
-              Quick Actions
-            </CardTitle>
-            <CardDescription className="text-indigo-600">Staff management tools</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button 
-              onClick={() => setActiveTab('tokens')} 
-              className="w-full justify-start bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
-            >
-              <Ticket className="mr-3" size={20} />
-              Manage Tokens
-            </Button>
-            <Button 
-              onClick={() => setActiveTab('public-accounts')} 
-              className="w-full justify-start bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
-            >
-              <Users className="mr-3" size={20} />
-              Public Accounts
-            </Button>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
@@ -181,6 +251,10 @@ const StaffDashboard = () => {
         return <TokenManagement />;
       case 'public-accounts':
         return <PublicAccountsManagement />;
+      case 'id-cards':
+        return <IDCardGenerator />;
+      case 'qr-scanner':
+        return <QRScanner />;
       case 'settings':
         return <AccountSettings />;
       default:
@@ -238,6 +312,15 @@ const StaffDashboard = () => {
           </div>
         </main>
       </div>
+
+      {showCreateUserModal && (
+        <PublicUserForm
+          user={null}
+          onSubmit={handleCreateUser}
+          onClose={() => setShowCreateUserModal(false)}
+          isLoading={false}
+        />
+      )}
     </div>
   );
 };
