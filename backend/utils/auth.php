@@ -1,3 +1,4 @@
+
 <?php
 function getAuthorizationHeader() {
     $headers = null;
@@ -25,6 +26,10 @@ function getBearerToken() {
     return null;
 }
 
+function base64url_decode($data) {
+    return base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT));
+}
+
 function validateToken($authHeader) {
     if (!$authHeader) {
         error_log("[Auth] No authorization header present");
@@ -38,6 +43,26 @@ function validateToken($authHeader) {
     }
     
     try {
+        // Validate JWT token structure
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            error_log("[Auth] Invalid JWT token structure");
+            return false;
+        }
+        
+        // Decode payload
+        $payload = json_decode(base64url_decode($parts[1]), true);
+        if (!$payload) {
+            error_log("[Auth] Invalid JWT payload");
+            return false;
+        }
+        
+        // Check if token has expired
+        if (isset($payload['exp']) && $payload['exp'] < time()) {
+            error_log("[Auth] Token has expired");
+            return false;
+        }
+        
         $database = new Database();
         $db = $database->getConnection();
         
@@ -54,23 +79,34 @@ function validateToken($authHeader) {
         $session = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$session) {
+            // Also check public users if not found in regular users
+            $stmt = $db->prepare("SELECT pu.id, pu.username, 'public' as role, pu.department_id, pu.division_id, s.expires_at 
+                                 FROM user_sessions s 
+                                 JOIN public_users pu ON s.user_id = pu.id 
+                                 WHERE s.token = :token 
+                                 AND s.is_valid = 1 
+                                 AND s.expires_at > NOW()");
+            $stmt->bindParam(":token", $token);
+            $stmt->execute();
+            
+            $session = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+        
+        if (!$session) {
             error_log("[Auth] No valid session found for token");
             // Invalidate expired or invalid tokens
             $db->prepare("UPDATE user_sessions SET is_valid = 0 WHERE token = ?")->execute([$token]);
             return false;
         }
         
-        if ($session) {
-            return [
-                'id' => $session['id'],
-                'username' => $session['username'],
-                'role' => $session['role'],
-                'department_id' => $session['department_id'],
-                'division_id' => $session['division_id']
-            ];
-        }
+        return [
+            'id' => $session['id'],
+            'username' => $session['username'],
+            'role' => $session['role'],
+            'department_id' => $session['department_id'],
+            'division_id' => $session['division_id']
+        ];
         
-        return false;
     } catch (Exception $e) {
         error_log("Token validation error: " . $e->getMessage());
         return false;

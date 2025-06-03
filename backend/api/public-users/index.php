@@ -1,75 +1,11 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
 include_once '../../config/response_handler.php';
 
-function calculateQRChecksum($data) {
-    // Remove existing checksum if present
-    if (isset($data['checksum'])) {
-        $checksum = $data['checksum'];
-        unset($data['checksum']);
-    }
-    
-    // Sort keys for consistent ordering
-    ksort($data);
-    
-    // Create string from data
-    $str = '';
-    foreach ($data as $key => $value) {
-        if ($value !== null && $value !== '') {
-            $str .= $key . '=' . $value . '&';
-        }
-    }
-    $str = rtrim($str, '&');
-    
-    // Calculate checksum using sha256
-    return hash('sha256', $str . 'DSK-QR-2024');
-}
-
-function generateQRCode($data) {
-    require_once '../../vendor/autoload.php';
-    
-    try {
-        $options = new \chillerlan\QRCode\QROptions([
-            'outputType' => \chillerlan\QRCode\QRCode::OUTPUT_IMAGE_PNG,
-            'eccLevel' => \chillerlan\QRCode\QRCode::ECC_H,
-            'scale' => 15,
-            'imageBase64' => true,
-            'imageTransparent' => false,
-            'drawCircularModules' => false,
-            'drawLightModules' => true,
-            'addQuietzone' => true,
-            'quietzoneSize' => 4,
-            'moduleValues' => [
-                1536 => [0, 0, 0],
-                6 => [255, 255, 255],
-            ],
-            'version' => 7,
-            'maskPattern' => -1,
-        ]);
-        
-        $qrcode = new \chillerlan\QRCode\QRCode($options);
-        $qrData = is_array($data) ? json_encode($data) : $data;
-        
-        $result = $qrcode->render($qrData);
-        
-        // Validate the generated QR code
-        if (!$result || !str_starts_with($result, 'data:image/png;base64,')) {
-            throw new Exception("QR code generation failed - invalid format");
-        }
-        
-        // Verify base64 content
-        $base64Data = substr($result, strlen('data:image/png;base64,'));
-        if (strlen($base64Data) < 100) {
-            throw new Exception("QR code generation failed - insufficient data");
-        }
-          return $result;
-    } catch (Exception $e) {
-        error_log("QR Code generation error: " . $e->getMessage());
-        throw new Exception("Failed to generate QR code: " . $e->getMessage());
-    }
-}
+header('Content-Type: application/json');
 
 try {
     $database = new Database();
@@ -77,22 +13,12 @@ try {
 
     if (!$db) {
         sendError(500, "Database connection failed");
-    }
-
-    // Validate authentication for write operations
-    if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE'])) {
-        if (!validateAuthToken()) {
-            sendError(401, "Authentication required");
-        }
+        exit;
     }
 
     switch ($_SERVER['REQUEST_METHOD']) {
         case 'GET':
-            if (isset($_GET['id'])) {
-                getPublicUserById($db, $_GET['id']);
-            } else {
-                getPublicUsers($db);
-            }
+            getPublicUsers($db);
             break;
         case 'POST':
             createPublicUser($db);
@@ -105,323 +31,314 @@ try {
             break;
         default:
             sendError(405, "Method not allowed");
+            break;
     }
 } catch (Exception $e) {
-    sendError($e->getCode() ?: 500, $e->getMessage());
+    error_log("Public Users API Error: " . $e->getMessage());
+    sendError(500, "Internal server error: " . $e->getMessage());
 }
 
 function getPublicUsers($db) {
     try {
-        $query = "SELECT pu.*, d.name as department_name, dv.name as division_name 
-                  FROM public_users pu 
-                  LEFT JOIN departments d ON pu.department_id = d.id 
-                  LEFT JOIN divisions dv ON pu.division_id = dv.id 
-                  WHERE pu.status = 'active' 
-                  ORDER BY pu.created_at DESC";
+        $id = $_GET['id'] ?? null;
         
-        $stmt = $db->prepare($query);
-        
-        if (!$stmt->execute()) {
-            throw new Exception("Failed to fetch public users", 500);
-        }
-        
-        $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        foreach ($users as &$user) {
-            unset($user['password_hash']);
-            if (isset($user['qr_code'])) {
-                // Only return QR code if it's valid base64 data
-                if (!preg_match('/^data:image\/png;base64,/', $user['qr_code'])) {
-                    $user['qr_code'] = null;
-                }
+        if ($id) {
+            // Get specific public user
+            $query = "SELECT pu.*, d.name as department_name, `div`.name as division_name,
+                            qr.qr_code_data, qr.qr_code_url
+                     FROM public_users pu 
+                     LEFT JOIN departments d ON pu.department_id = d.id 
+                     LEFT JOIN divisions `div` ON pu.division_id = `div`.id 
+                     LEFT JOIN qr_codes qr ON pu.id = qr.public_user_id
+                     WHERE pu.id = ? AND pu.status = 'active'";
+            
+            $stmt = $db->prepare($query);
+            $stmt->execute([$id]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user) {
+                sendError(404, "Public user not found");
+                return;
             }
+            
+            // Remove sensitive data
+            unset($user['password_hash']);
+            
+            sendResponse($user, "Public user retrieved successfully");
+        } else {
+            // Get all public users
+            $query = "SELECT pu.*, d.name as department_name, `div`.name as division_name,
+                            qr.qr_code_data, qr.qr_code_url
+                     FROM public_users pu 
+                     LEFT JOIN departments d ON pu.department_id = d.id 
+                     LEFT JOIN divisions `div` ON pu.division_id = `div`.id 
+                     LEFT JOIN qr_codes qr ON pu.id = qr.public_user_id
+                     WHERE pu.status = 'active' 
+                     ORDER BY pu.created_at DESC";
+            
+            $stmt = $db->prepare($query);
+            $stmt->execute();
+            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Remove sensitive data from all users
+            foreach ($users as &$user) {
+                unset($user['password_hash']);
+            }
+            
+            sendResponse($users, "Public users retrieved successfully");
         }
-        
-        sendResponse($users, "Public users retrieved successfully");
     } catch (Exception $e) {
-        sendError($e->getCode() ?: 500, $e->getMessage());
-    }
-}
-
-function getPublicUserById($db, $id) {
-    try {
-        if (!filter_var($id, FILTER_VALIDATE_INT)) {
-            throw new Exception("Invalid user ID", 400);
-        }
-
-        $query = "SELECT pu.*, d.name as department_name, dv.name as division_name 
-                  FROM public_users pu 
-                  LEFT JOIN departments d ON pu.department_id = d.id 
-                  LEFT JOIN divisions dv ON pu.division_id = dv.id 
-                  WHERE pu.id = :id";
-        
-        $stmt = $db->prepare($query);
-        $stmt->bindValue(':id', $id, PDO::PARAM_INT);
-        
-        if (!$stmt->execute()) {
-            throw new Exception("Failed to fetch public user", 500);
-        }
-        
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$user) {
-            throw new Exception("User not found", 404);
-        }
-        
-        unset($user['password_hash']);
-        
-        // Validate QR code format
-        if (isset($user['qr_code']) && !preg_match('/^data:image\/png;base64,/', $user['qr_code'])) {
-            $user['qr_code'] = null;
-        }
-        
-        sendResponse($user, "Public user retrieved successfully");
-    } catch (Exception $e) {
-        sendError($e->getCode() ?: 500, $e->getMessage());
+        error_log("Get public users error: " . $e->getMessage());
+        sendError(500, "Failed to fetch public users: " . $e->getMessage());
     }
 }
 
 function createPublicUser($db) {
     try {
-        $data = json_decode(file_get_contents("php://input"));
-        
-        if (!isset($data->name) || !isset($data->nic) || !isset($data->address) || 
-            !isset($data->mobile) || !isset($data->email) || !isset($data->username) || 
-            !isset($data->password)) {
-            throw new Exception("All required fields must be provided", 400);
+        $input = file_get_contents("php://input");
+        if (empty($input)) {
+            sendError(400, "Empty request body");
+            return;
+        }
+
+        $data = json_decode($input);
+        if (!$data) {
+            sendError(400, "Invalid JSON data");
+            return;
         }
         
+        // Validate required fields
+        $requiredFields = ['name', 'nic', 'address', 'mobile', 'email', 'username'];
+        foreach ($requiredFields as $field) {
+            if (!isset($data->$field) || empty(trim($data->$field))) {
+                sendError(400, "Missing required field: $field");
+                return;
+            }
+        }
+        
+        // Validate email format
+        if (!filter_var($data->email, FILTER_VALIDATE_EMAIL)) {
+            sendError(400, "Invalid email format");
+            return;
+        }
+        
+        // Validate NIC format (basic validation)
+        if (!preg_match('/^[0-9]{9}[vVxX]?$|^[0-9]{12}$/', $data->nic)) {
+            sendError(400, "Invalid NIC format");
+            return;
+        }
+        
+        // Check for existing username, email, or NIC
+        $stmt = $db->prepare("SELECT COUNT(*) FROM public_users WHERE username = :username OR email = :email OR nic = :nic");
+        $stmt->bindParam(":username", $data->username);
+        $stmt->bindParam(":email", $data->email);
+        $stmt->bindParam(":nic", $data->nic);
+        $stmt->execute();
+        
+        if ($stmt->fetchColumn() > 0) {
+            sendError(409, "Username, email, or NIC already exists");
+            return;
+        }
+        
+        // Start transaction
         $db->beginTransaction();
         
-        // Check for existing username or NIC
-        $checkQuery = "SELECT id FROM public_users WHERE username = :username OR nic = :nic";
-        $checkStmt = $db->prepare($checkQuery);
-        $checkStmt->bindValue(':username', $data->username);
-        $checkStmt->bindValue(':nic', $data->nic);
-        $checkStmt->execute();
+        // Generate public_id
+        $public_id = generatePublicId($db);
         
-        if ($checkStmt->fetch()) {
-            throw new Exception("Username or NIC already exists", 409);
+        // Hash password if provided
+        $password_hash = null;
+        if (isset($data->password) && !empty($data->password)) {
+            $password_hash = password_hash($data->password, PASSWORD_ARGON2ID);
         }
         
-        // Generate next public_id
-        $stmt = $db->query("SELECT MAX(CAST(SUBSTRING(public_id, 4) AS UNSIGNED)) as max_id FROM public_users WHERE public_id REGEXP '^PUB[0-9]+$'");
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $nextId = ($result['max_id'] ?? 0) + 1;
-        $publicId = 'PUB' . str_pad($nextId, 5, '0', STR_PAD_LEFT);
-        
-        // Generate enhanced QR code data
-        $qrData = [
-            'id' => $publicId,
-            'name' => $data->name,
-            'nic' => $data->nic,
-            'mobile' => $data->mobile,
-            'issued' => date('Y-m-d'),
-            'authority' => 'DSK',
-            'type' => 'public_user',
-            'verified' => true
-        ];
-        
-        $qrCode = generateQRCode($qrData);
-        
-        $passwordHash = password_hash($data->password, PASSWORD_ARGON2ID);
-        
-        $query = "INSERT INTO public_users (
-            public_id, name, nic, address, mobile, email, username, password_hash,
-            qr_code, department_id, division_id, status, created_at
-        ) VALUES (
-            :public_id, :name, :nic, :address, :mobile, :email, :username, :password_hash,
-            :qr_code, :department_id, :division_id, 'active', NOW()
-        )";
+        $query = "INSERT INTO public_users (public_id, name, nic, address, mobile, email, username, password_hash, department_id, division_id, status) 
+                  VALUES (:public_id, :name, :nic, :address, :mobile, :email, :username, :password_hash, :department_id, :division_id, 'active')";
         
         $stmt = $db->prepare($query);
+        $stmt->bindParam(":public_id", $public_id);
+        $stmt->bindParam(":name", $data->name);
+        $stmt->bindParam(":nic", $data->nic);
+        $stmt->bindParam(":address", $data->address);
+        $stmt->bindParam(":mobile", $data->mobile);
+        $stmt->bindParam(":email", $data->email);
+        $stmt->bindParam(":username", $data->username);
+        $stmt->bindParam(":password_hash", $password_hash);
         
-        $stmt->bindValue(':public_id', $publicId);
-        $stmt->bindValue(':name', $data->name);
-        $stmt->bindValue(':nic', $data->nic);
-        $stmt->bindValue(':address', $data->address);
-        $stmt->bindValue(':mobile', $data->mobile);
-        $stmt->bindValue(':email', $data->email);
-        $stmt->bindValue(':username', $data->username);
-        $stmt->bindValue(':password_hash', $passwordHash);
-        $stmt->bindValue(':qr_code', $qrCode);
-        $stmt->bindValue(':department_id', isset($data->department_id) ? $data->department_id : null);
-        $stmt->bindValue(':division_id', isset($data->division_id) ? $data->division_id : null);
+        // Handle optional fields
+        $stmt->bindValue(":department_id", 
+            (isset($data->department_id) && !empty($data->department_id)) ? $data->department_id : null, 
+            PDO::PARAM_INT);
+        
+        $stmt->bindValue(":division_id", 
+            (isset($data->division_id) && !empty($data->division_id)) ? $data->division_id : null, 
+            PDO::PARAM_INT);
         
         if (!$stmt->execute()) {
             throw new Exception("Failed to create public user");
         }
         
         $userId = $db->lastInsertId();
+        
+        // Generate QR code data
+        $qrData = json_encode([
+            'public_id' => $public_id,
+            'name' => $data->name,
+            'nic' => $data->nic,
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        // Store QR code in database
+        $qrQuery = "INSERT INTO qr_codes (public_user_id, qr_code_data, qr_code_url) VALUES (?, ?, ?)";
+        $qrStmt = $db->prepare($qrQuery);
+        $qrUrl = "https://dskalmunai.lk/qr-scan/" . $public_id;
+        $qrStmt->execute([$userId, $qrData, $qrUrl]);
+        
+        // Commit transaction
         $db->commit();
         
-        // Fetch created user
-        $query = "SELECT pu.*, d.name as department_name, dv.name as division_name 
-                  FROM public_users pu 
-                  LEFT JOIN departments d ON pu.department_id = d.id 
-                  LEFT JOIN divisions dv ON pu.division_id = dv.id 
-                  WHERE pu.id = :id";
-        $stmt = $db->prepare($query);
-        $stmt->bindValue(':id', $userId);
-        $stmt->execute();
+        sendResponse([
+            "public_id" => $public_id,
+            "id" => $userId,
+            "qr_code_data" => $qrData,
+            "qr_code_url" => $qrUrl
+        ], "Public user created successfully with QR code");
         
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        unset($user['password_hash']);
-        
-        sendResponse($user, "Public user created successfully with enhanced QR code", 201);
     } catch (Exception $e) {
         if ($db->inTransaction()) {
             $db->rollBack();
         }
-        sendError($e->getCode() ?: 500, $e->getMessage());
+        error_log("Create public user error: " . $e->getMessage());
+        sendError(500, "Failed to create public user: " . $e->getMessage());
     }
+}
+
+function generatePublicId($db) {
+    $year = date('Y');
+    $prefix = 'PUB' . substr($year, -2);
+    
+    // Get the last ID for this year
+    $stmt = $db->prepare("SELECT public_id FROM public_users WHERE public_id LIKE ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$prefix . '%']);
+    $lastId = $stmt->fetchColumn();
+    
+    if ($lastId) {
+        $lastNumber = intval(substr($lastId, -4));
+        $newNumber = $lastNumber + 1;
+    } else {
+        $newNumber = 1;
+    }
+    
+    return $prefix . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
 }
 
 function updatePublicUser($db) {
     try {
-        $data = json_decode(file_get_contents("php://input"));
+        $input = file_get_contents("php://input");
+        $data = json_decode($input);
         
-        if (!isset($data->id)) {
-            throw new Exception("User ID is required", 400);
+        if (!$data || !isset($data->id)) {
+            sendError(400, "Public user ID is required");
+            return;
         }
         
+        // Start transaction
         $db->beginTransaction();
         
-        $updates = [];
-        $params = [':id' => $data->id];
+        // Check if user exists
+        $stmt = $db->prepare("SELECT id, public_id FROM public_users WHERE id = :id AND status = 'active'");
+        $stmt->bindParam(":id", $data->id);
+        $stmt->execute();
         
-        if (isset($data->name)) {
-            $updates[] = "name = :name";
-            $params[':name'] = $data->name;
-        }
-        if (isset($data->nic)) {
-            $updates[] = "nic = :nic";
-            $params[':nic'] = $data->nic;
-        }
-        if (isset($data->address)) {
-            $updates[] = "address = :address";
-            $params[':address'] = $data->address;
-        }
-        if (isset($data->mobile)) {
-            $updates[] = "mobile = :mobile";
-            $params[':mobile'] = $data->mobile;
-        }
-        if (isset($data->email)) {
-            $updates[] = "email = :email";
-            $params[':email'] = $data->email;
-        }
-        if (isset($data->username)) {
-            $updates[] = "username = :username";
-            $params[':username'] = $data->username;
-        }
-        if (isset($data->password)) {
-            $updates[] = "password_hash = :password_hash";
-            $params[':password_hash'] = password_hash($data->password, PASSWORD_ARGON2ID);
-        }
-        if (isset($data->department_id)) {
-            $updates[] = "department_id = :department_id";
-            $params[':department_id'] = $data->department_id;
-        }
-        if (isset($data->division_id)) {
-            $updates[] = "division_id = :division_id";
-            $params[':division_id'] = $data->division_id;
-        }
-        if (isset($data->status)) {
-            $updates[] = "status = :status";
-            $params[':status'] = $data->status;
+        if ($stmt->rowCount() === 0) {
+            sendError(404, "Public user not found");
+            return;
         }
         
-        // Regenerate QR code if basic info changed
-        if (isset($data->name) || isset($data->nic) || isset($data->mobile)) {
-            // Fetch current user data
-            $currentQuery = "SELECT * FROM public_users WHERE id = :id";
-            $currentStmt = $db->prepare($currentQuery);
-            $currentStmt->bindValue(':id', $data->id);
-            $currentStmt->execute();
-            $currentUser = $currentStmt->fetch(PDO::FETCH_ASSOC);
-            if ($currentUser) {
-                // Generate QR data in a format optimized for scanning
-                $qrData = [
-                    'v' => 1, // version number for future compatibility
-                    'id' => $currentUser['public_id'],
-                    'public_id' => $currentUser['public_id'], // duplicate for compatibility
-                    'name' => $data->name ?? $currentUser['name'],
-                    'nic' => $data->nic ?? $currentUser['nic'],
-                    'mobile' => $data->mobile ?? $currentUser['mobile'],
-                    'issued' => date('Y-m-d'),
-                    'authority' => 'DSK',
-                    'type' => 'public_user',
-                    'verified' => true
-                ];
+        // Build update query dynamically
+        $updateFields = [];
+        $params = [];
+        
+        $allowedFields = ['name', 'nic', 'address', 'mobile', 'email', 'username', 'department_id', 'division_id'];
+        
+        foreach ($allowedFields as $field) {
+            if (isset($data->$field)) {
+                if ($field === 'email' && !filter_var($data->$field, FILTER_VALIDATE_EMAIL)) {
+                    sendError(400, "Invalid email format");
+                    return;
+                }
                 
-                // Add checksum for data integrity
-                $qrData['checksum'] = calculateQRChecksum($qrData);
-                
-                $newQrCode = generateQRCode($qrData);
-                $updates[] = "qr_code = :qr_code";
-                $params[':qr_code'] = $newQrCode;
+                $updateFields[] = "$field = :$field";
+                $params[":$field"] = $data->$field;
             }
         }
         
-        if (empty($updates)) {
-            throw new Exception("No fields to update", 400);
+        if (isset($data->password) && !empty($data->password)) {
+            $updateFields[] = "password_hash = :password_hash";
+            $params[':password_hash'] = password_hash($data->password, PASSWORD_ARGON2ID);
         }
         
-        $query = "UPDATE public_users SET " . implode(", ", $updates) . " WHERE id = :id";
+        if (empty($updateFields)) {
+            sendError(400, "No fields to update");
+            return;
+        }
+        
+        $query = "UPDATE public_users SET " . implode(", ", $updateFields) . ", updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $params[':id'] = $data->id;
+        
         $stmt = $db->prepare($query);
-        
-        if (!$stmt->execute($params)) {
-            throw new Exception("Failed to update public user");
-        }
+        $stmt->execute($params);
         
         $db->commit();
+        sendResponse(["id" => $data->id], "Public user updated successfully");
         
-        // Fetch updated user
-        $query = "SELECT pu.*, d.name as department_name, dv.name as division_name 
-                  FROM public_users pu 
-                  LEFT JOIN departments d ON pu.department_id = d.id 
-                  LEFT JOIN divisions dv ON pu.division_id = dv.id 
-                  WHERE pu.id = :id";
-        
-        $stmt = $db->prepare($query);
-        $stmt->bindValue(':id', $data->id);
-        $stmt->execute();
-        
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        unset($user['password_hash']);
-        
-        sendResponse($user, "Public user updated successfully");
     } catch (Exception $e) {
         if ($db->inTransaction()) {
             $db->rollBack();
         }
-        sendError($e->getCode() ?: 500, $e->getMessage());
+        error_log("Update public user error: " . $e->getMessage());
+        sendError(500, "Failed to update public user: " . $e->getMessage());
     }
 }
 
 function deletePublicUser($db) {
     try {
-        $data = json_decode(file_get_contents("php://input"));
+        $input = file_get_contents("php://input");
+        $data = json_decode($input);
         
-        if (!isset($data->id)) {
-            throw new Exception("User ID is required", 400);
+        if (!$data || !isset($data->id)) {
+            sendError(400, "Public user ID is required");
+            return;
         }
         
-        $query = "UPDATE public_users SET status = 'inactive', updated_at = NOW() WHERE id = :id";
-        $stmt = $db->prepare($query);
-        $stmt->bindValue(':id', $data->id);
+        // Start transaction
+        $db->beginTransaction();
         
-        if (!$stmt->execute()) {
-            throw new Exception("Failed to delete public user");
-        }
+        // Check if user exists
+        $stmt = $db->prepare("SELECT id FROM public_users WHERE id = :id AND status = 'active'");
+        $stmt->bindParam(":id", $data->id);
+        $stmt->execute();
         
         if ($stmt->rowCount() === 0) {
-            throw new Exception("User not found", 404);
+            sendError(404, "Public user not found or already deleted");
+            return;
         }
         
-        sendResponse(null, "User deleted successfully");
+        // Soft delete
+        $query = "UPDATE public_users SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $stmt = $db->prepare($query);
+        $stmt->bindParam(":id", $data->id);
+        $stmt->execute();
+        
+        $db->commit();
+        sendResponse(["id" => $data->id], "Public user deleted successfully");
+        
     } catch (Exception $e) {
-        sendError($e->getCode() ?: 500, $e->getMessage());
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        error_log("Delete public user error: " . $e->getMessage());
+        sendError(500, "Failed to delete public user: " . $e->getMessage());
     }
 }
 ?>

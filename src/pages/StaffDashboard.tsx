@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings, UserPlus, QrCode, CreditCard, Scan } from 'lucide-react';
+import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings, UserPlus, QrCode, CreditCard, Scan, Bell } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import TokenManagement from '@/components/TokenManagement';
 import { PublicAccountsManagement } from '@/components/PublicAccountsManagement';
@@ -11,6 +11,7 @@ import AccountSettings from '@/components/AccountSettings';
 import { PublicUserForm } from '@/components/public-accounts/PublicUserForm';
 import IDCardGenerator from '@/components/IDCardGenerator';
 import QRScanner from '@/components/QRScanner';
+import NotificationManagement from '@/components/NotificationManagement';
 import { apiService } from '@/services/api';
 
 const StaffDashboard = () => {
@@ -18,8 +19,6 @@ const StaffDashboard = () => {
   const [username, setUsername] = useState('');
   const [userDepartment, setUserDepartment] = useState('');
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
-  const [showIDCardGenerator, setShowIDCardGenerator] = useState(false);
-  const [showQRScanner, setShowQRScanner] = useState(false);
   const [stats, setStats] = useState({
     activeTokens: 0,
     servedToday: 0,
@@ -27,7 +26,9 @@ const StaffDashboard = () => {
     publicUsers: 0
   });
   const navigate = useNavigate();
-  const { toast } = useToast();  useEffect(() => {
+  const { toast } = useToast();
+
+  useEffect(() => {
     // Get all required data
     const role = localStorage.getItem('userRole');
     const user = localStorage.getItem('username');
@@ -66,6 +67,10 @@ const StaffDashboard = () => {
     }
     
     fetchStats();
+    
+    // Set up real-time stats refresh
+    const interval = setInterval(fetchStats, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
   }, [navigate]);
 
   const fetchStats = async () => {
@@ -75,9 +80,12 @@ const StaffDashboard = () => {
         apiService.getPublicUsers()
       ]);
       
-      const activeTokens = tokens.filter(t => t.status === 'waiting' || t.status === 'called').length;
-      const waitingTokens = tokens.filter(t => t.status === 'waiting').length;
-      const servedToday = tokens.filter(t => t.status === 'completed').length;
+      const today = new Date().toDateString();
+      const todayTokens = tokens.filter(t => new Date(t.created_at).toDateString() === today);
+      
+      const activeTokens = todayTokens.filter(t => t.status === 'waiting' || t.status === 'called' || t.status === 'serving').length;
+      const waitingTokens = todayTokens.filter(t => t.status === 'waiting').length;
+      const servedToday = todayTokens.filter(t => t.status === 'completed').length;
       
       setStats({
         activeTokens,
@@ -87,6 +95,7 @@ const StaffDashboard = () => {
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
+      // Don't show error toast for stats - it's not critical
     }
   };
 
@@ -101,12 +110,12 @@ const StaffDashboard = () => {
 
   const handleCreateUser = async (userData: any) => {
     try {
-      await apiService.createPublicUser(userData);
+      const result = await apiService.createPublicUser(userData);
       setShowCreateUserModal(false);
       fetchStats(); // Refresh stats
       toast({
         title: "Success",
-        description: "Public user created successfully with QR code",
+        description: `Public user created successfully with ID: ${result.public_id}`,
       });
     } catch (error: any) {
       toast({
@@ -123,6 +132,7 @@ const StaffDashboard = () => {
     { id: 'public-accounts', label: 'Public Accounts', icon: Users },
     { id: 'id-cards', label: 'ID Card Generator', icon: CreditCard },
     { id: 'qr-scanner', label: 'QR Scanner', icon: QrCode },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'settings', label: 'Account Settings', icon: Settings },
   ];
 
@@ -132,6 +142,9 @@ const StaffDashboard = () => {
         <h2 className="text-4xl font-bold mb-3">Staff Dashboard</h2>
         <p className="text-emerald-100 text-lg">Welcome back, {username}!</p>
         <p className="text-emerald-200 text-sm">{userDepartment}</p>
+        <div className="mt-4 text-emerald-100 text-sm">
+          Last updated: {new Date().toLocaleTimeString()}
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -229,32 +242,32 @@ const StaffDashboard = () => {
           <CardHeader>
             <CardTitle className="text-slate-800 flex items-center gap-3">
               <AlertCircle className="h-6 w-6" />
-              Today's Queue
+              Today's Activity
             </CardTitle>
-            <CardDescription className="text-slate-600">Current token status</CardDescription>
+            <CardDescription className="text-slate-600">Current operations summary</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border-l-4 border-blue-400">
                 <div>
-                  <p className="font-semibold text-gray-800">Token #A001</p>
-                  <p className="text-sm text-gray-600">General Services</p>
+                  <p className="font-semibold text-gray-800">Active Queue</p>
+                  <p className="text-sm text-gray-600">{stats.activeTokens} tokens in progress</p>
                 </div>
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">Serving</span>
+                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">Live</span>
               </div>
               <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-xl border-l-4 border-yellow-400">
                 <div>
-                  <p className="font-semibold text-gray-800">Token #A002</p>
-                  <p className="text-sm text-gray-600">Document Services</p>
+                  <p className="font-semibold text-gray-800">Waiting</p>
+                  <p className="text-sm text-gray-600">{stats.waitingTokens} tokens waiting</p>
                 </div>
-                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">Waiting</span>
+                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">Queue</span>
               </div>
               <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl border-l-4 border-green-400">
                 <div>
-                  <p className="font-semibold text-gray-800">Token #A003</p>
-                  <p className="text-sm text-gray-600">Certificate Services</p>
+                  <p className="font-semibold text-gray-800">Completed</p>
+                  <p className="text-sm text-gray-600">{stats.servedToday} services completed today</p>
                 </div>
-                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">Completed</span>
+                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">Done</span>
               </div>
             </div>
           </CardContent>
@@ -275,6 +288,8 @@ const StaffDashboard = () => {
         return <IDCardGenerator />;
       case 'qr-scanner':
         return <QRScanner />;
+      case 'notifications':
+        return <NotificationManagement />;
       case 'settings':
         return <AccountSettings />;
       default:

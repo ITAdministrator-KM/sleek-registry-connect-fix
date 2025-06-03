@@ -39,7 +39,7 @@ try {
         sendError(400, "Invalid JSON: " . json_last_error_msg());
     }
 
-    $requiredFields = ['username', 'password'];
+    $requiredFields = ['username', 'password', 'role'];
     foreach ($requiredFields as $field) {
         if (!isset($data[$field]) || trim($data[$field]) === '') {
             throw new Exception("Missing required field: $field", 400);
@@ -51,15 +51,10 @@ try {
         throw new Exception("Username contains invalid characters. Only letters, numbers and underscore allowed.", 400);
     }
 
-    // If role is not provided, we'll try to determine it from the username format
-    if (!isset($data['role'])) {
-        if (strpos($data['username'], 'admin_') === 0) {
-            $data['role'] = 'admin';
-        } else if (strpos($data['username'], 'staff_') === 0) {
-            $data['role'] = 'staff';
-        } else {
-            $data['role'] = 'public';
-        }
+    // Validate role
+    $validRoles = ['admin', 'staff', 'public'];
+    if (!in_array(strtolower($data['role']), $validRoles)) {
+        throw new Exception("Invalid role. Must be admin, staff, or public.", 400);
     }
 
     $database = new Database();
@@ -68,61 +63,86 @@ try {
     $user = null;
     $passwordField = '';
 
-    error_log("[Login] Attempting login for username: " . $data['username'] . " with role: " . $data['role']);    // Check for admin/staff users in the users table
-    if ($data['role'] === 'admin' || $data['role'] === 'staff') {
+    error_log("[Login] Attempting login for username: " . $data['username'] . " with role: " . $data['role']);
+
+    // Check for admin/staff users in the users table
+    if (strtolower($data['role']) === 'admin' || strtolower($data['role']) === 'staff') {
         $query = "SELECT id, user_id, name, username, password, role, email, department_id, division_id, status,
                         (SELECT name FROM departments WHERE id = department_id) as department_name,
                         (SELECT name FROM divisions WHERE id = division_id) as division_name
                   FROM users 
-                  WHERE username = ? AND status = 'active'";
+                  WHERE LOWER(username) = LOWER(?) AND LOWER(role) = LOWER(?) AND status = 'active'";
         
         $stmt = $db->prepare($query);
-        $stmt->execute([$data['username']]);
+        $stmt->execute([trim($data['username']), trim($data['role'])]);
         
         if ($stmt->rowCount() > 0) {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             $passwordField = 'password';
-            
-            // Make role comparison case-insensitive
-            if (strtolower($user['role']) !== strtolower($data['role'])) {
-                error_log("[Login] Role mismatch for user {$data['username']}. Found: {$user['role']}, Expected: {$data['role']}");
-                throw new Exception("Access denied: Invalid role for this account", 403);
-            }
-            
             error_log("[Login] Found {$user['role']} user: " . $data['username']);
         } else {
-            error_log("[Login] No active user found with username: " . $data['username']);
+            error_log("[Login] No active {$data['role']} user found with username: " . $data['username']);
             
-            // For admin login, let's check what admin users exist
-            if ($data['role'] === 'admin') {
-                $adminQuery = "SELECT id, user_id, name, username, password, role, email, department_id, division_id, status 
-                              FROM users 
-                              WHERE role = 'admin'";
-                $adminStmt = $db->prepare($adminQuery);
-                $adminStmt->execute();
-                $adminUsers = $adminStmt->fetchAll(PDO::FETCH_ASSOC);
+            // Check if user exists but with different role or status
+            $checkQuery = "SELECT username, role, status FROM users WHERE LOWER(username) = LOWER(?)";
+            $checkStmt = $db->prepare($checkQuery);
+            $checkStmt->execute([trim($data['username'])]);
+            
+            if ($checkStmt->rowCount() > 0) {
+                $existingUser = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                error_log("[Login] User exists: username='{$existingUser['username']}', role='{$existingUser['role']}', status='{$existingUser['status']}'");
                 
-                error_log("[Login] Found " . count($adminUsers) . " admin users in database");
-                foreach ($adminUsers as $adminUser) {
-                    error_log("[Login] Admin user found: username='{$adminUser['username']}', status='{$adminUser['status']}'");
-                    
-                    // Check if this is the user trying to login but with different case or status
-                    if (strtolower($adminUser['username']) === strtolower($data['username'])) {
-                        if ($adminUser['status'] !== 'active') {
-                            error_log("[Login] Admin user '{$adminUser['username']}' found but status is '{$adminUser['status']}'");
-                            throw new Exception("Account is not active", 401);
-                        } else {
-                            // Username matches but case might be different
-                            $user = $adminUser;
-                            $passwordField = 'password';
-                            error_log("[Login] Found admin user with case-insensitive match");
-                            break;
-                        }
-                    }
+                if (strtolower($existingUser['role']) !== strtolower($data['role'])) {
+                    throw new Exception("Invalid role for this account. Please select the correct role.", 403);
                 }
                 
-                // If still no user found, create a default admin if none exists
-                if (!$user && count($adminUsers) === 0) {
+                if ($existingUser['status'] !== 'active') {
+                    throw new Exception("Account is not active. Please contact administrator.", 401);
+                }
+            }
+            
+            // For staff role, create a default staff user if none exists
+            if (strtolower($data['role']) === 'staff') {
+                $staffCountQuery = "SELECT COUNT(*) FROM users WHERE LOWER(role) = 'staff' AND status = 'active'";
+                $staffCountStmt = $db->prepare($staffCountQuery);
+                $staffCountStmt->execute();
+                $staffCount = $staffCountStmt->fetchColumn();
+                
+                if ($staffCount === 0) {
+                    error_log("[Login] No staff users found. Creating default staff account.");
+                    
+                    $defaultPassword = password_hash('staff', PASSWORD_ARGON2ID);
+                    $insertQuery = "INSERT INTO users (user_id, name, username, password, role, email, status, created_at) 
+                                   VALUES (?, ?, ?, ?, 'staff', ?, 'active', NOW())";
+                    
+                    $userId = 'STF-' . str_pad(1, 6, '0', STR_PAD_LEFT);
+                    $insertStmt = $db->prepare($insertQuery);
+                    $insertStmt->execute([
+                        $userId,
+                        'Default Staff',
+                        'staff',
+                        $defaultPassword,
+                        'staff@dskalmunai.lk'
+                    ]);
+                    
+                    // Now fetch the created user
+                    $stmt = $db->prepare($query);
+                    $stmt->execute([trim($data['username']), trim($data['role'])]);
+                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $passwordField = 'password';
+                    
+                    error_log("[Login] Created default staff user");
+                }
+            }
+            
+            // For admin role, create a default admin if none exists
+            if (strtolower($data['role']) === 'admin' && !$user) {
+                $adminCountQuery = "SELECT COUNT(*) FROM users WHERE LOWER(role) = 'admin' AND status = 'active'";
+                $adminCountStmt = $db->prepare($adminCountQuery);
+                $adminCountStmt->execute();
+                $adminCount = $adminCountStmt->fetchColumn();
+                
+                if ($adminCount === 0) {
                     error_log("[Login] No admin users found. Creating default admin account.");
                     
                     $defaultPassword = password_hash('admin', PASSWORD_ARGON2ID);
@@ -141,7 +161,7 @@ try {
                     
                     // Now fetch the created user
                     $stmt = $db->prepare($query);
-                    $stmt->execute(['admin']);
+                    $stmt->execute([trim($data['username']), trim($data['role'])]);
                     $user = $stmt->fetch(PDO::FETCH_ASSOC);
                     $passwordField = 'password';
                     
@@ -152,16 +172,18 @@ try {
     }
     
     // If not found in users table, check public_users for public role
-    if (!$user && $data['role'] === 'public') {
+    if (!$user && strtolower($data['role']) === 'public') {
         error_log("[Login] Checking public_users table for username: " . $data['username']);
         
         $query = "SELECT id, public_id as user_id, name, username, COALESCE(password_hash, '') as password_hash, 'public' as role, 
-                         email, department_id, division_id, status 
+                         email, department_id, division_id, status,
+                         (SELECT name FROM departments WHERE id = department_id) as department_name,
+                         (SELECT name FROM divisions WHERE id = division_id) as division_name
                   FROM public_users 
-                  WHERE username = ? AND status = 'active'";
+                  WHERE LOWER(username) = LOWER(?) AND status = 'active'";
         
         $stmt = $db->prepare($query);
-        $stmt->execute([$data['username']]);
+        $stmt->execute([trim($data['username'])]);
         
         if ($stmt->rowCount() > 0) {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -175,7 +197,7 @@ try {
     
     if (!$user) {
         error_log("[Login] User not found: " . $data['username'] . " with role: " . $data['role']);
-        throw new Exception("Invalid credentials", 401);
+        throw new Exception("Invalid credentials or user not found", 401);
     }
 
     // Check password
@@ -187,7 +209,7 @@ try {
         // Create password hash from the provided password
         $hashedPassword = password_hash($data['password'], PASSWORD_ARGON2ID);
         
-        if ($user['role'] === 'public') {
+        if (strtolower($user['role']) === 'public') {
             $updateQuery = "UPDATE public_users SET password_hash = ? WHERE id = ?";
         } else {
             $updateQuery = "UPDATE users SET password = ? WHERE id = ?";
@@ -199,30 +221,11 @@ try {
         $storedPassword = $hashedPassword;
         error_log("[Login] Password created for user: " . $data['username']);
     }
-      $success = password_verify($data['password'], $storedPassword);
+
+    $success = password_verify($data['password'], $storedPassword);
     
     if (!$success) {
-        error_log("[Login] Failed password verification for user: {$data['username']}");
-        error_log("[Login] Provided password length: " . strlen($data['password']));
-        error_log("[Login] Stored password exists: " . (!empty($storedPassword) ? 'Yes' : 'No'));
-        
-        // For debugging, let's try creating a new password hash and see if it works
-        if ($user['role'] === 'admin') {
-            error_log("[Login] Testing password hash for admin user: {$data['username']}");
-            $testHash = password_hash($data['password'], PASSWORD_ARGON2ID);
-            error_log("[Login] Test hash created successfully");
-            
-            // Update with new hash and try again
-            $updateQuery = "UPDATE users SET password = ? WHERE id = ?";
-            $updateStmt = $db->prepare($updateQuery);
-            $updateStmt->execute([$testHash, $user['id']]);
-            
-            $success = password_verify($data['password'], $testHash);
-            error_log("[Login] After updating hash, verification result: " . ($success ? 'Success' : 'Failed'));
-        }
-    }
-    
-    if (!$success) {
+        error_log("[Login] Password verification failed for user: {$data['username']}");
         throw new Exception("Invalid credentials", 401);
     }
 
@@ -233,7 +236,7 @@ try {
     error_log("[Login] Successful login for user: {$data['username']} with role: {$user['role']}");
 
     $issuedAt = time();
-    $expirationTime = $issuedAt + 3600;
+    $expirationTime = $issuedAt + 3600; // 1 hour
     
     try {
         $payload = [
@@ -241,6 +244,7 @@ try {
             'exp' => $expirationTime,
             'user_id' => $user['id'],
             'role' => $user['role'],
+            'username' => $user['username'],
             'jti' => bin2hex(random_bytes(16))
         ];
         
@@ -249,7 +253,7 @@ try {
         $secretKey = getenv('JWT_SECRET_KEY') ?: 'dsk-secret-key-2024';
         $signature = hash_hmac('sha256', "$header.$payload_encoded", $secretKey, true);
         $signature_encoded = base64url_encode($signature);
-          $token = "$header.$payload_encoded.$signature_encoded";
+        $token = "$header.$payload_encoded.$signature_encoded";
         
         // Store the token in user_sessions table
         $insertSessionQuery = "INSERT INTO user_sessions (user_id, token, expires_at) VALUES (?, ?, FROM_UNIXTIME(?))";
