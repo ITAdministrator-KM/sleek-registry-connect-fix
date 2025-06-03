@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import TokenManagement from '@/components/TokenManagement';
-import PublicAccountsManagement from '@/components/PublicAccountsManagement';
+import { PublicAccountsManagement } from '@/components/PublicAccountsManagement';
 import AccountSettings from '@/components/AccountSettings';
 
 const StaffDashboard = () => {

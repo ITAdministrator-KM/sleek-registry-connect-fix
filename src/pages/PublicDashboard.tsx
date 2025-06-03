@@ -9,12 +9,13 @@ import DigitalTokens from '@/components/public/DigitalTokens';
 import ServiceRequest from '@/components/public/ServiceRequest';
 import MyApplications from '@/components/public/MyApplications';
 import ServiceHistory from '@/components/public/ServiceHistory';
-import ProfileSettings from '@/components/public-accounts/ProfileSettings';
+import { ProfileSettings } from '@/components/public-accounts/ProfileSettings';
 
 const PublicDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
   const [userFullName, setUserFullName] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -43,6 +44,14 @@ const PublicDashboard = () => {
       description: "You have been successfully logged out.",
     });
     navigate('/');
+  };
+
+  const handleServiceRequested = () => {
+    setRefreshTrigger(prev => prev + 1);
+    toast({
+      title: "Service Requested",
+      description: "Your service request has been submitted successfully.",
+    });
   };
 
   const menuItems = [
@@ -191,13 +200,13 @@ const PublicDashboard = () => {
       case 'tokens':
         return <DigitalTokens />;
       case 'services':
-        return <ServiceRequest />;
+        return <ServiceRequest onServiceRequested={handleServiceRequested} />;
       case 'applications':
         return <MyApplications />;
       case 'history':
         return <ServiceHistory />;
       case 'profile':
-        return <ProfileSettings />;
+        return <ProfileSettings user={{}} />;
       default:
         return renderOverviewContent();
     }
