@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,8 +9,8 @@ import TokenManagement from '@/components/TokenManagement';
 import { PublicAccountsManagement } from '@/components/PublicAccountsManagement';
 import AccountSettings from '@/components/AccountSettings';
 import { PublicUserForm } from '@/components/public-accounts/PublicUserForm';
-import { IDCardGenerator } from '@/components/IDCardGenerator';
-import { QRScanner } from '@/components/QRScanner';
+import IDCardGenerator from '@/components/IDCardGenerator';
+import QRScanner from '@/components/QRScanner';
 import { apiService } from '@/services/api';
 
 const StaffDashboard = () => {
