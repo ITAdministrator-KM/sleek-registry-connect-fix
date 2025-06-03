@@ -38,14 +38,28 @@ try {
 
 function getDivisions($db) {
     try {
-        $query = "SELECT d.*, dept.name as department_name 
-                  FROM divisions d 
-                  INNER JOIN departments dept ON d.department_id = dept.id 
-                  WHERE d.status = 'active' 
-                  AND dept.status = 'active'
-                  ORDER BY dept.name, d.name";
+        $departmentId = $_GET['department_id'] ?? null;
         
-        $stmt = $db->prepare($query);
+        if ($departmentId) {
+            $query = "SELECT d.*, dept.name as department_name 
+                      FROM divisions d 
+                      INNER JOIN departments dept ON d.department_id = dept.id 
+                      WHERE d.status = 'active' 
+                      AND dept.status = 'active'
+                      AND d.department_id = :department_id
+                      ORDER BY d.name";
+            $stmt = $db->prepare($query);
+            $stmt->bindParam(":department_id", $departmentId);
+        } else {
+            $query = "SELECT d.*, dept.name as department_name 
+                      FROM divisions d 
+                      INNER JOIN departments dept ON d.department_id = dept.id 
+                      WHERE d.status = 'active' 
+                      AND dept.status = 'active'
+                      ORDER BY dept.name, d.name";
+            $stmt = $db->prepare($query);
+        }
+        
         if (!$stmt) {
             throw new Exception("Failed to prepare query");
         }
@@ -56,7 +70,11 @@ function getDivisions($db) {
         
         $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        sendResponse(200, ["data" => $divisions]);
+        sendResponse(200, [
+            "status" => "success",
+            "message" => "Divisions retrieved successfully",
+            "data" => $divisions
+        ]);
     } catch (Exception $e) {
         error_log("Get divisions error: " . $e->getMessage());
         sendError(500, "Failed to fetch divisions: " . $e->getMessage());
@@ -113,6 +131,7 @@ function createDivision($db) {
         
         if ($stmt->execute()) {
             sendResponse(201, [
+                "status" => "success",
                 "message" => "Division created successfully",
                 "data" => [
                     "id" => $db->lastInsertId(),
@@ -192,7 +211,10 @@ function updateDivision($db) {
         
         if ($stmt->execute()) {
             $db->commit();
-            sendResponse(200, ["message" => "Division updated successfully"]);
+            sendResponse(200, [
+                "status" => "success",
+                "message" => "Division updated successfully"
+            ]);
         } else {
             throw new Exception("Failed to update division");
         }
@@ -232,16 +254,13 @@ function deleteDivision($db) {
         }
 
         // Check for active users
-        $usersQuery = "SELECT COUNT(*) as user_count FROM users WHERE division_id = :id AND status = 'active'
-                      UNION ALL
-                      SELECT COUNT(*) as user_count FROM public_users WHERE division_id = :id AND status = 'active'";
+        $usersQuery = "SELECT COUNT(*) as user_count FROM users WHERE division_id = :id AND status = 'active'";
         $usersStmt = $db->prepare($usersQuery);
         $usersStmt->bindParam(":id", $id);
         $usersStmt->execute();
-        $userCounts = $usersStmt->fetchAll(PDO::FETCH_COLUMN);
-        $totalUsers = array_sum($userCounts);
+        $userCount = $usersStmt->fetchColumn();
 
-        if ($totalUsers > 0) {
+        if ($userCount > 0) {
             sendError(409, "Cannot delete division with active users. Please reassign users first.");
             return;
         }
@@ -253,7 +272,10 @@ function deleteDivision($db) {
         
         if ($stmt->execute()) {
             $db->commit();
-            sendResponse(200, ["message" => "Division deleted successfully"]);
+            sendResponse(200, [
+                "status" => "success",
+                "message" => "Division deleted successfully"
+            ]);
         } else {
             throw new Exception("Failed to delete division");
         }

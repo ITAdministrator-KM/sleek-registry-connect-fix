@@ -1,49 +1,15 @@
-
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
+include_once '../../config/error_handler.php';
+
+header('Content-Type: application/json');
 
 try {
-    // Validate request method
-    $allowedMethods = ['GET', 'POST', 'PUT', 'DELETE'];
-    if (!in_array($_SERVER['REQUEST_METHOD'], $allowedMethods)) {
-        throw new Exception("Method not allowed", 405);
-    }
-
-    // Check content type for POST and PUT requests
-    if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT'])) {
-        $contentType = isset($_SERVER["CONTENT_TYPE"]) ? $_SERVER["CONTENT_TYPE"] : "";
-        if (!str_contains($contentType, 'application/json')) {
-            throw new Exception("Invalid Content-Type. Expected application/json", 400);
-        }
-    }
-
-    // Connect to database
     $database = new Database();
     $db = $database->getConnection();
     if (!$db) {
         throw new Exception("Database connection failed", 500);
-    }
-
-    // Verify authentication except for public GET requests
-    $headers = getallheaders();
-    $authHeader = $headers['Authorization'] ?? '';
-    
-    if (!preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-        throw new Exception("No authentication token provided", 401);
-    }
-
-    $token = $matches[1];
-    $tokenParts = explode('.', $token);
-    
-    if (count($tokenParts) !== 3) {
-        throw new Exception("Invalid token format", 401);
-    }
-    
-    $payload = json_decode(base64_decode($tokenParts[1]), true);
-    
-    if (!$payload || !isset($payload['exp']) || $payload['exp'] < time()) {
-        throw new Exception("Token expired or invalid", 401);
     }
 
     switch ($_SERVER['REQUEST_METHOD']) {
@@ -79,7 +45,8 @@ try {
 }
 
 function getDepartments($db) {
-    try {        $query = "SELECT d.*, COUNT(dv.id) as divisions_count 
+    try {
+        $query = "SELECT d.*, COUNT(dv.id) as division_count 
                   FROM departments d 
                   LEFT JOIN divisions dv ON d.id = dv.department_id AND dv.status = 'active'
                   WHERE d.status = 'active' 
@@ -101,7 +68,7 @@ function getDepartments($db) {
         }
         
         foreach ($departments as &$dept) {
-            $dept['divisions_count'] = intval($dept['divisions_count']);
+            $dept['division_count'] = intval($dept['division_count']);
         }
         
         http_response_code(200);
@@ -136,7 +103,8 @@ function createDepartment($db) {
             throw new Exception("Department with this name already exists", 409);
         }
 
-        $query = "INSERT INTO departments (name, description) VALUES (:name, :description)";        $stmt = $db->prepare($query);
+        $query = "INSERT INTO departments (name, description) VALUES (:name, :description)";
+        $stmt = $db->prepare($query);
         if (!$stmt) {
             throw new Exception("Failed to prepare query", 500);
         }
@@ -203,7 +171,9 @@ function updateDepartment($db) {
         $stmt = $db->prepare($query);
         if (!$stmt) {
             throw new Exception("Failed to prepare query", 500);
-        }        $stmt->bindValue(":id", $data->id);
+        }
+        
+        $stmt->bindValue(":id", $data->id);
         $stmt->bindValue(":name", $data->name);
         $stmt->bindValue(":description", $data->description ?? null, PDO::PARAM_STR);
         

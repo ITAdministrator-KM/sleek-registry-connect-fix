@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,7 @@ import PublicAccountCreation from '@/components/PublicAccountCreation';
 import DashboardStats from '@/components/DashboardStats';
 import AdminSidebar from '@/components/AdminSidebar';
 import AdminHeader from '@/components/AdminHeader';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -44,14 +44,7 @@ const AdminDashboard = () => {
   }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('username');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userFullName');
-    localStorage.removeItem('userDepartmentId');
-    localStorage.removeItem('userDivisionId');
-    
+    localStorage.clear();
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
@@ -77,7 +70,9 @@ const AdminDashboard = () => {
         <p className="text-blue-100 text-lg">Welcome back! Here's your system overview</p>
       </div>
       
-      <DashboardStats />
+      <ErrorBoundary>
+        <DashboardStats />
+      </ErrorBoundary>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
         <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-indigo-100 border-l-4 border-l-blue-500">
@@ -89,7 +84,7 @@ const AdminDashboard = () => {
             <CardDescription className="text-blue-600">Latest system activities and updates</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center space-x-3 p-4 bg-white/70 rounded-xl border-l-4 border-blue-400">
+            <div className="flex items-center space-x-3 p-4 bg-white/70 rounded-xl border-l-4 border-l-blue-400">
               <div className="h-3 w-3 bg-blue-600 rounded-full animate-pulse"></div>
               <div>
                 <p className="text-sm font-semibold text-gray-800">New department created</p>
@@ -177,26 +172,24 @@ const AdminDashboard = () => {
   );
 
   const renderContent = () => {
-    switch (activeTab) {
-      case 'overview':
-        return renderOverviewContent();
-      case 'departments':
-        return <DepartmentManagement />;
-      case 'divisions':
-        return <DivisionManagement />;
-      case 'users':
-        return <UserManagement />;
-      case 'tokens':
-        return <TokenManagement />;
-      case 'public-users':
-        return <PublicAccountCreation />;
-      case 'notifications':
-        return <NotificationManagement />;
-      case 'settings':
-        return <AccountSettings />;
-      default:
-        return renderOverviewContent();
-    }
+    const contentMap = {
+      overview: renderOverviewContent(),
+      departments: <DepartmentManagement />,
+      divisions: <DivisionManagement />,
+      users: <UserManagement />,
+      tokens: <TokenManagement />,
+      'public-users': <PublicAccountCreation />,
+      notifications: <NotificationManagement />,
+      settings: <AccountSettings />,
+    };
+
+    const content = contentMap[activeTab as keyof typeof contentMap] || renderOverviewContent();
+    
+    return (
+      <ErrorBoundary>
+        {content}
+      </ErrorBoundary>
+    );
   };
 
   const getCurrentTitle = () => {
@@ -205,27 +198,29 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 flex">
-      <AdminSidebar 
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onLogout={handleLogout}
-        username={username}
-      />
-
-      <div className="flex-1 flex flex-col">
-        <AdminHeader 
-          title={getCurrentTitle()}
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-100 flex">
+        <AdminSidebar 
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onLogout={handleLogout}
           username={username}
         />
 
-        <main className="flex-1 p-8 overflow-auto">
-          <div className="max-w-7xl mx-auto">
-            {renderContent()}
-          </div>
-        </main>
+        <div className="flex-1 flex flex-col">
+          <AdminHeader 
+            title={getCurrentTitle()}
+            username={username}
+          />
+
+          <main className="flex-1 p-8 overflow-auto">
+            <div className="max-w-7xl mx-auto">
+              {renderContent()}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 
