@@ -50,9 +50,8 @@ const Login = () => {
           department_id: userData.department_id,
           division_id: userData.division_id
         });
-        
-        // Store auth data
-        localStorage.setItem('userRole', userData.role);
+          // Store auth data
+        localStorage.setItem('userRole', userData.role.toLowerCase());
         localStorage.setItem('username', userData.username);
         localStorage.setItem('authToken', authToken);
         localStorage.setItem('userId', userData.id?.toString() || '');
@@ -61,10 +60,20 @@ const Login = () => {
         // Store department/division if available
         if (userData.department_id) {
           localStorage.setItem('userDepartmentId', userData.department_id.toString());
+          localStorage.setItem('userDepartmentName', userData.department_name || '');
         }
         if (userData.division_id) {
           localStorage.setItem('userDivisionId', userData.division_id.toString());
+          localStorage.setItem('userDivisionName', userData.division_name || '');
         }
+        
+        // Log the stored data for debugging
+        console.log('Stored auth data:', {
+          role: userData.role.toLowerCase(),
+          username: userData.username,
+          department: userData.department_name,
+          division: userData.division_name
+        });
         
         toast({
           title: "Login Successful",

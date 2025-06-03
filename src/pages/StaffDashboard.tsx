@@ -27,23 +27,42 @@ const StaffDashboard = () => {
     publicUsers: 0
   });
   const navigate = useNavigate();
-  const { toast } = useToast();
-
-  useEffect(() => {
+  const { toast } = useToast();  useEffect(() => {
+    // Get all required data
     const role = localStorage.getItem('userRole');
     const user = localStorage.getItem('username');
     const token = localStorage.getItem('authToken');
-    const department = localStorage.getItem('userDepartmentName') || 'General Services';
+    const department = localStorage.getItem('userDepartmentName');
     
-    if (role !== 'staff' || !token) {
-      localStorage.clear();
+    console.log('Staff Dashboard - Auth Check:', {
+      role: role,
+      user: user,
+      hasToken: !!token,
+      department: department
+    });
+
+    // Check if user is authenticated
+    if (!token) {
+      console.log('No auth token found, redirecting to login');
       navigate('/login');
+      return;
+    }
+
+    // Check if user has staff access (case-insensitive)
+    if (!role || role.toLowerCase() !== 'staff') {
+      console.log('Access denied: Invalid role:', role);
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to access the staff dashboard.",
+        variant: "destructive"
+      });
+      navigate('/');
       return;
     }
     
     if (user) {
       setUsername(user);
-      setUserDepartment(department);
+      setUserDepartment(department || 'General Services');
     }
     
     fetchStats();

@@ -68,11 +68,11 @@ try {
     $user = null;
     $passwordField = '';
 
-    error_log("[Login] Attempting login for username: " . $data['username'] . " with role: " . $data['role']);
-
-    // Check for admin/staff users in the users table
+    error_log("[Login] Attempting login for username: " . $data['username'] . " with role: " . $data['role']);    // Check for admin/staff users in the users table
     if ($data['role'] === 'admin' || $data['role'] === 'staff') {
-        $query = "SELECT id, user_id, name, username, password, role, email, department_id, division_id, status 
+        $query = "SELECT id, user_id, name, username, password, role, email, department_id, division_id, status,
+                        (SELECT name FROM departments WHERE id = department_id) as department_name,
+                        (SELECT name FROM divisions WHERE id = division_id) as division_name
                   FROM users 
                   WHERE username = ? AND status = 'active'";
         
@@ -83,10 +83,10 @@ try {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             $passwordField = 'password';
             
-            // Check if the role matches what was requested
-            if ($user['role'] !== $data['role']) {
+            // Make role comparison case-insensitive
+            if (strtolower($user['role']) !== strtolower($data['role'])) {
                 error_log("[Login] Role mismatch for user {$data['username']}. Found: {$user['role']}, Expected: {$data['role']}");
-                throw new Exception("Invalid credentials", 401);
+                throw new Exception("Access denied: Invalid role for this account", 403);
             }
             
             error_log("[Login] Found {$user['role']} user: " . $data['username']);
