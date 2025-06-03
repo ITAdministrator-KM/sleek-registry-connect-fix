@@ -43,10 +43,10 @@ function generateQRCode($data) {
             'quietzoneSize' => 4,
             'moduleValues' => [
                 1536 => [0, 0, 0],
-                6 => [255, 255, 255],
+                6 => [255, 255, 255]
             ],
             'version' => 7,
-            'maskPattern' => -1,
+            'maskPattern' => -1
         ]);
         
         $qrcode = new \chillerlan\QRCode\QRCode($options);
@@ -64,10 +64,12 @@ function generateQRCode($data) {
         if (strlen($base64Data) < 100) {
             throw new Exception("QR code generation failed - insufficient data");
         }
-          return $result;
+        
+        return $result;
     } catch (Exception $e) {
         error_log("QR Code generation error: " . $e->getMessage());
         throw new Exception("Failed to generate QR code: " . $e->getMessage());
+    }
     }
 }
 
