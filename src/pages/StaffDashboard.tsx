@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +9,7 @@ import { PublicAccountsManagement } from '@/components/PublicAccountsManagement'
 import AccountSettings from '@/components/AccountSettings';
 import { PublicUserForm } from '@/components/public-accounts/PublicUserForm';
 import IDCardGenerator from '@/components/IDCardGenerator';
-import QRScanner from '@/components/QRScanner';
+import ResponsiveQRScanner from '@/components/ResponsiveQRScanner';
 import NotificationManagement from '@/components/NotificationManagement';
 import { apiService } from '@/services/api';
 
@@ -29,29 +28,17 @@ const StaffDashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Get all required data
     const role = localStorage.getItem('userRole');
     const user = localStorage.getItem('username');
     const token = localStorage.getItem('authToken');
     const department = localStorage.getItem('userDepartmentName');
     
-    console.log('Staff Dashboard - Auth Check:', {
-      role: role,
-      user: user,
-      hasToken: !!token,
-      department: department
-    });
-
-    // Check if user is authenticated
     if (!token) {
-      console.log('No auth token found, redirecting to login');
       navigate('/login');
       return;
     }
 
-    // Check if user has staff access (case-insensitive)
     if (!role || role.toLowerCase() !== 'staff') {
-      console.log('Access denied: Invalid role:', role);
       toast({
         title: "Access Denied",
         description: "You don't have permission to access the staff dashboard.",
@@ -67,9 +54,7 @@ const StaffDashboard = () => {
     }
     
     fetchStats();
-    
-    // Set up real-time stats refresh
-    const interval = setInterval(fetchStats, 30000); // Refresh every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
     return () => clearInterval(interval);
   }, [navigate]);
 
@@ -95,7 +80,6 @@ const StaffDashboard = () => {
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
-      // Don't show error toast for stats - it's not critical
     }
   };
 
@@ -112,7 +96,7 @@ const StaffDashboard = () => {
     try {
       const result = await apiService.createPublicUser(userData);
       setShowCreateUserModal(false);
-      fetchStats(); // Refresh stats
+      fetchStats();
       toast({
         title: "Success",
         description: `Public user created successfully with ID: ${result.public_id}`,
@@ -212,28 +196,28 @@ const StaffDashboard = () => {
               className="w-full justify-start bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
             >
               <UserPlus className="mr-3" size={20} />
-              Create Public Account
+              👤 Create Public Account
             </Button>
             <Button 
               onClick={() => setActiveTab('tokens')} 
               className="w-full justify-start bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
             >
               <Ticket className="mr-3" size={20} />
-              Manage Tokens
+              🎫 Manage Tokens
             </Button>
             <Button 
               onClick={() => setActiveTab('id-cards')} 
               className="w-full justify-start bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
             >
               <CreditCard className="mr-3" size={20} />
-              Generate ID Cards
+              📇 Generate ID Cards
             </Button>
             <Button 
               onClick={() => setActiveTab('qr-scanner')} 
               className="w-full justify-start bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
             >
               <Scan className="mr-3" size={20} />
-              Scan QR Code
+              📱 Responsive QR Scanner
             </Button>
           </CardContent>
         </Card>
@@ -287,7 +271,7 @@ const StaffDashboard = () => {
       case 'id-cards':
         return <IDCardGenerator />;
       case 'qr-scanner':
-        return <QRScanner />;
+        return <ResponsiveQRScanner />;
       case 'notifications':
         return <NotificationManagement />;
       case 'settings':
@@ -303,7 +287,7 @@ const StaffDashboard = () => {
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-              DSK Staff Portal
+              📱 DSK Staff Portal
             </h1>
             <div className="flex items-center space-x-4">
               <span className="text-gray-700 font-medium">Welcome, {username}</span>

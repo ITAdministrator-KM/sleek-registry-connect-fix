@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,11 +8,9 @@ import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/api';
 import type { PublicUser } from '@/services/api';
 import { Search, Printer, AlertCircle, Download } from 'lucide-react';
-import { IDCardPrinter } from './id-card/IDCardPrinter';
-import { IDCardValidator } from './id-card/IDCardValidator';
 import { UserSelectionControls } from './id-card/UserSelectionControls';
 import { UserCardList } from './id-card/UserCardList';
-import { EnhancedIDCardPrinter } from './id-card/EnhancedIDCardPrinter';
+import { ResponsiveIDCardPrinter } from './id-card/ResponsiveIDCardPrinter';
 
 const IDCardGenerator = () => {
   const [users, setUsers] = useState<PublicUser[]>([]);
@@ -39,7 +38,13 @@ const IDCardGenerator = () => {
     try {
       setIsLoading(true);
       const response = await apiService.getPublicUsers();
-      setUsers(response);
+      // Sort by public_id to ensure proper order (PUB00001, PUB00002, etc.)
+      const sortedUsers = response.sort((a, b) => {
+        const aNum = parseInt(a.public_id.replace('PUB', ''));
+        const bNum = parseInt(b.public_id.replace('PUB', ''));
+        return aNum - bNum;
+      });
+      setUsers(sortedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -84,7 +89,7 @@ const IDCardGenerator = () => {
       }
 
       setIsLoading(true);
-      await EnhancedIDCardPrinter.printMultipleCards(usersToPrint, autoPrint, toast);
+      await ResponsiveIDCardPrinter.printMultipleCards(usersToPrint, autoPrint, toast);
     } catch (error) {
       console.error('Error generating ID cards:', error);
       toast({
@@ -100,7 +105,7 @@ const IDCardGenerator = () => {
   const handleSinglePrint = async (user: PublicUser) => {
     try {
       setIsLoading(true);
-      await EnhancedIDCardPrinter.printSingleCard(user, autoPrint, toast);
+      await ResponsiveIDCardPrinter.printSingleCard(user, autoPrint, toast);
     } catch (error) {
       console.error('Error generating single ID card:', error);
       toast({
@@ -119,9 +124,9 @@ const IDCardGenerator = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>ID Card Generator</CardTitle>
+              <CardTitle>📇 ID Card Generator</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Generate and print professional ID cards with enhanced visibility
+                Generate and print professional ID cards with sequential numbering
               </p>
             </div>
             <UserSelectionControls
@@ -162,14 +167,15 @@ const IDCardGenerator = () => {
               />
             )}
 
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <h4 className="text-sm font-medium text-blue-700 mb-2">💡 Enhanced Features:</h4>
               <ul className="text-xs text-blue-600 space-y-1">
-                <li>• Larger fonts for better readability in print</li>
-                <li>• Enhanced QR code contrast for black & white printers</li>
-                <li>• Auto-print option for direct printer output</li>
-                <li>• A4 format: 8 cards per page (2x4 layout)</li>
-                <li>• International standard card size: 85.6mm x 54mm</li>
+                <li>• ✅ Sequential ID numbering: PUB00001, PUB00002, etc.</li>
+                <li>• 📐 Optimized layout for long addresses (auto-truncation)</li>
+                <li>• 🖨️ Enhanced print quality for black & white printers</li>
+                <li>• 📱 Responsive design for all devices</li>
+                <li>• 📄 A4 format: 2 cards per page (optimized layout)</li>
+                <li>• 🎯 International standard card size: 85.6mm x 54mm</li>
               </ul>
             </div>
           </div>
