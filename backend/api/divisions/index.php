@@ -1,7 +1,9 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
+include_once '../../config/response_handler.php';
 
 header('Content-Type: application/json');
 
@@ -49,7 +51,7 @@ function getDivisions($db) {
                       AND d.department_id = :department_id
                       ORDER BY d.name";
             $stmt = $db->prepare($query);
-            $stmt->bindParam(":department_id", $departmentId);
+            $stmt->bindValue(":department_id", $departmentId, PDO::PARAM_INT);
         } else {
             $query = "SELECT d.*, dept.name as department_name 
                       FROM divisions d 
@@ -60,21 +62,13 @@ function getDivisions($db) {
             $stmt = $db->prepare($query);
         }
         
-        if (!$stmt) {
-            throw new Exception("Failed to prepare query");
-        }
-        
         if (!$stmt->execute()) {
             throw new Exception("Failed to execute query");
         }
         
         $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        sendResponse(200, [
-            "status" => "success",
-            "message" => "Divisions retrieved successfully",
-            "data" => $divisions
-        ]);
+        sendResponse($divisions, "Divisions retrieved successfully");
     } catch (Exception $e) {
         error_log("Get divisions error: " . $e->getMessage());
         sendError(500, "Failed to fetch divisions: " . $e->getMessage());
@@ -101,10 +95,9 @@ function createDivision($db) {
         }
         
         // Check if department exists and is active
-        $checkQuery = "SELECT id FROM departments WHERE id = :id AND status = 'active'";
+        $checkQuery = "SELECT id FROM departments WHERE id = ? AND status = 'active'";
         $checkStmt = $db->prepare($checkQuery);
-        $checkStmt->bindParam(":id", $data->department_id);
-        $checkStmt->execute();
+        $checkStmt->execute([$data->department_id]);
         
         if ($checkStmt->rowCount() === 0) {
             sendError(400, "Invalid or inactive department");
@@ -112,32 +105,24 @@ function createDivision($db) {
         }
 
         // Check for duplicate division name
-        $duplicateQuery = "SELECT id FROM divisions WHERE name = :name AND department_id = :dept_id AND status = 'active'";
+        $duplicateQuery = "SELECT id FROM divisions WHERE name = ? AND department_id = ? AND status = 'active'";
         $dupStmt = $db->prepare($duplicateQuery);
-        $dupStmt->bindParam(":name", $data->name);
-        $dupStmt->bindParam(":dept_id", $data->department_id);
-        $dupStmt->execute();
+        $dupStmt->execute([$data->name, $data->department_id]);
         
         if ($dupStmt->rowCount() > 0) {
             sendError(409, "A division with this name already exists in the selected department");
             return;
         }
 
-        $query = "INSERT INTO divisions (name, department_id, description) VALUES (:name, :department_id, :description)";
+        $query = "INSERT INTO divisions (name, department_id, description) VALUES (?, ?, ?)";
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":name", $data->name);
-        $stmt->bindParam(":department_id", $data->department_id);
-        $stmt->bindParam(":description", $data->description ?? '');
+        $description = $data->description ?? '';
         
-        if ($stmt->execute()) {
-            sendResponse(201, [
-                "status" => "success",
-                "message" => "Division created successfully",
-                "data" => [
-                    "id" => $db->lastInsertId(),
-                    "name" => $data->name
-                ]
-            ]);
+        if ($stmt->execute([$data->name, $data->department_id, $description])) {
+            sendResponse([
+                "id" => $db->lastInsertId(),
+                "name" => $data->name
+            ], "Division created successfully");
         } else {
             throw new Exception("Failed to create division");
         }
@@ -160,10 +145,9 @@ function updateDivision($db) {
         $db->beginTransaction();
 
         // Check if division exists
-        $checkDivQuery = "SELECT id FROM divisions WHERE id = :id AND status = 'active'";
+        $checkDivQuery = "SELECT id FROM divisions WHERE id = ? AND status = 'active'";
         $checkDivStmt = $db->prepare($checkDivQuery);
-        $checkDivStmt->bindParam(":id", $data->id);
-        $checkDivStmt->execute();
+        $checkDivStmt->execute([$data->id]);
         
         if ($checkDivStmt->rowCount() === 0) {
             sendError(404, "Division not found or is inactive");
@@ -171,10 +155,9 @@ function updateDivision($db) {
         }
 
         // Check if department exists
-        $checkDeptQuery = "SELECT id FROM departments WHERE id = :id AND status = 'active'";
+        $checkDeptQuery = "SELECT id FROM departments WHERE id = ? AND status = 'active'";
         $checkDeptStmt = $db->prepare($checkDeptQuery);
-        $checkDeptStmt->bindParam(":id", $data->department_id);
-        $checkDeptStmt->execute();
+        $checkDeptStmt->execute([$data->department_id]);
         
         if ($checkDeptStmt->rowCount() === 0) {
             sendError(400, "Invalid or inactive department");
@@ -183,15 +166,12 @@ function updateDivision($db) {
 
         // Check for duplicate name
         $duplicateQuery = "SELECT id FROM divisions 
-                        WHERE name = :name 
-                        AND department_id = :dept_id 
-                        AND id != :id 
+                        WHERE name = ? 
+                        AND department_id = ? 
+                        AND id != ? 
                         AND status = 'active'";
         $dupStmt = $db->prepare($duplicateQuery);
-        $dupStmt->bindParam(":name", $data->name);
-        $dupStmt->bindParam(":dept_id", $data->department_id);
-        $dupStmt->bindParam(":id", $data->id);
-        $dupStmt->execute();
+        $dupStmt->execute([$data->name, $data->department_id, $data->id]);
         
         if ($dupStmt->rowCount() > 0) {
             sendError(409, "A division with this name already exists in the selected department");
@@ -199,22 +179,16 @@ function updateDivision($db) {
         }
 
         $query = "UPDATE divisions 
-                SET name = :name, 
-                    department_id = :department_id, 
-                    description = :description 
-                WHERE id = :id";
+                SET name = ?, 
+                    department_id = ?, 
+                    description = ? 
+                WHERE id = ?";
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":id", $data->id);
-        $stmt->bindParam(":name", $data->name);
-        $stmt->bindParam(":department_id", $data->department_id);
-        $stmt->bindParam(":description", $data->description ?? '');
+        $description = $data->description ?? '';
         
-        if ($stmt->execute()) {
+        if ($stmt->execute([$data->name, $data->department_id, $description, $data->id])) {
             $db->commit();
-            sendResponse(200, [
-                "status" => "success",
-                "message" => "Division updated successfully"
-            ]);
+            sendResponse([], "Division updated successfully");
         } else {
             throw new Exception("Failed to update division");
         }
@@ -229,9 +203,10 @@ function updateDivision($db) {
 
 function deleteDivision($db) {
     try {
-        $id = $_GET['id'] ?? null;
+        $input = file_get_contents("php://input");
+        $data = json_decode($input);
         
-        if (!$id) {
+        if (!$data || !isset($data->id)) {
             sendError(400, "Division ID is required");
             return;
         }
@@ -242,10 +217,9 @@ function deleteDivision($db) {
         $checkQuery = "SELECT d.*, dept.status as dept_status 
                     FROM divisions d 
                     INNER JOIN departments dept ON d.department_id = dept.id 
-                    WHERE d.id = :id AND d.status = 'active'";
+                    WHERE d.id = ? AND d.status = 'active'";
         $checkStmt = $db->prepare($checkQuery);
-        $checkStmt->bindParam(":id", $id);
-        $checkStmt->execute();
+        $checkStmt->execute([$data->id]);
         $division = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$division) {
@@ -254,10 +228,9 @@ function deleteDivision($db) {
         }
 
         // Check for active users
-        $usersQuery = "SELECT COUNT(*) as user_count FROM users WHERE division_id = :id AND status = 'active'";
+        $usersQuery = "SELECT COUNT(*) as user_count FROM users WHERE division_id = ? AND status = 'active'";
         $usersStmt = $db->prepare($usersQuery);
-        $usersStmt->bindParam(":id", $id);
-        $usersStmt->execute();
+        $usersStmt->execute([$data->id]);
         $userCount = $usersStmt->fetchColumn();
 
         if ($userCount > 0) {
@@ -266,16 +239,12 @@ function deleteDivision($db) {
         }
 
         // Deactivate the division
-        $query = "UPDATE divisions SET status = 'inactive' WHERE id = :id";
+        $query = "UPDATE divisions SET status = 'inactive' WHERE id = ?";
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":id", $id);
         
-        if ($stmt->execute()) {
+        if ($stmt->execute([$data->id])) {
             $db->commit();
-            sendResponse(200, [
-                "status" => "success",
-                "message" => "Division deleted successfully"
-            ]);
+            sendResponse([], "Division deleted successfully");
         } else {
             throw new Exception("Failed to delete division");
         }

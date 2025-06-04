@@ -4,6 +4,9 @@ include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
 include_once '../../config/response_handler.php';
+include_once '../../utils/auth.php';
+
+header('Content-Type: application/json');
 
 try {
     $database = new Database();
@@ -11,13 +14,7 @@ try {
 
     if (!$db) {
         sendError(500, "Database connection failed");
-    }
-
-    // For write operations, validate authentication
-    if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'DELETE'])) {
-        if (!validateAuthToken()) {
-            sendError(401, "Authentication required");
-        }
+        exit;
     }
 
     switch ($_SERVER['REQUEST_METHOD']) {
@@ -25,157 +22,96 @@ try {
             getServiceHistory($db);
             break;
         case 'POST':
-            createServiceHistory($db);
-            break;
-        case 'PUT':
-            updateServiceHistory($db);
-            break;
-        case 'DELETE':
-            deleteServiceHistory($db);
+            addServiceHistory($db);
             break;
         default:
             sendError(405, "Method not allowed");
+            break;
     }
 } catch (Exception $e) {
-    sendError($e->getCode() ?: 500, $e->getMessage());
+    error_log("Service History API Error: " . $e->getMessage());
+    sendError(500, "Internal server error: " . $e->getMessage());
 }
 
 function getServiceHistory($db) {
     try {
-        $public_user_id = filter_input(INPUT_GET, 'public_user_id', FILTER_VALIDATE_INT);
+        $publicUserId = $_GET['public_user_id'] ?? null;
         
-        if (!$public_user_id) {
+        if (!$publicUserId) {
             sendError(400, "Public user ID is required");
+            return;
         }
 
-        $query = "SELECT sh.*, d.name as department_name, dv.name as division_name 
-                  FROM service_history sh 
-                  LEFT JOIN departments d ON sh.department_id = d.id 
-                  LEFT JOIN divisions dv ON sh.division_id = dv.id 
-                  WHERE sh.public_user_id = :public_user_id 
+        $query = "SELECT sh.*, d.name as department_name, dv.name as division_name
+                  FROM service_history sh
+                  LEFT JOIN departments d ON sh.department_id = d.id
+                  LEFT JOIN divisions dv ON sh.division_id = dv.id
+                  WHERE sh.public_user_id = :public_user_id
                   ORDER BY sh.created_at DESC";
         
         $stmt = $db->prepare($query);
-        $stmt->bindValue(':public_user_id', $public_user_id, PDO::PARAM_INT);
+        $stmt->bindValue(":public_user_id", $publicUserId, PDO::PARAM_INT);
         
         if (!$stmt->execute()) {
-            throw new Exception("Failed to fetch service history", 500);
+            throw new Exception("Failed to execute query");
         }
         
         $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
         sendResponse($history, "Service history retrieved successfully");
     } catch (Exception $e) {
-        sendError($e->getCode() ?: 500, $e->getMessage());
+        error_log("Get service history error: " . $e->getMessage());
+        sendError(500, "Failed to fetch service history: " . $e->getMessage());
     }
 }
 
-function createServiceHistory($db) {
+function addServiceHistory($db) {
     try {
-        $data = json_decode(file_get_contents("php://input"));
-        
+        $input = file_get_contents("php://input");
+        if (empty($input)) {
+            sendError(400, "Empty request body");
+            return;
+        }
+
+        $data = json_decode($input);
         if (!$data) {
             sendError(400, "Invalid JSON data");
+            return;
         }
         
-        if (!isset($data->public_user_id) || !isset($data->service_name) || 
-            !isset($data->department_id) || !isset($data->division_id)) {
-            sendError(400, "Required fields: public_user_id, service_name, department_id, division_id");
+        // Validate required fields
+        $requiredFields = ['public_user_id', 'service_type', 'purpose'];
+        foreach ($requiredFields as $field) {
+            if (!isset($data->$field) || empty(trim($data->$field))) {
+                sendError(400, "Missing required field: $field");
+                return;
+            }
         }
         
-        $query = "INSERT INTO service_history (
-                    public_user_id, department_id, division_id, service_name, 
-                    details, status, created_at
-                  ) VALUES (
-                    :public_user_id, :department_id, :division_id, :service_name,
-                    :details, 'pending', NOW()
-                  )";
+        $query = "INSERT INTO service_history (public_user_id, service_type, purpose, department_id, division_id, status, created_at) 
+                  VALUES (:public_user_id, :service_type, :purpose, :department_id, :division_id, 'pending', NOW())";
         
         $stmt = $db->prepare($query);
-        $stmt->bindValue(':public_user_id', $data->public_user_id);
-        $stmt->bindValue(':department_id', $data->department_id);
-        $stmt->bindValue(':division_id', $data->division_id);
-        $stmt->bindValue(':service_name', $data->service_name);
-        $stmt->bindValue(':details', $data->details ?? null);
+        $stmt->bindValue(":public_user_id", $data->public_user_id, PDO::PARAM_INT);
+        $stmt->bindValue(":service_type", $data->service_type, PDO::PARAM_STR);
+        $stmt->bindValue(":purpose", $data->purpose, PDO::PARAM_STR);
+        $stmt->bindValue(":department_id", $data->department_id ?? null, PDO::PARAM_INT);
+        $stmt->bindValue(":division_id", $data->division_id ?? null, PDO::PARAM_INT);
         
         if (!$stmt->execute()) {
-            throw new Exception("Failed to create service history", 500);
+            throw new Exception("Failed to add service history");
         }
         
-        $newId = $db->lastInsertId();
+        $historyId = $db->lastInsertId();
         
-        // Fetch the created record
-        $query = "SELECT sh.*, d.name as department_name, dv.name as division_name 
-                 FROM service_history sh 
-                 LEFT JOIN departments d ON sh.department_id = d.id 
-                 LEFT JOIN divisions dv ON sh.division_id = dv.id 
-                 WHERE sh.id = :id";
-        $stmt = $db->prepare($query);
-        $stmt->bindValue(':id', $newId);
-        $stmt->execute();
+        sendResponse([
+            "id" => $historyId,
+            "status" => "pending"
+        ], "Service history added successfully");
         
-        $newRecord = $stmt->fetch(PDO::FETCH_ASSOC);
-        sendResponse($newRecord, "Service history created successfully", 201);
     } catch (Exception $e) {
-        sendError($e->getCode() ?: 500, $e->getMessage());
-    }
-}
-
-function updateServiceHistory($db) {
-    try {
-        $data = json_decode(file_get_contents("php://input"));
-        
-        if (!$data || !isset($data->id)) {
-            sendError(400, "ID is required");
-        }
-        
-        $updates = [];
-        $params = [':id' => $data->id];
-        
-        if (isset($data->status)) {
-            $updates[] = "status = :status";
-            $params[':status'] = $data->status;
-        }
-        if (isset($data->details)) {
-            $updates[] = "details = :details";
-            $params[':details'] = $data->details;
-        }
-        
-        if (empty($updates)) {
-            sendError(400, "No fields to update");
-        }
-        
-        $query = "UPDATE service_history SET " . implode(", ", $updates) . ", updated_at = NOW() WHERE id = :id";
-        $stmt = $db->prepare($query);
-        
-        if (!$stmt->execute($params)) {
-            throw new Exception("Failed to update service history", 500);
-        }
-        
-        sendResponse(null, "Service history updated successfully");
-    } catch (Exception $e) {
-        sendError($e->getCode() ?: 500, $e->getMessage());
-    }
-}
-
-function deleteServiceHistory($db) {
-    try {
-        $data = json_decode(file_get_contents("php://input"));
-        
-        if (!$data || !isset($data->id)) {
-            sendError(400, "ID is required");
-        }
-        
-        $query = "DELETE FROM service_history WHERE id = :id";
-        $stmt = $db->prepare($query);
-        $stmt->bindValue(':id', $data->id);
-        
-        if (!$stmt->execute()) {
-            throw new Exception("Failed to delete service history", 500);
-        }
-        
-        sendResponse(null, "Service history deleted successfully");
-    } catch (Exception $e) {
-        sendError($e->getCode() ?: 500, $e->getMessage());
+        error_log("Add service history error: " . $e->getMessage());
+        sendError(500, "Failed to add service history: " . $e->getMessage());
     }
 }
 ?>
