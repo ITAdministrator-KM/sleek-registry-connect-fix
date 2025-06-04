@@ -36,6 +36,8 @@ interface PublicUser {
   department_name?: string;
   division_name?: string;
   created_at: string;
+  qr_code_data?: string;
+  qr_code_url?: string;
 }
 
 const formSchema = z.object({

@@ -17,6 +17,8 @@ interface PublicUser {
   name: string;
   mobile: string;
   email?: string;
+  qr_code_data?: string;
+  qr_code_url?: string;
 }
 
 interface NotificationTemplate {

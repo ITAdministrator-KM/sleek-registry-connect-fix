@@ -44,12 +44,14 @@ export interface PublicUser {
   public_id: string;
   name: string;
   nic: string;
-  address: string;
+  address: string; 
   mobile: string;
   email: string;
   username: string;
   password?: string;
   qr_code?: string;
+  qr_code_data?: string;
+  qr_code_url?: string;
   department_id?: number;
   division_id?: number;
   department_name?: string;

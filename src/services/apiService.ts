@@ -53,12 +53,17 @@ export interface PublicUser {
   mobile: string;
   email: string;
   username: string;
+  password?: string;
+  qr_code?: string;
+  qr_code_data?: string;
+  qr_code_url?: string;
   department_id?: number;
   division_id?: number;
   department_name?: string;
   division_name?: string;
   status: string;
   created_at: string;
+  updated_at?: string;
 }
 
 class ApiService extends ApiBase {
