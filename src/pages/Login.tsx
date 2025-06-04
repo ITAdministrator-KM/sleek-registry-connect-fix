@@ -1,10 +1,11 @@
+
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import LoginForm from '@/components/LoginForm';
-import { apiService } from '@/services/api';
+import { authService } from '@/services/authService';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -34,23 +35,30 @@ const Login = () => {
     }
 
     setIsLoading(true);
+    setErrors({});
+    
     try {
-      const loginData = { username, password, role };
-      console.log('Attempting login with:', { username, role }); // Don't log password
+      const loginData = { username: username.trim(), password, role };
+      console.log('Login: Attempting login with:', { username: loginData.username, role: loginData.role });
       
-      const response = await apiService.login(loginData);
-      console.log('Raw login response:', JSON.stringify(response, null, 2));
+      const response = await authService.login(loginData);
+      console.log('Login: Raw response:', JSON.stringify(response, null, 2));
 
-      if (response.status === 'success' && response.data) {
+      if (response && response.status === 'success' && response.data) {
         const { user: userData, token: authToken } = response.data;
-        console.log('Login successful, user data:', { 
+        
+        if (!userData || !authToken) {
+          throw new Error('Invalid response: missing user data or token');
+        }
+        
+        console.log('Login: Success, user data:', {
           id: userData.id,
           username: userData.username,
           role: userData.role,
-          department_id: userData.department_id,
-          division_id: userData.division_id
+          name: userData.name
         });
-          // Store auth data
+
+        // Store auth data
         localStorage.setItem('userRole', userData.role.toLowerCase());
         localStorage.setItem('username', userData.username);
         localStorage.setItem('authToken', authToken);
@@ -67,14 +75,6 @@ const Login = () => {
           localStorage.setItem('userDivisionName', userData.division_name || '');
         }
         
-        // Log the stored data for debugging
-        console.log('Stored auth data:', {
-          role: userData.role.toLowerCase(),
-          username: userData.username,
-          department: userData.department_name,
-          division: userData.division_name
-        });
-        
         toast({
           title: "Login Successful",
           description: `Welcome, ${userData.name || username}!`,
@@ -82,7 +82,7 @@ const Login = () => {
 
         // Navigate based on role
         let targetPath = '/';
-        switch (userData.role) {
+        switch (userData.role.toLowerCase()) {
           case 'admin':
             targetPath = '/admin';
             break;
@@ -94,14 +94,28 @@ const Login = () => {
             break;
         }
         
-        console.log('Navigation target:', targetPath);
+        console.log('Login: Navigating to:', targetPath);
         navigate(targetPath);
       } else {
-        throw new Error('Invalid response format - missing user data or token');
+        throw new Error('Invalid response format - missing success status or data');
       }
     } catch (error) {
-      console.error('Login error:', error);
-      const errorMessage = error instanceof Error ? error.message : "Invalid credentials";
+      console.error('Login: Error occurred:', error);
+      
+      let errorMessage = "Login failed. Please try again.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Invalid credentials')) {
+          errorMessage = "Invalid username or password. Please check your credentials.";
+        } else if (error.message.includes('Network error')) {
+          errorMessage = "Network error. Please check your internet connection.";
+        } else if (error.message.includes('500')) {
+          errorMessage = "Server error. Please contact support if this persists.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Login Failed",
         description: errorMessage,

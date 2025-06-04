@@ -30,6 +30,20 @@ function base64url_decode($data) {
     return base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT));
 }
 
+function generateJWT($payload) {
+    $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
+    $payload = json_encode($payload);
+    $secret = 'dsk_secret_key_2024'; // Use a secure secret in production
+    
+    $base64Header = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
+    $base64Payload = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($payload));
+    
+    $signature = hash_hmac('sha256', $base64Header . "." . $base64Payload, $secret, true);
+    $base64Signature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
+    
+    return $base64Header . "." . $base64Payload . "." . $base64Signature;
+}
+
 function validateToken($authHeader) {
     if (!$authHeader) {
         error_log("[Auth] No authorization header present");
