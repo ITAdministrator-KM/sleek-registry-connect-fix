@@ -3,7 +3,6 @@
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
-include_once '../../config/response_handler.php';
 
 header('Content-Type: application/json');
 
@@ -129,11 +128,8 @@ function createPublicUser($db) {
         }
         
         // Check for existing username, email, or NIC
-        $stmt = $db->prepare("SELECT COUNT(*) FROM public_users WHERE username = :username OR email = :email OR nic = :nic");
-        $stmt->bindParam(":username", $data->username);
-        $stmt->bindParam(":email", $data->email);
-        $stmt->bindParam(":nic", $data->nic);
-        $stmt->execute();
+        $stmt = $db->prepare("SELECT COUNT(*) FROM public_users WHERE username = ? OR email = ? OR nic = ?");
+        $stmt->execute([$data->username, $data->email, $data->nic]);
         
         if ($stmt->fetchColumn() > 0) {
             sendError(409, "Username, email, or NIC already exists");
@@ -152,29 +148,24 @@ function createPublicUser($db) {
             $password_hash = password_hash($data->password, PASSWORD_ARGON2ID);
         }
         
-        $query = "INSERT INTO public_users (public_id, name, nic, address, mobile, email, username, password_hash, department_id, division_id, status) 
-                  VALUES (:public_id, :name, :nic, :address, :mobile, :email, :username, :password_hash, :department_id, :division_id, 'active')";
+        $query = "INSERT INTO public_users (public_user_id, name, nic, address, mobile, email, username, password_hash, department_id, division_id, status) 
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')";
         
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":public_id", $public_id);
-        $stmt->bindParam(":name", $data->name);
-        $stmt->bindParam(":nic", $data->nic);
-        $stmt->bindParam(":address", $data->address);
-        $stmt->bindParam(":mobile", $data->mobile);
-        $stmt->bindParam(":email", $data->email);
-        $stmt->bindParam(":username", $data->username);
-        $stmt->bindParam(":password_hash", $password_hash);
+        $params = [
+            $public_id,
+            $data->name,
+            $data->nic,
+            $data->address,
+            $data->mobile,
+            $data->email,
+            $data->username,
+            $password_hash,
+            (isset($data->department_id) && !empty($data->department_id)) ? $data->department_id : null,
+            (isset($data->division_id) && !empty($data->division_id)) ? $data->division_id : null
+        ];
         
-        // Handle optional fields
-        $stmt->bindValue(":department_id", 
-            (isset($data->department_id) && !empty($data->department_id)) ? $data->department_id : null, 
-            PDO::PARAM_INT);
-        
-        $stmt->bindValue(":division_id", 
-            (isset($data->division_id) && !empty($data->division_id)) ? $data->division_id : null, 
-            PDO::PARAM_INT);
-        
-        if (!$stmt->execute()) {
+        if (!$stmt->execute($params)) {
             throw new Exception("Failed to create public user");
         }
         
@@ -218,7 +209,7 @@ function generatePublicId($db) {
     $prefix = 'PUB' . substr($year, -2);
     
     // Get the last ID for this year
-    $stmt = $db->prepare("SELECT public_id FROM public_users WHERE public_id LIKE ? ORDER BY id DESC LIMIT 1");
+    $stmt = $db->prepare("SELECT public_user_id FROM public_users WHERE public_user_id LIKE ? ORDER BY id DESC LIMIT 1");
     $stmt->execute([$prefix . '%']);
     $lastId = $stmt->fetchColumn();
     
@@ -246,9 +237,8 @@ function updatePublicUser($db) {
         $db->beginTransaction();
         
         // Check if user exists
-        $stmt = $db->prepare("SELECT id, public_id FROM public_users WHERE id = :id AND status = 'active'");
-        $stmt->bindParam(":id", $data->id);
-        $stmt->execute();
+        $stmt = $db->prepare("SELECT id, public_user_id FROM public_users WHERE id = ? AND status = 'active'");
+        $stmt->execute([$data->id]);
         
         if ($stmt->rowCount() === 0) {
             sendError(404, "Public user not found");
@@ -268,14 +258,14 @@ function updatePublicUser($db) {
                     return;
                 }
                 
-                $updateFields[] = "$field = :$field";
-                $params[":$field"] = $data->$field;
+                $updateFields[] = "$field = ?";
+                $params[] = $data->$field;
             }
         }
         
         if (isset($data->password) && !empty($data->password)) {
-            $updateFields[] = "password_hash = :password_hash";
-            $params[':password_hash'] = password_hash($data->password, PASSWORD_ARGON2ID);
+            $updateFields[] = "password_hash = ?";
+            $params[] = password_hash($data->password, PASSWORD_ARGON2ID);
         }
         
         if (empty($updateFields)) {
@@ -283,8 +273,8 @@ function updatePublicUser($db) {
             return;
         }
         
-        $query = "UPDATE public_users SET " . implode(", ", $updateFields) . ", updated_at = CURRENT_TIMESTAMP WHERE id = :id";
-        $params[':id'] = $data->id;
+        $query = "UPDATE public_users SET " . implode(", ", $updateFields) . ", updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+        $params[] = $data->id;
         
         $stmt = $db->prepare($query);
         $stmt->execute($params);
@@ -315,9 +305,8 @@ function deletePublicUser($db) {
         $db->beginTransaction();
         
         // Check if user exists
-        $stmt = $db->prepare("SELECT id FROM public_users WHERE id = :id AND status = 'active'");
-        $stmt->bindParam(":id", $data->id);
-        $stmt->execute();
+        $stmt = $db->prepare("SELECT id FROM public_users WHERE id = ? AND status = 'active'");
+        $stmt->execute([$data->id]);
         
         if ($stmt->rowCount() === 0) {
             sendError(404, "Public user not found or already deleted");
@@ -325,10 +314,9 @@ function deletePublicUser($db) {
         }
         
         // Soft delete
-        $query = "UPDATE public_users SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $query = "UPDATE public_users SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = ?";
         $stmt = $db->prepare($query);
-        $stmt->bindParam(":id", $data->id);
-        $stmt->execute();
+        $stmt->execute([$data->id]);
         
         $db->commit();
         sendResponse(["id" => $data->id], "Public user deleted successfully");

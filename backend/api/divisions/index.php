@@ -3,7 +3,6 @@
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
-include_once '../../config/response_handler.php';
 
 header('Content-Type: application/json');
 
@@ -48,10 +47,10 @@ function getDivisions($db) {
                       INNER JOIN departments dept ON d.department_id = dept.id 
                       WHERE d.status = 'active' 
                       AND dept.status = 'active'
-                      AND d.department_id = :department_id
+                      AND d.department_id = ?
                       ORDER BY d.name";
             $stmt = $db->prepare($query);
-            $stmt->bindValue(":department_id", $departmentId, PDO::PARAM_INT);
+            $stmt->execute([$departmentId]);
         } else {
             $query = "SELECT d.*, dept.name as department_name 
                       FROM divisions d 
@@ -60,10 +59,7 @@ function getDivisions($db) {
                       AND dept.status = 'active'
                       ORDER BY dept.name, d.name";
             $stmt = $db->prepare($query);
-        }
-        
-        if (!$stmt->execute()) {
-            throw new Exception("Failed to execute query");
+            $stmt->execute();
         }
         
         $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);

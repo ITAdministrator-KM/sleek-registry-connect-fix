@@ -2,7 +2,7 @@
 -- Update Farah's admin password
 -- This will update the password for user 'Farah' to '19930726'
 
--- First, verify the admin user exists and update if necessary
+-- First, create or update the admin user 'Farah'
 INSERT INTO users (
     user_id,
     name,
