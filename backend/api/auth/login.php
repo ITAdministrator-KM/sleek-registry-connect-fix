@@ -111,7 +111,7 @@ try {
 
     // Try public users table if not found in admin/staff or role is public
     if (!$role || $role === 'public') {
-        $query = "SELECT id, public_user_id, username, password_hash, name, email, status 
+        $query = "SELECT id, public_id, username, password_hash, name, email, status 
                   FROM public_users 
                   WHERE username = ? AND status = 'active'";
         
@@ -145,7 +145,7 @@ try {
                     'token' => $token,
                     'user' => [
                         'id' => $publicUser['id'],
-                        'public_user_id' => $publicUser['public_user_id'],
+                        'public_id' => $publicUser['public_id'],
                         'username' => $publicUser['username'],
                         'role' => 'public',
                         'name' => $publicUser['name'],
