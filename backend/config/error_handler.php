@@ -48,11 +48,14 @@ function sendSuccess($data = null, $message = "Success") {
     exit;
 }
 
-// Add the missing sendResponse function
-function sendResponse($httpCode, $response) {
-    http_response_code($httpCode);
+function sendResponse($data, $message = "Success", $status_code = 200) {
+    http_response_code($status_code);
     header('Content-Type: application/json');
-    echo json_encode($response);
+    echo json_encode(array(
+        "status" => "success",
+        "message" => $message,
+        "data" => $data
+    ));
     exit;
 }
 

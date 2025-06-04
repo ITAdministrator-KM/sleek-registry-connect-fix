@@ -70,11 +70,10 @@ function validateToken($authHeader) {
         $stmt = $db->prepare("SELECT u.id, u.username, u.role, u.department_id, u.division_id, s.expires_at 
                              FROM user_sessions s 
                              JOIN users u ON s.user_id = u.id 
-                             WHERE s.token = :token 
+                             WHERE s.token = ? 
                              AND s.is_valid = 1 
                              AND s.expires_at > NOW()");
-        $stmt->bindParam(":token", $token);
-        $stmt->execute();
+        $stmt->execute([$token]);
         
         $session = $stmt->fetch(PDO::FETCH_ASSOC);
         
@@ -83,11 +82,10 @@ function validateToken($authHeader) {
             $stmt = $db->prepare("SELECT pu.id, pu.username, 'public' as role, pu.department_id, pu.division_id, s.expires_at 
                                  FROM user_sessions s 
                                  JOIN public_users pu ON s.user_id = pu.id 
-                                 WHERE s.token = :token 
+                                 WHERE s.token = ? 
                                  AND s.is_valid = 1 
                                  AND s.expires_at > NOW()");
-            $stmt->bindParam(":token", $token);
-            $stmt->execute();
+            $stmt->execute([$token]);
             
             $session = $stmt->fetch(PDO::FETCH_ASSOC);
         }
