@@ -9,6 +9,8 @@ export interface AuthUser {
   email: string;
   role: 'admin' | 'staff' | 'public';
   status: string;
+  department_name?: string;
+  department_id?: number;
 }
 
 export const useAuth = (requiredRole?: string) => {
