@@ -134,14 +134,14 @@ class ApiService extends ApiBase {
 
   async updatePassword(data: { id: number; currentPassword: string; newPassword: string }): Promise<any> {
     const response = await this.makeRequest('/users/password.php', {
-      method: 'POST',
+      method: 'PUT',
       body: JSON.stringify({ 
         id: data.id,
-        current_password: data.currentPassword, 
-        new_password: data.newPassword 
+        currentPassword: data.currentPassword, 
+        newPassword: data.newPassword 
       }),
     });
-    return response.data;
+    return response;
   }
 
   // Public Users
@@ -323,7 +323,14 @@ class ApiService extends ApiBase {
       method: 'POST',
       body: JSON.stringify(tokenData),
     });
-    return response.data;
+    
+    // Handle both response formats:
+    // 1. Direct token object: { token_number: 123, ... }
+    // 2. Wrapped in data property: { data: { token_number: 123, ... } }
+    if (response && response.data) {
+      return response.data;
+    }
+    return response;
   }
 
   async getTokens(departmentId?: number): Promise<Token[]> {

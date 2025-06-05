@@ -108,7 +108,7 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
     }
   };
 
-  const printTokenXP58 = (tokenNumber: number, department: string, division: string) => {
+  const printTokenXP58 = (tokenNumber: number | string, department: string, division: string) => {
     const now = new Date();
     const tokenStr = tokenNumber.toString().padStart(3, '0');
     const dateStr = now.toLocaleDateString('en-GB');
@@ -117,13 +117,194 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
       hour: '2-digit', 
       minute: '2-digit' 
     });
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=300,height=300');
     
-    createXP58PrintableReceipt(tokenStr, division, dateStr, timeStr);
-    
-    toast({
-      title: "Ready for Print 🖨️",
-      description: "Token formatted for XP-58 thermal printer",
-    });
+    if (!printWindow) {
+      toast({
+        title: "Print Error",
+        description: "Please allow popups for this site to print the token.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const content = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Token ${tokenNumber} - ${division}</title>
+        <style>
+          @page {
+            size: 58mm auto;
+            margin: 0;
+          }
+          
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            line-height: 1.1;
+            margin: 0;
+            padding: 1mm;
+            width: 56mm;
+            background: white !important;
+            color: black !important;
+            text-align: center;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          .header {
+            font-weight: bold;
+            font-size: 9px;
+            margin-bottom: 2mm;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          
+          .logo {
+            height: 15mm;
+            max-width: 30%;
+            object-fit: contain;
+          }
+          
+          .header-text {
+            flex-grow: 1;
+            text-align: center;
+          }
+          
+          .token-section {
+            margin: 1.5mm 0;
+            border: 1px solid black;
+            padding: 1.5mm;
+          }
+          
+          .token-number {
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin: 1mm 0;
+          }
+          
+          .division, .department {
+            font-size: 9px;
+            font-weight: bold;
+            margin: 1mm 0;
+            word-wrap: break-word;
+          }
+          
+          .datetime {
+            font-size: 9px;
+            margin: 1mm 0;
+            color: #222;
+            font-weight: 500;
+          }
+          
+          .footer {
+            font-size: 9px;
+            margin-top: 2mm;
+            line-height: 1.2;
+            color: #333;
+            font-weight: 500;
+          }
+          
+          .separator {
+            border-top: 1px dashed #888;
+            margin: 1mm 0;
+          }
+          
+          @media print {
+            @page {
+              size: 58mm auto;
+              margin: 0;
+            }
+            body { 
+              font-size: 9px;
+              padding: 1mm;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <img src="/logo.png" alt="Logo" class="logo" onerror="this.style.display='none'">
+          <div class="header-text">
+            <div>DS KALMUNAI</div>
+            <div>TOKEN</div>
+          </div>
+        </div>
+        
+        <div class="separator"></div>
+        
+        <div class="token-section">
+          <div class="token-number">${tokenStr}</div>
+          <div class="department">${department}</div>
+          <div class="division">${division}</div>
+        </div>
+        
+        <div class="datetime">
+          ${dateStr} ${timeStr}
+        </div>
+        
+        <div class="separator"></div>
+        
+        <div class="footer">
+          Thank you for visiting!<br>
+          Please wait for your number to be called
+        </div>
+        
+        <script>
+          // Auto-print when loaded
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+              // Close the window after printing
+              window.onafterprint = function() {
+                setTimeout(function() {
+                  window.close();
+                }, 100);
+              };
+              
+              // Fallback in case onafterprint doesn't work
+              setTimeout(function() {
+                if (!window.closed) {
+                  window.close();
+                }
+              }, 1000);
+            }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    try {
+      printWindow.document.open();
+      printWindow.document.write(content);
+      printWindow.document.close();
+      
+      toast({
+        title: "Printing...",
+        description: "The token is being prepared for printing",
+      });
+      
+    } catch (error) {
+      console.error('Print error:', error);
+      toast({
+        title: "Print Error",
+        description: "An error occurred while preparing the print dialog",
+        variant: "destructive",
+      });
+      
+      // Close the window if it's still open
+      if (printWindow && !printWindow.closed) {
+        printWindow.close();
+      }
+    }
   };
 
   const createXP58PrintableReceipt = (tokenNumber: string, division: string, date: string, time: string) => {

@@ -123,8 +123,12 @@ try {
             error_log("Found user in public_users table: " . $publicUser['username']);
             
             if (password_verify($password, $publicUser['password_hash'])) {
+                // Ensure user ID is an integer
+                $userId = (int)$publicUser['id'];
+                
                 $token = generateJWT([
-                    'user_id' => $publicUser['id'],
+                    'user_id' => $userId,
+                    'public_id' => $publicUser['public_id'],
                     'username' => $publicUser['username'],
                     'role' => 'public',
                     'exp' => time() + (24 * 60 * 60) // 24 hours
@@ -132,11 +136,19 @@ try {
                 
                 // Insert session record
                 try {
-                    $sessionQuery = "INSERT INTO user_sessions (user_id, token, expires_at, is_valid) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), 1)";
+                    $sessionQuery = "INSERT INTO user_sessions (user_id, token, expires_at, is_valid) 
+                                  VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), 1)";
                     $sessionStmt = $db->prepare($sessionQuery);
-                    $sessionStmt->execute([$publicUser['id'], $token]);
+                    $sessionStmt->execute([$userId, $token]);
+                    
+                    // Get the inserted session ID for logging
+                    $sessionId = $db->lastInsertId();
+                    error_log("Created session ID: " . $sessionId . " for user ID: " . $userId);
+                    
                 } catch (Exception $e) {
                     error_log("Session creation failed: " . $e->getMessage());
+                    error_log("User ID: " . $userId . ", Type: " . gettype($userId));
+                    error_log("SQL Error: " . $e->getMessage());
                 }
                 
                 sendResponse([
@@ -144,12 +156,13 @@ try {
                     'message' => 'Login successful',
                     'token' => $token,
                     'user' => [
-                        'id' => $publicUser['id'],
+                        'id' => $userId,
                         'public_id' => $publicUser['public_id'],
                         'username' => $publicUser['username'],
                         'role' => 'public',
                         'name' => $publicUser['name'],
-                        'email' => $publicUser['email']
+                        'email' => $publicUser['email'],
+                        'status' => $publicUser['status']
                     ]
                 ], "Login successful");
                 exit;

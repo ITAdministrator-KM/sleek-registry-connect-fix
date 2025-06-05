@@ -8,74 +8,110 @@ interface LoginData {
 }
 
 interface LoginResponse {
-  status: string;
+  success: boolean;
   message: string;
-  data?: {
-    user: any;
-    token: string;
-    expires_at?: number;
-  };
-  user?: any;
   token?: string;
+  user?: any;
+  data?: {
+    token?: string;
+    user?: any;
+  };
+  status?: string;
+}
+
+// Define the expected user data structure
+export interface UserData {
+  id: number;
+  username: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'staff' | 'public';
+  status: 'active' | 'inactive' | 'pending';
+  department_id?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export class AuthService extends ApiBase {
-  async login(data: LoginData): Promise<any> {
+  async login(data: LoginData): Promise<LoginResponse> {
     try {
-      console.log('AuthService: Attempting login with:', { username: data.username, role: data.role });
+      // Prepare the login data
+      const loginData = {
+        username: data.username.trim(),
+        password: data.password,
+        role: data.role
+      };
       
-      const response = await this.makeRequest('/auth/login.php', {
-        method: 'POST',
-        body: JSON.stringify(data),
+      console.log('AuthService: Attempting login with:', { 
+        username: loginData.username, 
+        role: loginData.role,
+        endpoint: '/auth/debug_login.php' 
       });
       
-      console.log('AuthService: Raw response:', JSON.stringify(response, null, 2));
+      // Make the request with proper headers and JSON body
+      const response = await this.makeRequest('/auth/debug_login.php', {
+        method: 'POST',
+        body: JSON.stringify(loginData), // Stringify the body here
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+      });
+      
+      console.log('AuthService: Raw response:', response);
       
       // Handle different response formats
-      if (response && typeof response === 'object') {
-        // Format 1: { status: 'success', data: { user, token } }
-        if (response.status === 'success' && response.data) {
-          console.log('AuthService: Using success/data format');
-          return { 
-            status: 'success',
-            data: response.data 
-          };
-        }
-        
-        // Format 2: Direct response with user and token
-        if (response.user && response.token) {
-          console.log('AuthService: Using direct format');
-          return { 
-            status: 'success',
-            data: {
-              user: response.user,
-              token: response.token
-            }
-          };
-        }
-
-        // Format 3: Success response with token and user at root level
-        if (response.success && response.token && response.user) {
-          console.log('AuthService: Using success format');
-          return { 
-            status: 'success',
-            data: {
-              user: response.user,
-              token: response.token
-            }
-          };
-        }
-        
-        // Handle error responses
-        if (response.status === 'error') {
-          throw new Error(response.message || 'Login failed');
-        }
-        
-        console.error('AuthService: Invalid response format:', response);
-        throw new Error('Invalid login response format. Expected user and token data.');
+      if (!response || typeof response !== 'object') {
+        console.error('AuthService: Invalid response format - not an object:', response);
+        throw new Error('Invalid response from server');
       }
       
-      throw new Error('Invalid response type from server');
+      // Format 1: { status: 'success', message: '...', data: { user: {...}, token: '...' } }
+      if (response.status === 'success' && response.data) {
+        console.log('AuthService: Detected status:success format');
+        
+        // Validate required fields
+        if (!response.data.token || !response.data.user) {
+          console.error('AuthService: Missing token or user in response.data');
+          throw new Error('Incomplete login data received from server');
+        }
+        
+        return {
+          success: true,
+          message: response.message || 'Login successful',
+          token: response.data.token,
+          user: response.data.user,
+          data: response.data // Include full data for backward compatibility
+        };
+      }
+      
+      // Format 2: { success: true, message: '...', user: {...}, token: '...' }
+      if (response.success === true) {
+        console.log('AuthService: Detected success:true format');
+        
+        // Validate required fields
+        if (!response.token || !response.user) {
+          console.error('AuthService: Missing token or user in response');
+          throw new Error('Incomplete login data received from server');
+        }
+        
+        return {
+          success: true,
+          message: response.message || 'Login successful',
+          token: response.token,
+          user: response.user
+        };
+      }
+      
+      // Handle error responses
+      if (response.status === 'error' || response.success === false) {
+        console.error('AuthService: Login failed:', response.message);
+        throw new Error(response.message || 'Login failed. Please check your credentials.');
+      }
+      
+      // If we get here, the response format is unexpected
+      console.error('AuthService: Unexpected response format:', response);
+      throw new Error('Invalid response format from server');
     } catch (error) {
       console.error('AuthService: Login request failed:', error);
       

@@ -12,7 +12,8 @@ interface IDCardData {
 }
 
 export class ResponsiveIDCardPrinter {
-  private static truncateAddress(address: string, maxLength: number = 40): string {
+  private static truncateAddress(address: string | null | undefined, maxLength: number = 40): string {
+    if (!address) return 'N/A';
     if (address.length <= maxLength) return address;
     
     // Try to break at a word boundary
@@ -28,6 +29,12 @@ export class ResponsiveIDCardPrinter {
 
   private static createIDCardHTML(user: IDCardData): string {
     const truncatedAddress = this.truncateAddress(user.address);
+    const currentDate = new Date();
+    const formattedDate = currentDate.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
     
     return `
     <!DOCTYPE html>
@@ -36,75 +43,159 @@ export class ResponsiveIDCardPrinter {
       <meta charset="UTF-8">
       <title>ID Card - ${user.name}</title>
       <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { 
+          margin: 0; 
+          padding: 0; 
+          box-sizing: border-box; 
+        }
+        
+        @page {
+          size: A4;
+          margin: 0;
+        }
+        
         body { 
           font-family: 'Arial', sans-serif; 
-          background: #f0f0f0; 
-          padding: 20px;
+          background: white; 
+          padding: 10mm;
+          color: #333;
         }
+        
         .card-container {
           display: flex;
           flex-wrap: wrap;
-          gap: 10mm;
+          gap: 5mm;
           justify-content: center;
+          page-break-after: always;
         }
+        
         .id-card {
-          width: 85.6mm;
+          width: 86mm;
           height: 54mm;
-          background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-          border-radius: 8px;
-          padding: 3mm;
-          color: white;
+          background: white;
+          border: 1px solid #e0e0e0;
+          border-radius: 4px;
+          padding: 4mm;
           position: relative;
           overflow: hidden;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           page-break-inside: avoid;
           margin-bottom: 5mm;
+          display: flex;
+          flex-direction: column;
         }
+        
         .header {
-          text-align: center;
-          border-bottom: 1px solid rgba(255,255,255,0.3);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 3mm;
           padding-bottom: 2mm;
-          margin-bottom: 2mm;
+          border-bottom: 1px solid #e0e0e0;
         }
+        
         .logo {
-          width: 12mm;
-          height: 12mm;
-          background: rgba(255,255,255,0.2);
-          border-radius: 50%;
-          margin: 0 auto 1mm;
+          width: 30mm;
+          height: auto;
+          object-fit: contain;
+        }
+        
+        .org-name {
+          text-align: right;
+          font-size: 9px;
+          color: #1a56db;
+          font-weight: bold;
+          line-height: 1.2;
+        }
+        
+        .content {
+          display: flex;
+          flex: 1;
+          gap: 3mm;
+        }
+        
+        .photo-section {
+          width: 25mm;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+        
+        .photo-placeholder {
+          width: 25mm;
+          height: 30mm;
+          background: #f5f5f5;
+          border: 1px solid #e0e0e0;
+          margin-bottom: 2mm;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-weight: bold;
+          color: #999;
           font-size: 8px;
         }
-        .org-name {
-          font-size: 9px;
-          font-weight: bold;
-          line-height: 1.1;
-        }
-        .content {
+        
+        .qr-code {
+          width: 25mm;
+          height: 25mm;
+          background: #f5f5f5;
+          border: 1px solid #e0e0e0;
           display: flex;
-          gap: 2mm;
-          height: calc(100% - 18mm);
+          align-items: center;
+          justify-content: center;
+          color: #999;
+          font-size: 8px;
         }
+        
         .info {
           flex: 1;
-          font-size: 7px;
-          line-height: 1.2;
+          font-size: 9px;
+          line-height: 1.4;
+          display: flex;
+          flex-direction: column;
         }
+        
         .field {
-          margin-bottom: 1mm;
+          margin-bottom: 1.5mm;
           word-wrap: break-word;
+          display: flex;
+          align-items: flex-start;
         }
+        
         .label {
           font-weight: bold;
+          color: #555;
+          min-width: 25mm;
           display: inline-block;
-          width: 12mm;
         }
+        
         .value {
-          font-weight: normal;
+          flex: 1;
+          color: #333;
+          border-bottom: 1px solid #e0e0e0;
+          padding-bottom: 1mm;
+        }
+        
+        .footer {
+          margin-top: auto;
+          padding-top: 2mm;
+          border-top: 1px solid #e0e0e0;
+          font-size: 8px;
+          color: #666;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .signature {
+          text-align: center;
+          margin-top: 5mm;
+        }
+        
+        .signature-line {
+          width: 40mm;
+          border-top: 1px solid #333;
+          margin: 0 auto;
+          margin-top: 1mm;
         }
         .name {
           font-size: 8px;
@@ -145,12 +236,44 @@ export class ResponsiveIDCardPrinter {
           padding-top: 1mm;
         }
         @media print {
-          body { padding: 0; background: white; }
-          .card-container { gap: 5mm; }
-        }
-        @page {
-          size: A4;
-          margin: 10mm;
+          @page {
+            size: A4 portrait;
+            margin: 0;
+            padding: 0;
+          }
+          
+          body { 
+            padding: 0;
+            margin: 0;
+            background: white;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          .card-container { 
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5mm;
+            padding: 10mm;
+            margin: 0 auto;
+            max-width: 210mm;
+            justify-content: center;
+          }
+          
+          .id-card {
+            box-shadow: none;
+            border: 1px solid #e0e0e0 !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Ensure QR code is visible when printed */
+          .qr-code {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
         }
       </style>
     </head>
@@ -158,41 +281,56 @@ export class ResponsiveIDCardPrinter {
       <div class="card-container">
         <div class="id-card">
           <div class="header">
-            <div class="logo">DSK</div>
-            <div class="org-name">Divisional Secretariat<br>Kalmunai</div>
+            <img src="/logo.png" alt="Logo" class="logo">
+            <div class="org-name">
+              <div>DIVISIONAL SECRETARIAT</div>
+              <div>KALMUNAI</div>
+              <div style="font-size: 7px; font-weight: normal; margin-top: 1mm;">OFFICE OF THE DIVISIONAL SECRETARY</div>
+            </div>
           </div>
           
           <div class="content">
-            <div class="info">
-              <div class="name">${user.name}</div>
-              <div class="field">
-                <span class="label">NIC:</span>
-                <span class="value">${user.nic}</span>
+            <div class="photo-section">
+              <div class="photo-placeholder">
+                Photo
               </div>
-              <div class="field">
-                <span class="label">Mobile:</span>
-                <span class="value">${user.mobile}</span>
-              </div>
-              <div class="field">
-                <span class="label">ID:</span>
-                <span class="value">${user.public_id}</span>
-              </div>
-              <div class="field">
-                <span class="label">Address:</span>
-                <span class="value">${truncatedAddress}</span>
-              </div>
-            </div>
-            
-            <div class="qr-section">
               <div class="qr-code" id="qr-${user.public_id}">
                 <div style="font-size: 6px; color: #666;">QR Code</div>
               </div>
-              <div class="qr-text">Scan for<br>verification</div>
+            </div>
+            
+            <div class="info">
+              <div class="field">
+                <span class="label">Name</span>
+                <span class="value">${user.name}</span>
+              </div>
+              <div class="field">
+                <span class="label">NIC No</span>
+                <span class="value">${user.nic || 'N/A'}</span>
+              </div>
+              <div class="field">
+                <span class="label">Mobile No</span>
+                <span class="value">${user.mobile || 'N/A'}</span>
+              </div>
+              <div class="field">
+                <span class="label">ID No</span>
+                <span class="value">${user.public_id}</span>
+              </div>
+              <div class="field">
+                <span class="label">Address</span>
+                <span class="value">${truncatedAddress}</span>
+              </div>
+              
+              <div class="signature">
+                <div>Authorized Signature</div>
+                <div class="signature-line"></div>
+              </div>
             </div>
           </div>
           
           <div class="footer">
-            Generated: ${new Date().toLocaleDateString()} | Valid for official purposes
+            <div>Issued on: ${formattedDate}</div>
+            <div>Valid until: ${new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), currentDate.getDate()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
           </div>
         </div>
       </div>
@@ -251,6 +389,13 @@ export class ResponsiveIDCardPrinter {
         throw new Error('No users selected for printing');
       }
 
+      const currentDate = new Date();
+      const formattedDate = currentDate.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+
       let allCardsHTML = `
       <!DOCTYPE html>
       <html>
@@ -258,172 +403,268 @@ export class ResponsiveIDCardPrinter {
         <meta charset="UTF-8">
         <title>ID Cards Batch Print</title>
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
+          * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+          }
+          
+          @page {
+            size: A4 portrait;
+            margin: 0;
+            padding: 0;
+          }
+          
           body { 
             font-family: 'Arial', sans-serif; 
-            background: #f0f0f0; 
+            background: white; 
             padding: 10mm;
+            color: #333;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
+          
           .cards-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10mm;
-            max-width: 190mm;
+            gap: 5mm;
+            max-width: 210mm;
             margin: 0 auto;
+            justify-items: center;
           }
+          
           .id-card {
-            width: 85.6mm;
+            width: 86mm;
             height: 54mm;
-            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-            border-radius: 8px;
-            padding: 3mm;
-            color: white;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 4mm;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             page-break-inside: avoid;
+            break-inside: avoid;
+            display: flex;
+            flex-direction: column;
           }
+          
           .header {
-            text-align: center;
-            border-bottom: 1px solid rgba(255,255,255,0.3);
-            padding-bottom: 2mm;
-            margin-bottom: 2mm;
-          }
-          .logo {
-            width: 12mm;
-            height: 12mm;
-            background: rgba(255,255,255,0.2);
-            border-radius: 50%;
-            margin: 0 auto 1mm;
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 8px;
+            justify-content: space-between;
+            margin-bottom: 3mm;
+            padding-bottom: 2mm;
+            border-bottom: 1px solid #e0e0e0;
           }
+          
+          .logo {
+            width: 30mm;
+            height: auto;
+            object-fit: contain;
+          }
+          
           .org-name {
+            text-align: right;
             font-size: 9px;
+            color: #1a56db;
             font-weight: bold;
-            line-height: 1.1;
-          }
-          .content {
-            display: flex;
-            gap: 2mm;
-            height: calc(100% - 18mm);
-          }
-          .info {
-            flex: 1;
-            font-size: 7px;
             line-height: 1.2;
           }
-          .field {
-            margin-bottom: 1mm;
-            word-wrap: break-word;
+          
+          .content {
+            display: flex;
+            flex: 1;
+            gap: 3mm;
           }
-          .label {
-            font-weight: bold;
-            display: inline-block;
-            width: 12mm;
-          }
-          .value {
-            font-weight: normal;
-          }
-          .name {
-            font-size: 8px;
-            font-weight: bold;
-            margin-bottom: 2mm;
-            color: #fbbf24;
-          }
-          .qr-section {
-            width: 18mm;
+          
+          .photo-section {
+            width: 25mm;
             display: flex;
             flex-direction: column;
             align-items: center;
           }
-          .qr-code {
-            width: 16mm;
-            height: 16mm;
-            background: white;
-            border-radius: 2px;
+          
+          .photo-placeholder {
+            width: 25mm;
+            height: 30mm;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 2mm;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-bottom: 1mm;
+            color: #999;
+            font-size: 8px;
           }
-          .qr-text {
-            font-size: 5px;
-            text-align: center;
-            line-height: 1.1;
+          
+          .qr-code {
+            width: 25mm;
+            height: 25mm;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 8px;
           }
+          
+          .info {
+            flex: 1;
+            font-size: 9px;
+            line-height: 1.4;
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .field {
+            margin-bottom: 1.5mm;
+            word-wrap: break-word;
+            display: flex;
+            align-items: flex-start;
+          }
+          
+          .label {
+            font-weight: bold;
+            color: #555;
+            min-width: 25mm;
+            display: inline-block;
+          }
+          
+          .value {
+            flex: 1;
+            color: #333;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 1mm;
+          }
+          
           .footer {
-            position: absolute;
-            bottom: 1mm;
-            left: 3mm;
-            right: 3mm;
+            margin-top: auto;
+            padding-top: 2mm;
+            border-top: 1px solid #e0e0e0;
+            font-size: 8px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          
+          .signature {
             text-align: center;
-            font-size: 5px;
-            opacity: 0.8;
-            border-top: 1px solid rgba(255,255,255,0.3);
-            padding-top: 1mm;
+            margin-top: 5mm;
           }
+          
+          .signature-line {
+            width: 40mm;
+            border-top: 1px solid #333;
+            margin: 0 auto;
+            margin-top: 1mm;
+          }
+          
           @media print {
-            body { padding: 5mm; background: white; }
-            .cards-grid { gap: 5mm; }
-          }
-          @page {
-            size: A4;
-            margin: 10mm;
+            @page {
+              size: A4 portrait;
+              margin: 0;
+              padding: 0;
+            }
+            
+            body { 
+              padding: 10mm !important;
+              margin: 0;
+              background: white !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            
+            .cards-grid {
+              display: grid !important;
+              grid-template-columns: repeat(2, 1fr) !important;
+              gap: 5mm !important;
+              padding: 0 !important;
+              margin: 0 auto !important;
+              max-width: 210mm !important;
+            }
+            
+            .id-card {
+              box-shadow: none !important;
+              border: 1px solid #e0e0e0 !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              width: 86mm !important;
+              height: 54mm !important;
+              margin: 0 !important;
+            }
+            
+            .qr-code {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
           }
         </style>
       </head>
       <body>
-        <div class="cards-grid">`;
-
-      users.forEach(user => {
-        const truncatedAddress = this.truncateAddress(user.address);
-        allCardsHTML += `
-          <div class="id-card">
-            <div class="header">
-              <div class="logo">DSK</div>
-              <div class="org-name">Divisional Secretariat<br>Kalmunai</div>
-            </div>
-            
-            <div class="content">
-              <div class="info">
-                <div class="name">${user.name}</div>
-                <div class="field">
-                  <span class="label">NIC:</span>
-                  <span class="value">${user.nic}</span>
-                </div>
-                <div class="field">
-                  <span class="label">Mobile:</span>
-                  <span class="value">${user.mobile}</span>
-                </div>
-                <div class="field">
-                  <span class="label">ID:</span>
-                  <span class="value">${user.public_id}</span>
-                </div>
-                <div class="field">
-                  <span class="label">Address:</span>
-                  <span class="value">${truncatedAddress}</span>
+        <div class="cards-grid">
+          ${users.map(user => {
+            const truncatedAddress = this.truncateAddress(user.address);
+            return `
+            <div class="id-card">
+              <div class="header">
+                <img src="/logo.png" alt="Logo" class="logo">
+                <div class="org-name">
+                  <div>DIVISIONAL SECRETARIAT</div>
+                  <div>KALMUNAI</div>
+                  <div style="font-size: 7px; font-weight: normal; margin-top: 1mm;">OFFICE OF THE DIVISIONAL SECRETARY</div>
                 </div>
               </div>
               
-              <div class="qr-section">
-                <div class="qr-code" id="qr-${user.public_id}">
-                  <div style="font-size: 6px; color: #666;">QR Code</div>
+              <div class="content">
+                <div class="photo-section">
+                  <div class="photo-placeholder">
+                    Photo
+                  </div>
+                  <div class="qr-code" id="qr-${user.public_id}">
+                    <div style="font-size: 6px; color: #666;">QR Code</div>
+                  </div>
                 </div>
-                <div class="qr-text">Scan for<br>verification</div>
+                
+                <div class="info">
+                  <div class="field">
+                    <span class="label">Name</span>
+                    <span class="value">${user.name}</span>
+                  </div>
+                  <div class="field">
+                    <span class="label">NIC No</span>
+                    <span class="value">${user.nic || 'N/A'}</span>
+                  </div>
+                  <div class="field">
+                    <span class="label">Mobile No</span>
+                    <span class="value">${user.mobile || 'N/A'}</span>
+                  </div>
+                  <div class="field">
+                    <span class="label">ID No</span>
+                    <span class="value">${user.public_id}</span>
+                  </div>
+                  <div class="field">
+                    <span class="label">Address</span>
+                    <span class="value">${truncatedAddress}</span>
+                  </div>
+                  
+                  <div class="signature">
+                    <div>Authorized Signature</div>
+                    <div class="signature-line"></div>
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <div class="footer">
-              Generated: ${new Date().toLocaleDateString()} | Valid for official purposes
-            </div>
-          </div>`;
-      });
-
-      allCardsHTML += `
+              
+              <div class="footer">
+                <div>Issued on: ${formattedDate}</div>
+                <div>Valid until: ${new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), currentDate.getDate()).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+              </div>
+            </div>`;
+          }).join('')}
         </div>
       </body>
       </html>`;
@@ -436,19 +677,33 @@ export class ResponsiveIDCardPrinter {
       printWindow.document.write(allCardsHTML);
       printWindow.document.close();
 
-      if (autoPrint) {
-        setTimeout(() => {
-          printWindow.print();
-        }, 1000);
-      }
+      // Generate QR codes after the window loads
+      printWindow.onload = () => {
+        users.forEach(user => {
+          if (user.qr_code_data) {
+            this.generateQRCodeInWindow(printWindow, user.public_id, user.qr_code_data);
+          }
+        });
+
+        if (autoPrint) {
+          setTimeout(() => {
+            printWindow.print();
+          }, 1000);
+        }
+      };
 
       toast({
-        title: "ID Cards Generated",
+        title: 'ID Cards Generated',
         description: `${users.length} ID cards generated successfully`,
       });
 
     } catch (error) {
       console.error('Error generating ID cards:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to generate ID cards',
+        variant: 'destructive',
+      });
       throw error;
     }
   }

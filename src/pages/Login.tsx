@@ -38,82 +38,89 @@ const Login = () => {
     setErrors({});
     
     try {
-      const loginData = { username: username.trim(), password, role };
-      console.log('Login: Attempting login with:', { username: loginData.username, role: loginData.role });
+      // Clear any existing auth data first
+      console.log('Login: Clearing existing auth data');
+      ['authToken', 'token', 'userRole', 'username', 'userData', 'userId', 'userFullName'].forEach(key => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
       
-      const response = await authService.login(loginData);
-      console.log('Login: Raw response:', JSON.stringify(response, null, 2));
+      // Call the login API
+      console.log('Login: Calling authService.login()');
+      const response = await authService.login({
+        username: username.trim(),
+        password: password,
+        role: role,
+      });
 
-      if (response && response.status === 'success' && response.data) {
-        const { user: userData, token: authToken } = response.data;
-        
-        if (!userData || !authToken) {
-          throw new Error('Invalid response: missing user data or token');
-        }
-        
-        console.log('Login: Success, user data:', {
-          id: userData.id,
-          username: userData.username,
-          role: userData.role,
-          name: userData.name
-        });
-
-        // Store auth data
-        localStorage.setItem('userRole', userData.role.toLowerCase());
-        localStorage.setItem('username', userData.username);
-        localStorage.setItem('authToken', authToken);
-        localStorage.setItem('userId', userData.id?.toString() || '');
-        localStorage.setItem('userFullName', userData.name || '');
-
-        // Store department/division if available
-        if (userData.department_id) {
-          localStorage.setItem('userDepartmentId', userData.department_id.toString());
-          localStorage.setItem('userDepartmentName', userData.department_name || '');
-        }
-        if (userData.division_id) {
-          localStorage.setItem('userDivisionId', userData.division_id.toString());
-          localStorage.setItem('userDivisionName', userData.division_name || '');
-        }
-        
-        toast({
-          title: "Login Successful",
-          description: `Welcome, ${userData.name || username}!`,
-        });
-
-        // Navigate based on role
-        let targetPath = '/';
-        switch (userData.role.toLowerCase()) {
-          case 'admin':
-            targetPath = '/admin';
-            break;
-          case 'staff':
-            targetPath = '/staff';
-            break;
-          case 'public':
-            targetPath = '/public';
-            break;
-        }
-        
-        console.log('Login: Navigating to:', targetPath);
-        navigate(targetPath);
-      } else {
-        throw new Error('Invalid response format - missing success status or data');
+      console.log('Login: Received response from authService:', response);
+      
+      // Extract auth token and user data from the response
+      const authToken = response.token || (response.data?.token ? response.data.token : null);
+      const userData = response.user || (response.data?.user ? response.data.user : {});
+      
+      if (!authToken) {
+        console.error('Login: No auth token received in response');
+        throw new Error('Authentication failed: No token received');
       }
+
+      if (!response.success) {
+        throw new Error(response.message || 'Login failed. Please try again.');
+      }
+
+      const userRole = (userData.role || role).toLowerCase();
+      
+      // Store auth data
+      console.log('Login: Storing new auth data');
+      
+      // Store token with both 'authToken' and 'token' keys for compatibility
+      localStorage.setItem('authToken', authToken);
+      localStorage.setItem('token', authToken); // For backward compatibility
+      
+      // Store user data
+      localStorage.setItem('userRole', userRole);
+      localStorage.setItem('userData', JSON.stringify(userData));
+      
+      // Store additional user info for easy access
+      if (userData.id) {
+        localStorage.setItem('userId', userData.id.toString());
+      }
+      if (userData.name) {
+        localStorage.setItem('userFullName', userData.name);
+      }
+      if (userData.username) {
+        localStorage.setItem('username', userData.username);
+      }
+      
+      console.log('Login: Auth data stored successfully');
+      console.log('User role:', userRole);
+      console.log('User data:', userData);
+      
+      console.log('Login: User data stored, redirecting...');
+      
+      // Determine the redirect path based on role
+      let redirectPath = '/login';
+      
+      switch(userRole) {
+        case 'admin':
+        case 'staff':
+          redirectPath = '/dashboard';
+          break;
+        case 'public':
+          redirectPath = '/public/dashboard';
+          break;
+        default:
+          console.warn('Unknown role, redirecting to home');
+      }
+      
+      console.log(`Login: Redirecting to ${redirectPath}`);
+      navigate(redirectPath);
     } catch (error) {
       console.error('Login: Error occurred:', error);
-      
-      let errorMessage = "Login failed. Please try again.";
+      let errorMessage = 'An error occurred during login';
       
       if (error instanceof Error) {
-        if (error.message.includes('Invalid credentials')) {
-          errorMessage = "Invalid username or password. Please check your credentials.";
-        } else if (error.message.includes('Network error')) {
-          errorMessage = "Network error. Please check your internet connection.";
-        } else if (error.message.includes('500')) {
-          errorMessage = "Server error. Please contact support if this persists.";
-        } else {
-          errorMessage = error.message;
-        }
+        errorMessage = error.message || errorMessage;
       }
       
       toast({

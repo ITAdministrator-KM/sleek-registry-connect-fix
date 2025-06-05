@@ -129,65 +129,66 @@ const TokenList = ({ refreshTrigger }: TokenListProps) => {
     );
   }
 
+  // Get the most recent token
+  const mostRecentToken = tokens.length > 0 ? tokens[0] : null;
+
   return (
     <Card className="border-gray-200 shadow-md">
       <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-t-lg">
-        <CardTitle className="text-blue-800">Today's Tokens</CardTitle>
+        <CardTitle className="text-blue-800">Current Token</CardTitle>
       </CardHeader>
       <CardContent className="p-6">
-        {tokens.length > 0 ? (
+        {mostRecentToken ? (
           <div className="space-y-3">
-            {tokens.map((token) => (
-              <div key={token.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-200 bg-white">
-                <div>
-                  <div className="flex items-center space-x-3">
-                    <span className="font-bold text-xl text-gray-800">
-                      #{token.tokenNumber.toString().padStart(3, '0')}
-                    </span>
-                    <Badge className={`${getStatusColor(token.status)} border`}>
-                      {token.status.toUpperCase()}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-gray-600 font-medium mt-1">
-                    {token.department} - {token.division}
-                  </p>
-                  <p className="text-xs text-gray-500">{token.timestamp}</p>
+            <div key={mostRecentToken.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow duration-200 bg-white">
+              <div>
+                <div className="flex items-center space-x-3">
+                  <span className="font-bold text-xl text-gray-800">
+                    #{mostRecentToken.tokenNumber.toString().padStart(3, '0')}
+                  </span>
+                  <Badge className={`${getStatusColor(mostRecentToken.status)} border`}>
+                    {mostRecentToken.status.toUpperCase()}
+                  </Badge>
                 </div>
-                <div className="flex space-x-2">
-                  {token.status === 'waiting' && (
-                    <Button
-                      size="sm"
-                      className="bg-blue-500 hover:bg-blue-600 text-white"
-                      onClick={() => updateTokenStatus(token.id, 'called')}
-                    >
-                      Call
-                    </Button>
-                  )}
-                  {token.status === 'called' && (
-                    <Button
-                      size="sm"
-                      className="bg-green-500 hover:bg-green-600 text-white"
-                      onClick={() => updateTokenStatus(token.id, 'completed')}
-                    >
-                      Complete
-                    </Button>
-                  )}
+                <p className="text-sm text-gray-600 font-medium mt-1">
+                  {mostRecentToken.department} - {mostRecentToken.division}
+                </p>
+                <p className="text-xs text-gray-500">{mostRecentToken.timestamp}</p>
+              </div>
+              <div className="flex space-x-2">
+                {mostRecentToken.status === 'waiting' && (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="border-gray-300 hover:bg-gray-50"
-                    onClick={() => printToken(token)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white"
+                    onClick={() => updateTokenStatus(mostRecentToken.id, 'called')}
                   >
-                    <Printer size={14} />
+                    Call
                   </Button>
-                </div>
+                )}
+                {mostRecentToken.status === 'called' && (
+                  <Button
+                    size="sm"
+                    className="bg-green-500 hover:bg-green-600 text-white"
+                    onClick={() => updateTokenStatus(mostRecentToken.id, 'completed')}
+                  >
+                    Complete
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-gray-300 hover:bg-gray-50"
+                  onClick={() => printToken(mostRecentToken)}
+                >
+                  <Printer size={14} />
+                </Button>
               </div>
-            ))}
+            </div>
           </div>
         ) : (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No tokens generated today</p>
-            <p className="text-gray-400 text-sm mt-2">Generate your first token using the form above</p>
+            <p className="text-gray-500 text-lg">No active tokens</p>
+            <p className="text-gray-400 text-sm mt-2">Generate a new token using the form above</p>
           </div>
         )}
       </CardContent>
