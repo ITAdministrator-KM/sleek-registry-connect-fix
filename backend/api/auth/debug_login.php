@@ -1,3 +1,4 @@
+
 <?php
 // Enable detailed error reporting for debugging
 error_reporting(E_ALL);
@@ -79,19 +80,34 @@ try {
         if ($user) {
             error_log("User found in users table: " . print_r($user, true));
             
+            // Check if account is active
+            if ($user['status'] !== 'active') {
+                error_log("User account is not active. Status: " . $user['status']);
+                sendError(401, "Account is not active. Please contact administrator.");
+                exit;
+            }
+            
             // Log the password verification attempt
             $passwordMatch = password_verify($password, $user['password']);
             error_log("Password verification result: " . ($passwordMatch ? "MATCH" : "NO MATCH"));
             error_log("Provided password: '$password'");
             error_log("Stored hash: " . $user['password']);
             
-            if ($passwordMatch) {
-                if ($user['status'] !== 'active') {
-                    error_log("User account is not active. Status: " . $user['status']);
-                    sendError(401, "Account is not active. Please contact administrator.");
-                    exit;
-                }
+            // If password doesn't match, try with plain text comparison for debugging
+            if (!$passwordMatch) {
+                error_log("Trying plain text comparison...");
+                $plainMatch = ($password === $user['password']);
+                error_log("Plain text match: " . ($plainMatch ? "YES" : "NO"));
                 
+                // If still no match, hash the provided password and compare
+                if (!$plainMatch) {
+                    $testHash = password_hash($password, PASSWORD_DEFAULT);
+                    error_log("Generated hash for '$password': " . $testHash);
+                    error_log("Verification with new hash: " . (password_verify($password, $testHash) ? "YES" : "NO"));
+                }
+            }
+            
+            if ($passwordMatch) {
                 // Get department info if exists
                 $departmentName = null;
                 if ($user['department_id']) {
@@ -145,9 +161,79 @@ try {
         }
     }
 
+    // Try public users table if not found in admin/staff or role is public
+    if (!$role || $role === 'public') {
+        $query = "SELECT id, public_user_id as user_id, username, password_hash as password, name, email, status 
+                  FROM public_users 
+                  WHERE username = ?";
+        
+        error_log("Checking public_users table with query: " . $query . " and username: " . $username);
+        
+        $stmt = $db->prepare($query);
+        $stmt->execute([$username]);
+        $publicUser = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($publicUser) {
+            error_log("User found in public_users table: " . print_r($publicUser, true));
+            
+            // Check if account is active
+            if ($publicUser['status'] !== 'active') {
+                error_log("Public user account is not active. Status: " . $publicUser['status']);
+                sendError(401, "Account is not active. Please contact administrator.");
+                exit;
+            }
+            
+            // Log the password verification attempt
+            $passwordMatch = password_verify($password, $publicUser['password']);
+            error_log("Password verification result for public user: " . ($passwordMatch ? "MATCH" : "NO MATCH"));
+            error_log("Provided password: '$password'");
+            error_log("Stored hash: " . $publicUser['password']);
+            
+            if ($passwordMatch) {
+                $token = generateJWT([
+                    'user_id' => $publicUser['id'],
+                    'username' => $publicUser['username'],
+                    'role' => 'public',
+                    'exp' => time() + (24 * 60 * 60) // 24 hours
+                ]);
+                
+                // Insert session record
+                try {
+                    $sessionQuery = "INSERT INTO user_sessions (user_id, token, expires_at, is_valid) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), 1)";
+                    $sessionStmt = $db->prepare($sessionQuery);
+                    $sessionStmt->execute([$publicUser['id'], $token]);
+                } catch (Exception $e) {
+                    error_log("Session creation failed: " . $e->getMessage());
+                }
+                
+                error_log("Login successful for public user: " . $publicUser['username']);
+                
+                sendResponse([
+                    'success' => true,
+                    'message' => 'Login successful',
+                    'token' => $token,
+                    'user' => [
+                        'id' => $publicUser['id'],
+                        'user_id' => $publicUser['user_id'],
+                        'username' => $publicUser['username'],
+                        'role' => 'public',
+                        'name' => $publicUser['name'],
+                        'email' => $publicUser['email'],
+                        'status' => $publicUser['status']
+                    ]
+                ]);
+                exit;
+            } else {
+                error_log("Password verification failed for public user: " . $publicUser['username']);
+            }
+        } else {
+            error_log("No public user found with username: " . $username);
+        }
+    }
+
     // If we got here, login failed
     error_log("Login failed - Invalid credentials for username: " . $username);
-    sendError(401, "Invalid credentials");
+    sendError(401, "Invalid credentials. Please check your username and password.");
     
 } catch (Exception $e) {
     error_log("Login error: " . $e->getMessage() . "\n" . $e->getTraceAsString());

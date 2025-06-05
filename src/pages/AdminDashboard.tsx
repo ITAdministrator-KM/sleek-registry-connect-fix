@@ -15,12 +15,30 @@ import DashboardStats from '@/components/DashboardStats';
 import AdminSidebar from '@/components/AdminSidebar';
 import AdminHeader from '@/components/AdminHeader';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { useAuth } from '@/hooks/useAuth';
+import { Routes, Route } from 'react-router-dom';
 
 const AdminDashboard = () => {
+  const { user, loading } = useAuth('admin');
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null; // Will redirect to login
+  }
 
   useEffect(() => {
     console.log('Checking admin authentication...');

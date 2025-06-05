@@ -96,21 +96,28 @@ const Login = () => {
       console.log('User role:', userRole);
       console.log('User data:', userData);
       
-      console.log('Login: User data stored, redirecting...');
+      // Show success message
+      toast({
+        title: "Login Successful",
+        description: `Welcome back, ${userData.name || username}!`,
+      });
       
       // Determine the redirect path based on role
-      let redirectPath = '/login';
+      let redirectPath = '/';
       
       switch(userRole) {
         case 'admin':
+          redirectPath = '/admin';
+          break;
         case 'staff':
-          redirectPath = '/dashboard';
+          redirectPath = '/staff';
           break;
         case 'public':
-          redirectPath = '/public/dashboard';
+          redirectPath = '/public';
           break;
         default:
           console.warn('Unknown role, redirecting to home');
+          redirectPath = '/';
       }
       
       console.log(`Login: Redirecting to ${redirectPath}`);

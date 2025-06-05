@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import NotificationManagement from '@/components/NotificationManagement';
 import { apiService } from '@/services/api';
 
 const StaffDashboard = () => {
+  const { user, loading, logout } = useAuth('staff');
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
   const [userDepartment, setUserDepartment] = useState('');
@@ -27,36 +29,31 @@ const StaffDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    const role = localStorage.getItem('userRole');
-    const user = localStorage.getItem('username');
-    const token = localStorage.getItem('authToken');
-    const department = localStorage.getItem('userDepartmentName');
-    
-    if (!token) {
-      navigate('/login');
-      return;
-    }
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50 to-teal-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
-    if (!role || role.toLowerCase() !== 'staff') {
-      toast({
-        title: "Access Denied",
-        description: "You don't have permission to access the staff dashboard.",
-        variant: "destructive"
-      });
-      navigate('/');
-      return;
-    }
+  if (!user) {
+    return null; // Will redirect to login
+  }
+
+  useEffect(() => {
+    if (!user) return;
     
-    if (user) {
-      setUsername(user);
-      setUserDepartment(department || 'General Services');
-    }
+    setUsername(user.username);
+    setUserDepartment(user.department_name || 'General Services');
     
     fetchStats();
     const interval = setInterval(fetchStats, 30000);
     return () => clearInterval(interval);
-  }, [navigate]);
+  }, [user]);
 
   const fetchStats = async () => {
     try {
@@ -84,7 +81,7 @@ const StaffDashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    logout();
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
