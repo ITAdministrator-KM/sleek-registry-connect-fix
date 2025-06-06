@@ -1,4 +1,3 @@
-
 import { PublicUser } from '@/services/apiService';
 import QRCode from 'qrcode';
 
@@ -18,7 +17,6 @@ export class ResponsiveIDCardPrinter {
       const qrCodeDataURL = await QRCode.toDataURL(qrData, {
         errorCorrectionLevel: 'M',
         type: 'image/png',
-        quality: 0.92,
         margin: 1,
         color: {
           dark: '#000000',

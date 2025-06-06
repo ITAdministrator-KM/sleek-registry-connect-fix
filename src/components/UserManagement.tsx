@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,26 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Edit, Trash2, Search, Eye, User } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { apiService } from '@/services/apiService';
+import { apiService, User } from '@/services/apiService';
 import UserForm from './forms/UserForm';
 
 type UserRole = 'admin' | 'staff' | 'public';
-
-interface User {
-  id: number;
-  user_id: string;
-  name: string;
-  nic: string;
-  email: string;
-  username: string;
-  role: UserRole;
-  department_id?: number;
-  division_id?: number;
-  department_name?: string;
-  division_name?: string;
-  status: string;
-  created_at: string;
-}
 
 const UserManagement = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -49,7 +32,7 @@ const UserManagement = () => {
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.nic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.user_id.toLowerCase().includes(searchTerm.toLowerCase())
+      (user.user_id && user.user_id.toLowerCase().includes(searchTerm.toLowerCase()))
     );
     setFilteredUsers(filtered);
   }, [users, searchTerm]);
@@ -239,7 +222,7 @@ const UserManagement = () => {
                 <TableBody>
                   {filteredUsers.map((user) => (
                     <TableRow key={user.id} className="hover:bg-gray-50">
-                      <TableCell className="font-mono text-sm">{user.user_id}</TableCell>
+                      <TableCell className="font-mono text-sm">{user.user_id || 'N/A'}</TableCell>
                       <TableCell className="font-medium">{user.name}</TableCell>
                       <TableCell>{user.username}</TableCell>
                       <TableCell>{user.email}</TableCell>
@@ -317,7 +300,7 @@ const UserManagement = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-500">User ID</label>
-                  <p className="text-sm font-mono bg-gray-50 p-2 rounded">{viewingUser.user_id}</p>
+                  <p className="text-sm font-mono bg-gray-50 p-2 rounded">{viewingUser.user_id || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Status</label>

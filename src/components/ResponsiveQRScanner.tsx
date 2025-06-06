@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -135,22 +134,16 @@ const ResponsiveQRScanner = () => {
     try {
       setIsScanning(true);
       
-      // Enhanced config for better touch scanning
+      // Simplified config for better compatibility
       const config = {
         fps: 10,
         qrbox: { width: 280, height: 280 },
         aspectRatio: 1.0,
         supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-        // Enhanced camera constraints
+        // Simplified video constraints
         videoConstraints: {
-          facingMode: { ideal: 'environment' },
-          advanced: [
-            { focusMode: 'continuous' },
-            { exposureMode: 'continuous' },
-            { whiteBalanceMode: 'continuous' }
-          ]
+          facingMode: 'environment'
         },
-        // UI customization
         showTorchButtonIfSupported: true,
         showZoomSliderIfSupported: true,
         defaultZoomValueIfSupported: 2
