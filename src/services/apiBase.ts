@@ -1,5 +1,6 @@
 
 export class ApiBase {
+  // Point to live server
   private baseURL = 'https://dskalmunai.lk/backend/api';
 
   protected async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {

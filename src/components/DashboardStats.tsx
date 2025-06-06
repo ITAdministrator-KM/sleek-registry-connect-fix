@@ -22,6 +22,7 @@ const DashboardStats = () => {
     completedServices: 0
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStats();
@@ -30,30 +31,61 @@ const DashboardStats = () => {
   const fetchStats = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       
-      // Fetch all data in parallel
+      // Check if we have a token
+      const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+      if (!token) {
+        console.error('No auth token found');
+        setError('Authentication required');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Log the API calls for debugging
+      console.log('Fetching dashboard stats...');
+      
+      // Fetch all data in parallel with error handling for each
       const [users, departments, divisions, publicUsers, todayTokens] = await Promise.allSettled([
-        apiService.getUsers(),
-        apiService.getDepartments(),
-        apiService.getDivisions(),
-        apiService.getPublicUsers(),
-        apiService.getTokens()
+        apiService.getUsers().catch(e => { 
+          console.error('Error fetching users:', e);
+          return [];
+        }),
+        apiService.getDepartments().catch(e => {
+          console.error('Error fetching departments:', e);
+          return [];
+        }),
+        apiService.getDivisions().catch(e => {
+          console.error('Error fetching divisions:', e);
+          return [];
+        }),
+        apiService.getPublicUsers().catch(e => {
+          console.error('Error fetching public users:', e);
+          return [];
+        }),
+        apiService.getTokens().catch(e => {
+          console.error('Error fetching tokens:', e);
+          return [];
+        })
       ]);
 
+      console.log('API responses:', { users, departments, divisions, publicUsers, todayTokens });
+
       const newStats: StatsData = {
-        totalUsers: users.status === 'fulfilled' ? users.value.length : 0,
-        totalDepartments: departments.status === 'fulfilled' ? departments.value.length : 0,
-        totalDivisions: divisions.status === 'fulfilled' ? divisions.value.length : 0,
-        totalPublicUsers: publicUsers.status === 'fulfilled' ? publicUsers.value.length : 0,
-        totalTokensToday: todayTokens.status === 'fulfilled' ? todayTokens.value.length : 0,
+        totalUsers: users.status === 'fulfilled' ? users.value?.length || 0 : 0,
+        totalDepartments: departments.status === 'fulfilled' ? departments.value?.length || 0 : 0,
+        totalDivisions: divisions.status === 'fulfilled' ? divisions.value?.length || 0 : 0,
+        totalPublicUsers: publicUsers.status === 'fulfilled' ? publicUsers.value?.length || 0 : 0,
+        totalTokensToday: todayTokens.status === 'fulfilled' ? todayTokens.value?.length || 0 : 0,
         completedServices: todayTokens.status === 'fulfilled' 
-          ? todayTokens.value.filter(token => token.status === 'completed').length 
+          ? (todayTokens.value || []).filter((token: any) => token?.status === 'completed').length 
           : 0
       };
 
       setStats(newStats);
     } catch (error) {
-      console.error('Error fetching dashboard stats:', error);
+      console.error('Error in fetchStats:', error);
+      setError('Failed to load dashboard data. Please try again later.');
     } finally {
       setIsLoading(false);
     }

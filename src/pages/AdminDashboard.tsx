@@ -37,27 +37,82 @@ const AdminDashboard = () => {
   }
 
   if (!user) {
-    return null; // Will redirect to login
+    console.log('No user found, redirecting to login');
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield className="h-6 w-6 text-red-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800">Authentication Required</h2>
+          <p className="mt-2 text-gray-600">You need to be logged in to access this page</p>
+          <Button 
+            onClick={() => navigate('/login')} 
+            className="mt-4"
+          >
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   useEffect(() => {
     console.log('Checking admin authentication...');
     const role = localStorage.getItem('userRole');
-    const user = localStorage.getItem('username');
+    const storedUser = localStorage.getItem('username');
     const token = localStorage.getItem('authToken');
+    const userData = localStorage.getItem('userData');
     
-    console.log('Auth state:', { role, user, hasToken: !!token });
+    console.log('Auth state:', { 
+      role, 
+      user: storedUser, 
+      hasToken: !!token,
+      hasUserData: !!userData 
+    });
+    
+    const redirectToLogin = () => {
+      console.log('Redirecting to login...');
+      localStorage.clear();
+      sessionStorage.clear();
+      navigate('/login', { replace: true });
+    };
     
     if (role !== 'admin' || !token) {
-      console.log('Invalid admin session, redirecting to login');
-      localStorage.clear();
-      navigate('/login');
+      console.warn('Invalid admin session - missing role or token');
+      redirectToLogin();
       return;
     }
     
-    if (user) {
-      console.log('Setting admin username:', user);
-      setUsername(user);
+    // Verify token format
+    if (typeof token !== 'string' || token.split('.').length !== 3) {
+      console.error('Invalid token format');
+      redirectToLogin();
+      return;
+    }
+    
+    // Check if user data exists and is valid
+    try {
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        if (parsedUser && parsedUser.username) {
+          console.log('Setting admin username from user data:', parsedUser.username);
+          setUsername(parsedUser.username);
+          return;
+        }
+      }
+      
+      // Fallback to username from localStorage if no userData
+      if (storedUser) {
+        console.log('Setting admin username from localStorage:', storedUser);
+        setUsername(storedUser);
+      } else {
+        console.warn('No user data found in localStorage');
+        redirectToLogin();
+      }
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      redirectToLogin();
     }
   }, [navigate]);
 
