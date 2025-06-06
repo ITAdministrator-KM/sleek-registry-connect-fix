@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export interface AuthUser {
@@ -18,59 +18,103 @@ export const useAuth = (requiredRole?: string) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const clearAuth = useCallback(() => {
+    console.log('useAuth: Clearing authentication data');
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userData');
+    sessionStorage.clear();
+    setUser(null);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
-    const checkAuth = () => {
+    const checkAuth = async () => {
       console.log('useAuth: Checking authentication...');
+      setLoading(true);
       
-      const token = localStorage.getItem('authToken');
-      const userRole = localStorage.getItem('userRole');
-      const userDataStr = localStorage.getItem('userData');
-
-      console.log('useAuth: Auth data found:', { 
-        hasToken: !!token, 
-        userRole, 
-        hasUserData: !!userDataStr 
-      });
-
-      if (!token || !userRole || !userDataStr) {
-        console.log('useAuth: Missing auth data, redirecting to login');
-        setLoading(false);
-        navigate('/login');
-        return;
-      }
-
       try {
-        const userData = JSON.parse(userDataStr);
-        console.log('useAuth: Parsed user data:', userData);
-        
-        // Check if user has required role
-        if (requiredRole && userRole !== requiredRole) {
-          console.log(`useAuth: User role ${userRole} doesn't match required role ${requiredRole}`);
-          setLoading(false);
-          navigate('/login');
+        const token = localStorage.getItem('authToken');
+        const userRole = localStorage.getItem('userRole');
+        const userDataStr = localStorage.getItem('userData');
+
+        console.log('useAuth: Auth data found:', { 
+          hasToken: !!token, 
+          userRole, 
+          hasUserData: !!userDataStr 
+        });
+
+        // If any auth data is missing, clear everything and redirect to login
+        if (!token || !userRole || !userDataStr) {
+          console.log('useAuth: Missing auth data, redirecting to login');
+          clearAuth();
+          navigate('/login', { replace: true });
           return;
         }
 
-        setUser(userData);
-        console.log('useAuth: User authenticated successfully');
+        // Validate token format
+        if (typeof token !== 'string' || token.split('.').length !== 3) {
+          console.error('useAuth: Invalid token format');
+          clearAuth();
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        try {
+          const userData = JSON.parse(userDataStr);
+          console.log('useAuth: Parsed user data:', userData);
+          
+          // Validate user data structure
+          if (!userData || typeof userData !== 'object' || !userData.id || !userData.role) {
+            console.error('useAuth: Invalid user data structure');
+            clearAuth();
+            navigate('/login', { replace: true });
+            return;
+          }
+          
+          // Check if user has required role
+          if (requiredRole && userRole !== requiredRole) {
+            console.log(`useAuth: User role ${userRole} doesn't match required role ${requiredRole}`);
+            clearAuth();
+            navigate('/login', { replace: true });
+            return;
+          }
+
+          // If we have all required data and roles match, set the user
+          setUser(userData);
+          console.log('useAuth: User authenticated successfully');
+        } catch (error) {
+          console.error('useAuth: Error parsing user data:', error);
+          clearAuth();
+          navigate('/login', { replace: true });
+        }
       } catch (error) {
-        console.error('useAuth: Error parsing user data:', error);
-        localStorage.clear();
-        navigate('/login');
+        console.error('useAuth: Unexpected error during authentication check:', error);
+        clearAuth();
+        navigate('/login', { replace: true });
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
-    checkAuth();
-  }, [navigate, requiredRole]);
+    // Add a small delay to prevent UI flickering
+    const timer = setTimeout(() => {
+      checkAuth();
+    }, 100);
 
-  const logout = () => {
+    return () => clearTimeout(timer);
+  }, [navigate, requiredRole, clearAuth]);
+
+  const logout = useCallback(() => {
     console.log('useAuth: Logging out user');
-    localStorage.clear();
-    sessionStorage.clear();
-    navigate('/');
-  };
+    clearAuth();
+    navigate('/login', { replace: true });
+  }, [clearAuth, navigate]);
 
-  return { user, loading, logout };
+  return { 
+    user, 
+    loading, 
+    logout,
+    isAuthenticated: !!user && !loading
+  };
 };

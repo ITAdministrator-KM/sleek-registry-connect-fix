@@ -16,113 +16,45 @@ import AdminSidebar from '@/components/AdminSidebar';
 import AdminHeader from '@/components/AdminHeader';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useAuth } from '@/hooks/useAuth';
-import { Routes, Route } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 
 const AdminDashboard = () => {
-  const { user, loading } = useAuth('admin');
+  const { user, loading, isAuthenticated, logout } = useAuth('admin');
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    // Set username from user data
+    if (user) {
+      const displayName = user.name || user.username || '';
+      setUsername(displayName);
+    }
+  }, [user, loading, isAuthenticated, navigate]);
+
+  if (loading || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto" />
           <p className="mt-4 text-gray-600">Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
-    console.log('No user found, redirecting to login');
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield className="h-6 w-6 text-red-600" />
-          </div>
-          <h2 className="text-xl font-semibold text-gray-800">Authentication Required</h2>
-          <p className="mt-2 text-gray-600">You need to be logged in to access this page</p>
-          <Button 
-            onClick={() => navigate('/login')} 
-            className="mt-4"
-          >
-            Go to Login
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  useEffect(() => {
-    console.log('Checking admin authentication...');
-    const role = localStorage.getItem('userRole');
-    const storedUser = localStorage.getItem('username');
-    const token = localStorage.getItem('authToken');
-    const userData = localStorage.getItem('userData');
-    
-    console.log('Auth state:', { 
-      role, 
-      user: storedUser, 
-      hasToken: !!token,
-      hasUserData: !!userData 
-    });
-    
-    const redirectToLogin = () => {
-      console.log('Redirecting to login...');
-      localStorage.clear();
-      sessionStorage.clear();
-      navigate('/login', { replace: true });
-    };
-    
-    if (role !== 'admin' || !token) {
-      console.warn('Invalid admin session - missing role or token');
-      redirectToLogin();
-      return;
-    }
-    
-    // Verify token format
-    if (typeof token !== 'string' || token.split('.').length !== 3) {
-      console.error('Invalid token format');
-      redirectToLogin();
-      return;
-    }
-    
-    // Check if user data exists and is valid
-    try {
-      if (userData) {
-        const parsedUser = JSON.parse(userData);
-        if (parsedUser && parsedUser.username) {
-          console.log('Setting admin username from user data:', parsedUser.username);
-          setUsername(parsedUser.username);
-          return;
-        }
-      }
-      
-      // Fallback to username from localStorage if no userData
-      if (storedUser) {
-        console.log('Setting admin username from localStorage:', storedUser);
-        setUsername(storedUser);
-      } else {
-        console.warn('No user data found in localStorage');
-        redirectToLogin();
-      }
-    } catch (error) {
-      console.error('Error parsing user data:', error);
-      redirectToLogin();
-    }
-  }, [navigate]);
-
   const handleLogout = () => {
-    localStorage.clear();
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    navigate('/');
+    logout();
   };
 
   const menuItems = [

@@ -125,10 +125,15 @@ class ApiService extends ApiBase {
   async getUsers(): Promise<User[]> {
     try {
       const response = await this.retryRequest(() =>
-        this.makeRequest('/users/')
+        this.makeRequest('/users/index.php')
       );
+      // Handle both direct array response and data property
+      if (Array.isArray(response)) {
+        return response;
+      }
       return Array.isArray(response.data) ? response.data : [];
     } catch (error) {
+      console.error('Error in getUsers:', error);
       throw this.handleApiError(error, 'fetch users');
     }
   }
@@ -205,13 +210,16 @@ class ApiService extends ApiBase {
     }
   }
 
-  async deleteDepartment(id: number): Promise<any> {
+  async deleteDepartment(id: number): Promise<void> {
     try {
-      const response = await this.makeRequest(`/departments/?id=${id}`, {
-        method: 'DELETE',
-      });
-      return response.data || response;
+      await this.retryRequest(() =>
+        this.makeRequest('/departments/index.php', {
+          method: 'DELETE',
+          body: JSON.stringify({ id })
+        })
+      );
     } catch (error) {
+      console.error('Error deleting department:', error);
       throw this.handleApiError(error, 'delete department');
     }
   }
@@ -253,13 +261,16 @@ class ApiService extends ApiBase {
     }
   }
 
-  async deleteDivision(id: number): Promise<any> {
+  async deleteDivision(id: number): Promise<void> {
     try {
-      const response = await this.makeRequest(`/divisions/?id=${id}`, {
-        method: 'DELETE',
-      });
-      return response.data || response;
+      await this.retryRequest(() =>
+        this.makeRequest('/divisions/index.php', {
+          method: 'DELETE',
+          body: JSON.stringify({ id })
+        })
+      );
     } catch (error) {
+      console.error('Error deleting division:', error);
       throw this.handleApiError(error, 'delete division');
     }
   }

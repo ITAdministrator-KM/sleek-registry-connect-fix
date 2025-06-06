@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings, UserPlus, QrCode, CreditCard, Scan, Bell } from 'lucide-react';
+import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings, UserPlus, QrCode, CreditCard, Scan, Bell, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import TokenManagement from '@/components/TokenManagement';
 import { PublicAccountsManagement } from '@/components/PublicAccountsManagement';
@@ -15,7 +15,7 @@ import NotificationManagement from '@/components/NotificationManagement';
 import { apiService } from '@/services/api';
 
 const StaffDashboard = () => {
-  const { user, loading, logout } = useAuth('staff');
+  const { user, loading, isAuthenticated, logout } = useAuth('staff');
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
   const [userDepartment, setUserDepartment] = useState('');
@@ -29,31 +29,49 @@ const StaffDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  if (loading) {
+  // Handle authentication and redirects
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      navigate('/login', { replace: true });
+      return;
+    }
+  }, [loading, isAuthenticated, navigate]);
+
+  // Set user info when authenticated
+  useEffect(() => {
+    if (user) {
+      setUsername(user.name || user.username || '');
+      setUserDepartment(user.department_name || 'General Services');
+    }
+  }, [user]);
+
+  // Fetch stats when component mounts and user is authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const loadData = async () => {
+      try {
+        await fetchStats();
+        const interval = setInterval(fetchStats, 30000);
+        return () => clearInterval(interval);
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+      }
+    };
+    
+    loadData();
+  }, [isAuthenticated]);
+
+  if (loading || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50 to-teal-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
+          <Loader2 className="h-12 w-12 text-emerald-600 animate-spin mx-auto" />
           <p className="mt-4 text-gray-600">Loading dashboard...</p>
         </div>
       </div>
     );
   }
-
-  if (!user) {
-    return null; // Will redirect to login
-  }
-
-  useEffect(() => {
-    if (!user) return;
-    
-    setUsername(user.username);
-    setUserDepartment(user.department_name || 'General Services');
-    
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
 
   const fetchStats = async () => {
     try {
@@ -81,12 +99,11 @@ const StaffDashboard = () => {
   };
 
   const handleLogout = () => {
-    logout();
     toast({
       title: "Logged Out",
       description: "You have been successfully logged out.",
     });
-    navigate('/');
+    logout();
   };
 
   const handleCreateUser = async (userData: any) => {
