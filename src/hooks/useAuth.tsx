@@ -20,29 +20,41 @@ export const useAuth = (requiredRole?: string) => {
 
   useEffect(() => {
     const checkAuth = () => {
+      console.log('useAuth: Checking authentication...');
+      
       const token = localStorage.getItem('authToken');
       const userRole = localStorage.getItem('userRole');
       const userDataStr = localStorage.getItem('userData');
 
+      console.log('useAuth: Auth data found:', { 
+        hasToken: !!token, 
+        userRole, 
+        hasUserData: !!userDataStr 
+      });
+
       if (!token || !userRole || !userDataStr) {
-        console.log('Missing auth data, redirecting to login');
+        console.log('useAuth: Missing auth data, redirecting to login');
+        setLoading(false);
         navigate('/login');
         return;
       }
 
       try {
         const userData = JSON.parse(userDataStr);
+        console.log('useAuth: Parsed user data:', userData);
         
         // Check if user has required role
         if (requiredRole && userRole !== requiredRole) {
-          console.log(`User role ${userRole} doesn't match required role ${requiredRole}`);
+          console.log(`useAuth: User role ${userRole} doesn't match required role ${requiredRole}`);
+          setLoading(false);
           navigate('/login');
           return;
         }
 
         setUser(userData);
+        console.log('useAuth: User authenticated successfully');
       } catch (error) {
-        console.error('Error parsing user data:', error);
+        console.error('useAuth: Error parsing user data:', error);
         localStorage.clear();
         navigate('/login');
       }
@@ -54,6 +66,7 @@ export const useAuth = (requiredRole?: string) => {
   }, [navigate, requiredRole]);
 
   const logout = () => {
+    console.log('useAuth: Logging out user');
     localStorage.clear();
     sessionStorage.clear();
     navigate('/');

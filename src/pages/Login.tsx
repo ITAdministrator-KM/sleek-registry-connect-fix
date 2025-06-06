@@ -25,6 +25,8 @@ const Login = () => {
   };
 
   const handleLogin = async (username: string, password: string, role: string) => {
+    console.log('Login: Starting login process...');
+    
     if (!validateForm(username, password, role)) {
       toast({
         title: "Error",
@@ -121,7 +123,12 @@ const Login = () => {
       }
       
       console.log(`Login: Redirecting to ${redirectPath}`);
-      navigate(redirectPath);
+      
+      // Add a small delay to ensure storage is complete
+      setTimeout(() => {
+        navigate(redirectPath, { replace: true });
+      }, 100);
+      
     } catch (error) {
       console.error('Login: Error occurred:', error);
       let errorMessage = 'An error occurred during login';

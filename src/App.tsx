@@ -14,8 +14,11 @@ function App() {
       <Routes>
         <Route path="/" element={<Index />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/*" element={<AdminDashboard />} />
+        <Route path="/staff" element={<StaffDashboard />} />
         <Route path="/staff/*" element={<StaffDashboard />} />
+        <Route path="/public" element={<PublicDashboard />} />
         <Route path="/public/*" element={<PublicDashboard />} />
         <Route path="/qr-scan/:publicId" element={<QRScanPage />} />
       </Routes>

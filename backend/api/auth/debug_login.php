@@ -3,10 +3,25 @@
 // Enable detailed error reporting for debugging
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
+ini_set('log_errors', 1);
 
-include_once '../../config/cors.php';
-include_once '../../config/database.php';
-include_once '../../config/error_handler.php';
+// Start output buffering to prevent any unexpected output
+ob_start();
+
+try {
+    include_once '../../config/cors.php';
+    include_once '../../config/database.php';
+    include_once '../../config/error_handler.php';
+} catch (Exception $e) {
+    ob_clean();
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Configuration error: ' . $e->getMessage()
+    ]);
+    exit;
+}
 
 header('Content-Type: application/json');
 
@@ -26,20 +41,30 @@ function generateJWT($payload) {
 }
 
 try {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        ob_clean();
+        http_response_code(405);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Method not allowed'
+        ]);
+        exit;
+    }
+
     $database = new Database();
     $db = $database->getConnection();
 
     if (!$db) {
-        sendError(500, "Database connection failed");
+        ob_clean();
+        http_response_code(500);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Database connection failed'
+        ]);
         exit;
     }
 
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        sendError(405, "Method not allowed");
-        exit;
-    }
-
-    // Log raw input for debugging
+    // Get and validate input
     $input = file_get_contents("php://input");
     error_log("Raw input: " . $input);
     
@@ -47,15 +72,23 @@ try {
 
     if (!$data) {
         error_log("Failed to decode JSON input");
-        sendError(400, "Invalid JSON input");
+        ob_clean();
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Invalid JSON input'
+        ]);
         exit;
     }
 
-    error_log("Decoded data: " . print_r($data, true));
-
     if (!isset($data->username) || !isset($data->password)) {
         error_log("Missing username or password in request");
-        sendError(400, "Username and password are required");
+        ob_clean();
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Username and password are required'
+        ]);
         exit;
     }
 
@@ -69,9 +102,9 @@ try {
     if (!$role || $role === 'admin' || $role === 'staff') {
         $query = "SELECT id, user_id, username, password, role, name, email, status, department_id 
                 FROM users 
-                WHERE username = ?";
+                WHERE username = ? AND status = 'active'";
         
-        error_log("Checking users table with query: " . $query . " and username: " . $username);
+        error_log("Checking users table with query: " . $query);
         
         $stmt = $db->prepare($query);
         $stmt->execute([$username]);
@@ -80,32 +113,9 @@ try {
         if ($user) {
             error_log("User found in users table: " . print_r($user, true));
             
-            // Check if account is active
-            if ($user['status'] !== 'active') {
-                error_log("User account is not active. Status: " . $user['status']);
-                sendError(401, "Account is not active. Please contact administrator.");
-                exit;
-            }
-            
-            // Log the password verification attempt
+            // Verify password
             $passwordMatch = password_verify($password, $user['password']);
             error_log("Password verification result: " . ($passwordMatch ? "MATCH" : "NO MATCH"));
-            error_log("Provided password: '$password'");
-            error_log("Stored hash: " . $user['password']);
-            
-            // If password doesn't match, try with plain text comparison for debugging
-            if (!$passwordMatch) {
-                error_log("Trying plain text comparison...");
-                $plainMatch = ($password === $user['password']);
-                error_log("Plain text match: " . ($plainMatch ? "YES" : "NO"));
-                
-                // If still no match, hash the provided password and compare
-                if (!$plainMatch) {
-                    $testHash = password_hash($password, PASSWORD_DEFAULT);
-                    error_log("Generated hash for '$password': " . $testHash);
-                    error_log("Verification with new hash: " . (password_verify($password, $testHash) ? "YES" : "NO"));
-                }
-            }
             
             if ($passwordMatch) {
                 // Get department info if exists
@@ -136,28 +146,27 @@ try {
                 
                 error_log("Login successful for user: " . $user['username'] . ", role: " . $user['role']);
                 
-                sendResponse([
-                    'success' => true,
+                ob_clean();
+                echo json_encode([
+                    'status' => 'success',
                     'message' => 'Login successful',
-                    'token' => $token,
-                    'user' => [
-                        'id' => $user['id'],
-                        'user_id' => $user['user_id'],
-                        'username' => $user['username'],
-                        'role' => $user['role'],
-                        'name' => $user['name'],
-                        'email' => $user['email'],
-                        'department_id' => $user['department_id'],
-                        'department_name' => $departmentName,
-                        'status' => $user['status']
+                    'data' => [
+                        'token' => $token,
+                        'user' => [
+                            'id' => $user['id'],
+                            'user_id' => $user['user_id'],
+                            'username' => $user['username'],
+                            'role' => $user['role'],
+                            'name' => $user['name'],
+                            'email' => $user['email'],
+                            'department_id' => $user['department_id'],
+                            'department_name' => $departmentName,
+                            'status' => $user['status']
+                        ]
                     ]
                 ]);
                 exit;
-            } else {
-                error_log("Password verification failed for user: " . $user['username']);
             }
-        } else {
-            error_log("No user found with username: " . $username);
         }
     }
 
@@ -165,9 +174,9 @@ try {
     if (!$role || $role === 'public') {
         $query = "SELECT id, public_user_id as user_id, username, password_hash as password, name, email, status 
                   FROM public_users 
-                  WHERE username = ?";
+                  WHERE username = ? AND status = 'active'";
         
-        error_log("Checking public_users table with query: " . $query . " and username: " . $username);
+        error_log("Checking public_users table");
         
         $stmt = $db->prepare($query);
         $stmt->execute([$username]);
@@ -176,18 +185,8 @@ try {
         if ($publicUser) {
             error_log("User found in public_users table: " . print_r($publicUser, true));
             
-            // Check if account is active
-            if ($publicUser['status'] !== 'active') {
-                error_log("Public user account is not active. Status: " . $publicUser['status']);
-                sendError(401, "Account is not active. Please contact administrator.");
-                exit;
-            }
-            
-            // Log the password verification attempt
             $passwordMatch = password_verify($password, $publicUser['password']);
             error_log("Password verification result for public user: " . ($passwordMatch ? "MATCH" : "NO MATCH"));
-            error_log("Provided password: '$password'");
-            error_log("Stored hash: " . $publicUser['password']);
             
             if ($passwordMatch) {
                 $token = generateJWT([
@@ -208,34 +207,45 @@ try {
                 
                 error_log("Login successful for public user: " . $publicUser['username']);
                 
-                sendResponse([
-                    'success' => true,
+                ob_clean();
+                echo json_encode([
+                    'status' => 'success',
                     'message' => 'Login successful',
-                    'token' => $token,
-                    'user' => [
-                        'id' => $publicUser['id'],
-                        'user_id' => $publicUser['user_id'],
-                        'username' => $publicUser['username'],
-                        'role' => 'public',
-                        'name' => $publicUser['name'],
-                        'email' => $publicUser['email'],
-                        'status' => $publicUser['status']
+                    'data' => [
+                        'token' => $token,
+                        'user' => [
+                            'id' => $publicUser['id'],
+                            'user_id' => $publicUser['user_id'],
+                            'username' => $publicUser['username'],
+                            'role' => 'public',
+                            'name' => $publicUser['name'],
+                            'email' => $publicUser['email'],
+                            'status' => $publicUser['status']
+                        ]
                     ]
                 ]);
                 exit;
-            } else {
-                error_log("Password verification failed for public user: " . $publicUser['username']);
             }
-        } else {
-            error_log("No public user found with username: " . $username);
         }
     }
 
     // If we got here, login failed
     error_log("Login failed - Invalid credentials for username: " . $username);
-    sendError(401, "Invalid credentials. Please check your username and password.");
+    ob_clean();
+    http_response_code(401);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Invalid credentials. Please check your username and password.'
+    ]);
     
 } catch (Exception $e) {
     error_log("Login error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-    sendError(500, "An error occurred during login. Please try again later.");
+    ob_clean();
+    http_response_code(500);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'An error occurred during login. Please try again later.',
+        'debug' => $e->getMessage()
+    ]);
 }
+?>
