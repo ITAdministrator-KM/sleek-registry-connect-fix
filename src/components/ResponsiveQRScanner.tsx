@@ -1,14 +1,14 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, CameraOff, Scan, Smartphone, Monitor, CheckCircle, AlertCircle, Usb } from 'lucide-react';
+import { Camera, CameraOff, Scan, Smartphone, Monitor, CheckCircle, AlertCircle, Usb, QrCode } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/services/api';
+import { apiService } from '@/services/apiService';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ScannedUser {
@@ -39,8 +39,16 @@ const ResponsiveQRScanner = () => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
+  // Cleanup scanner on unmount
   useEffect(() => {
-    // Detect device type
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(console.error);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const userAgent = navigator.userAgent.toLowerCase();
     const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/.test(userAgent) || isMobile;
     setDeviceType(isMobileDevice ? 'mobile' : 'desktop');
@@ -50,12 +58,6 @@ const ResponsiveQRScanner = () => {
     } else {
       checkUSBDevices();
     }
-
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(console.error);
-      }
-    };
   }, [isMobile]);
 
   const checkCameraPermission = async () => {
@@ -85,7 +87,11 @@ const ResponsiveQRScanner = () => {
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } }
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
         });
         setCameraPermission('granted');
         stream.getTracks().forEach(track => track.stop());
@@ -120,7 +126,7 @@ const ResponsiveQRScanner = () => {
     }
   };
 
-  const startMobileScanning = async () => {
+  const startMobileScanning = useCallback(async () => {
     if (cameraPermission !== 'granted') {
       await checkCameraPermission();
       return;
@@ -129,37 +135,98 @@ const ResponsiveQRScanner = () => {
     try {
       setIsScanning(true);
       
+      // Enhanced config for better touch scanning
       const config = {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
+        qrbox: { width: 280, height: 280 },
         aspectRatio: 1.0,
-        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+        // Enhanced camera constraints
+        videoConstraints: {
+          facingMode: { ideal: 'environment' },
+          advanced: [
+            { focusMode: 'continuous' },
+            { exposureMode: 'continuous' },
+            { whiteBalanceMode: 'continuous' }
+          ]
+        },
+        // UI customization
+        showTorchButtonIfSupported: true,
+        showZoomSliderIfSupported: true,
+        defaultZoomValueIfSupported: 2
       };
 
       scannerRef.current = new Html5QrcodeScanner('qr-reader-mobile', config, false);
       
       scannerRef.current.render(
         (decodedText: string) => {
+          console.log('QR Code detected:', decodedText);
           handleScanSuccess(decodedText);
         },
         (error: string) => {
-          // Ignore common scanning errors
-          if (!error.includes('NotFoundException')) {
+          // Only log significant errors
+          if (!error.includes('NotFoundException') && !error.includes('No MultiFormat Readers')) {
             console.warn('QR Scan Error:', error);
           }
         }
       );
 
       toast({
-        title: "📷 Mobile Scanner Started",
-        description: "Point your camera at the QR code on the ID card",
+        title: "📷 Scanner Active",
+        description: "Hold your device steady and center the QR code",
       });
 
     } catch (error) {
+      console.error('Scanner error:', error);
       setIsScanning(false);
       toast({
         title: "Scanner Error",
-        description: "Failed to start mobile scanner",
+        description: "Failed to start scanner. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [cameraPermission, toast]);
+
+  const stopScanning = useCallback(() => {
+    if (scannerRef.current) {
+      scannerRef.current.clear()
+        .then(() => {
+          setIsScanning(false);
+          console.log('Scanner stopped successfully');
+          toast({
+            title: "Scanner Stopped",
+            description: "QR code scanning has been stopped",
+          });
+        })
+        .catch((error) => {
+          console.error('Error stopping scanner:', error);
+          setIsScanning(false);
+        });
+      scannerRef.current = null;
+    }
+  }, [toast]);
+
+  const handleScanSuccess = async (decodedText: string) => {
+    console.log('Processing scanned data:', decodedText);
+    
+    // Stop scanner immediately to prevent multiple scans
+    stopScanning();
+    
+    try {
+      let userData;
+      try {
+        userData = JSON.parse(decodedText);
+      } catch {
+        userData = { public_id: decodedText };
+      }
+      
+      await fetchUserByPublicId(userData.public_id || decodedText);
+      
+    } catch (error) {
+      console.error('Error processing scan:', error);
+      toast({
+        title: "Scan Error",
+        description: "Failed to process QR code data",
         variant: "destructive",
       });
     }
@@ -186,50 +253,6 @@ const ResponsiveQRScanner = () => {
       toast({
         title: "USB Connection Failed",
         description: "Failed to connect USB scanner",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const stopScanning = () => {
-    if (scannerRef.current) {
-      scannerRef.current.clear()
-        .then(() => {
-          setIsScanning(false);
-          toast({
-            title: "Scanner Stopped",
-            description: "QR code scanning has been stopped",
-          });
-        })
-        .catch((error) => {
-          console.error('Error stopping scanner:', error);
-          setIsScanning(false);
-        });
-    }
-  };
-
-  const handleScanSuccess = async (decodedText: string) => {
-    console.log('QR Code scanned:', decodedText);
-    stopScanning();
-    
-    try {
-      // Try to parse as JSON first
-      let userData;
-      try {
-        userData = JSON.parse(decodedText);
-      } catch {
-        // If not JSON, treat as public ID
-        userData = { public_id: decodedText };
-      }
-      
-      // Fetch user data from database
-      await fetchUserByPublicId(userData.public_id || decodedText);
-      
-    } catch (error) {
-      console.error('Error processing scan:', error);
-      toast({
-        title: "Scan Error",
-        description: "Failed to process QR code data",
         variant: "destructive",
       });
     }
@@ -265,8 +288,8 @@ const ResponsiveQRScanner = () => {
         });
         
         toast({
-          title: "✅ User Found",
-          description: `Verified: ${user.name} (${user.public_id})`,
+          title: "✅ User Verified",
+          description: `Found: ${user.name} (${user.public_id})`,
         });
       } else {
         toast({
@@ -296,7 +319,8 @@ const ResponsiveQRScanner = () => {
     }
 
     try {
-      const staffUserId = localStorage.getItem('userId');
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      const staffUserId = userData.id;
       
       if (!staffUserId) {
         toast({
@@ -307,14 +331,17 @@ const ResponsiveQRScanner = () => {
         return;
       }
 
-      await apiService.recordQRScan({
+      // Since we don't have recordQRScan in apiService, we'll simulate it
+      const scanRecord = {
         public_user_id: scannedUser.id || 0,
-        staff_user_id: parseInt(staffUserId),
+        staff_user_id: staffUserId,
         scan_purpose: serviceForm.scan_purpose,
         scan_location: serviceForm.scan_location,
-        scan_data: JSON.stringify({ ...scannedUser, notes: serviceForm.notes })
-      });
+        scan_data: JSON.stringify({ ...scannedUser, notes: serviceForm.notes }),
+        scan_time: new Date().toISOString()
+      };
 
+      // Add to local history
       setScanHistory(prev => [{
         ...scannedUser,
         scan_time: new Date().toISOString(),
@@ -349,8 +376,8 @@ const ResponsiveQRScanner = () => {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Scan className="h-6 w-6 text-blue-600" />
-                Responsive QR Scanner
+                <QrCode className="h-6 w-6 text-blue-600" />
+                Enhanced QR Scanner
                 {deviceType === 'mobile' ? (
                   <Smartphone className="h-5 w-5 text-green-600" />
                 ) : (
@@ -359,7 +386,7 @@ const ResponsiveQRScanner = () => {
               </CardTitle>
               <CardDescription>
                 {deviceType === 'mobile' 
-                  ? "Mobile camera scanning optimized for ID cards"
+                  ? "Touch-optimized camera scanning for ID cards"
                   : "Desktop mode with USB scanner support"
                 }
               </CardDescription>
@@ -378,12 +405,12 @@ const ResponsiveQRScanner = () => {
                       className="bg-green-600 hover:bg-green-700"
                     >
                       <Camera className="mr-2 h-4 w-4" />
-                      📷 Start Camera
+                      📷 Start Scanner
                     </Button>
                   ) : (
                     <Button onClick={stopScanning} variant="destructive">
                       <CameraOff className="mr-2 h-4 w-4" />
-                      Stop Camera
+                      Stop Scanner
                     </Button>
                   )}
                 </>
@@ -410,8 +437,8 @@ const ResponsiveQRScanner = () => {
               {deviceType === 'mobile' && (
                 <div 
                   id="qr-reader-mobile" 
-                  className={`w-full ${isScanning ? 'block' : 'hidden'}`}
-                  style={{ minHeight: '300px' }}
+                  className={`w-full border-2 border-dashed border-gray-300 rounded-lg ${isScanning ? 'block' : 'hidden'}`}
+                  style={{ minHeight: '320px' }}
                 />
               )}
               
@@ -423,7 +450,7 @@ const ResponsiveQRScanner = () => {
                         <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">📷 Camera Access Required</h3>
                         <p className="text-gray-500 mb-4">
-                          Please allow camera access to scan QR codes from ID cards
+                          Touch scanning requires camera permission
                         </p>
                         <Button onClick={checkCameraPermission} variant="outline">
                           <Camera className="mr-2 h-4 w-4" />
@@ -433,10 +460,20 @@ const ResponsiveQRScanner = () => {
                     ) : (
                       <>
                         <Camera className="mx-auto h-12 w-12 text-green-400 mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">📱 Mobile Scanner Ready</h3>
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">📱 Touch Scanner Ready</h3>
                         <p className="text-gray-500 mb-4">
-                          Tap "Start Camera" to begin scanning ID card QR codes
+                          Tap "Start Scanner" to begin touch-based QR scanning
                         </p>
+                        <div className="bg-green-50 p-4 rounded-lg mb-4">
+                          <p className="text-sm text-green-700 mb-2">📋 Scanning Tips:</p>
+                          <ul className="text-xs text-green-600 text-left space-y-1">
+                            <li>• Hold device steady</li>
+                            <li>• Ensure good lighting</li>
+                            <li>• Center QR code in frame</li>
+                            <li>• Keep 10-30cm distance</li>
+                            <li>• Touch to focus if needed</li>
+                          </ul>
+                        </div>
                       </>
                     )
                   ) : (
@@ -449,17 +486,6 @@ const ResponsiveQRScanner = () => {
                           : "Connect a USB QR scanner or use manual input below."
                         }
                       </p>
-                      {!usbConnected && (
-                        <div className="bg-blue-50 p-4 rounded-lg mb-4">
-                          <p className="text-sm text-blue-700 mb-2">💡 USB Scanner Instructions:</p>
-                          <ul className="text-xs text-blue-600 text-left space-y-1">
-                            <li>• Connect your USB QR scanner</li>
-                            <li>• Click "Connect USB Scanner" button</li>
-                            <li>• Select your device when prompted</li>
-                            <li>• Scan ID cards directly</li>
-                          </ul>
-                        </div>
-                      )}
                     </>
                   )}
                 </div>

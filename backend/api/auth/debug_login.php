@@ -1,251 +1,175 @@
 
 <?php
-// Enable detailed error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('log_errors', 1);
-
-// Start output buffering to prevent any unexpected output
-ob_start();
-
-try {
-    include_once '../../config/cors.php';
-    include_once '../../config/database.php';
-    include_once '../../config/error_handler.php';
-} catch (Exception $e) {
-    ob_clean();
-    http_response_code(500);
-    header('Content-Type: application/json');
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'Configuration error: ' . $e->getMessage()
-    ]);
-    exit;
-}
-
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Max-Age: 3600');
 
-// Simple JWT generation function
-function generateJWT($payload) {
-    $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
-    $payload = json_encode($payload);
-    $secret = 'dsk_secret_key_2024'; // Use a secure secret in production
-    
-    $base64Header = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
-    $base64Payload = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($payload));
-    
-    $signature = hash_hmac('sha256', $base64Header . "." . $base64Payload, $secret, true);
-    $base64Signature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
-    
-    return $base64Header . "." . $base64Payload . "." . $base64Signature;
+// Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    http_response_code(200);
+    exit();
 }
 
+// Database configuration
+$host = 'localhost';
+$dbname = 'dskalmun_appDSK';
+$username = 'dskalmun_Admin';
+$password = 'Itadmin@1993';
+
 try {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        ob_clean();
-        http_response_code(405);
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Method not allowed'
-        ]);
-        exit;
-    }
-
-    $database = new Database();
-    $db = $database->getConnection();
-
-    if (!$db) {
-        ob_clean();
-        http_response_code(500);
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Database connection failed'
-        ]);
-        exit;
-    }
-
-    // Get and validate input
-    $input = file_get_contents("php://input");
-    error_log("Raw input: " . $input);
-    
-    $data = json_decode($input);
-
-    if (!$data) {
-        error_log("Failed to decode JSON input");
-        ob_clean();
-        http_response_code(400);
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Invalid JSON input'
-        ]);
-        exit;
-    }
-
-    if (!isset($data->username) || !isset($data->password)) {
-        error_log("Missing username or password in request");
-        ob_clean();
-        http_response_code(400);
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Username and password are required'
-        ]);
-        exit;
-    }
-
-    $username = trim($data->username);
-    $password = $data->password;
-    $role = isset($data->role) ? strtolower(trim($data->role)) : null;
-
-    error_log("Login attempt - Username: '$username', Role: '$role'");
-
-    // First try admin/staff users table
-    if (!$role || $role === 'admin' || $role === 'staff') {
-        $query = "SELECT id, user_id, username, password, role, name, email, status, department_id 
-                FROM users 
-                WHERE username = ? AND status = 'active'";
-        
-        error_log("Checking users table with query: " . $query);
-        
-        $stmt = $db->prepare($query);
-        $stmt->execute([$username]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($user) {
-            error_log("User found in users table: " . print_r($user, true));
-            
-            // Verify password
-            $passwordMatch = password_verify($password, $user['password']);
-            error_log("Password verification result: " . ($passwordMatch ? "MATCH" : "NO MATCH"));
-            
-            if ($passwordMatch) {
-                // Get department info if exists
-                $departmentName = null;
-                if ($user['department_id']) {
-                    $deptQuery = "SELECT name FROM departments WHERE id = ?";
-                    $deptStmt = $db->prepare($deptQuery);
-                    $deptStmt->execute([$user['department_id']]);
-                    $dept = $deptStmt->fetch(PDO::FETCH_ASSOC);
-                    $departmentName = $dept ? $dept['name'] : null;
-                }
-                
-                $token = generateJWT([
-                    'user_id' => $user['id'],
-                    'username' => $user['username'],
-                    'role' => $user['role'],
-                    'exp' => time() + (24 * 60 * 60) // 24 hours
-                ]);
-                
-                // Insert session record
-                try {
-                    $sessionQuery = "INSERT INTO user_sessions (user_id, token, expires_at, is_valid) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), 1)";
-                    $sessionStmt = $db->prepare($sessionQuery);
-                    $sessionStmt->execute([$user['id'], $token]);
-                } catch (Exception $e) {
-                    error_log("Session creation failed: " . $e->getMessage());
-                }
-                
-                error_log("Login successful for user: " . $user['username'] . ", role: " . $user['role']);
-                
-                ob_clean();
-                echo json_encode([
-                    'status' => 'success',
-                    'message' => 'Login successful',
-                    'data' => [
-                        'token' => $token,
-                        'user' => [
-                            'id' => $user['id'],
-                            'user_id' => $user['user_id'],
-                            'username' => $user['username'],
-                            'role' => $user['role'],
-                            'name' => $user['name'],
-                            'email' => $user['email'],
-                            'department_id' => $user['department_id'],
-                            'department_name' => $departmentName,
-                            'status' => $user['status']
-                        ]
-                    ]
-                ]);
-                exit;
-            }
-        }
-    }
-
-    // Try public users table if not found in admin/staff or role is public
-    if (!$role || $role === 'public') {
-        $query = "SELECT id, public_user_id as user_id, username, password_hash as password, name, email, status 
-                  FROM public_users 
-                  WHERE username = ? AND status = 'active'";
-        
-        error_log("Checking public_users table");
-        
-        $stmt = $db->prepare($query);
-        $stmt->execute([$username]);
-        $publicUser = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($publicUser) {
-            error_log("User found in public_users table: " . print_r($publicUser, true));
-            
-            $passwordMatch = password_verify($password, $publicUser['password']);
-            error_log("Password verification result for public user: " . ($passwordMatch ? "MATCH" : "NO MATCH"));
-            
-            if ($passwordMatch) {
-                $token = generateJWT([
-                    'user_id' => $publicUser['id'],
-                    'username' => $publicUser['username'],
-                    'role' => 'public',
-                    'exp' => time() + (24 * 60 * 60) // 24 hours
-                ]);
-                
-                // Insert session record
-                try {
-                    $sessionQuery = "INSERT INTO user_sessions (user_id, token, expires_at, is_valid) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR), 1)";
-                    $sessionStmt = $db->prepare($sessionQuery);
-                    $sessionStmt->execute([$publicUser['id'], $token]);
-                } catch (Exception $e) {
-                    error_log("Session creation failed: " . $e->getMessage());
-                }
-                
-                error_log("Login successful for public user: " . $publicUser['username']);
-                
-                ob_clean();
-                echo json_encode([
-                    'status' => 'success',
-                    'message' => 'Login successful',
-                    'data' => [
-                        'token' => $token,
-                        'user' => [
-                            'id' => $publicUser['id'],
-                            'user_id' => $publicUser['user_id'],
-                            'username' => $publicUser['username'],
-                            'role' => 'public',
-                            'name' => $publicUser['name'],
-                            'email' => $publicUser['email'],
-                            'status' => $publicUser['status']
-                        ]
-                    ]
-                ]);
-                exit;
-            }
-        }
-    }
-
-    // If we got here, login failed
-    error_log("Login failed - Invalid credentials for username: " . $username);
-    ob_clean();
-    http_response_code(401);
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'Invalid credentials. Please check your username and password.'
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);
-    
-} catch (Exception $e) {
-    error_log("Login error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-    ob_clean();
+} catch (PDOException $e) {
     http_response_code(500);
     echo json_encode([
         'status' => 'error',
-        'message' => 'An error occurred during login. Please try again later.',
-        'debug' => $e->getMessage()
+        'message' => 'Database connection failed'
+    ]);
+    exit();
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Method not allowed'
+    ]);
+    exit();
+}
+
+// Get and validate input
+$input = json_decode(file_get_contents('php://input'), true);
+
+if (!$input || !isset($input['username']) || !isset($input['password']) || !isset($input['role'])) {
+    http_response_code(400);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Missing required fields: username, password, role'
+    ]);
+    exit();
+}
+
+$loginUsername = trim($input['username']);
+$loginPassword = trim($input['password']);
+$loginRole = trim($input['role']);
+
+if (empty($loginUsername) || empty($loginPassword) || empty($loginRole)) {
+    http_response_code(400);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'All fields are required'
+    ]);
+    exit();
+}
+
+try {
+    // Query user from database
+    $stmt = $pdo->prepare("
+        SELECT u.id, u.user_id, u.username, u.name, u.email, u.password, u.role, u.status,
+               u.department_id, u.division_id,
+               d.name as department_name,
+               div.name as division_name
+        FROM users u
+        LEFT JOIN departments d ON u.department_id = d.id
+        LEFT JOIN divisions div ON u.division_id = div.id
+        WHERE u.username = ? AND u.status = 'active'
+    ");
+    
+    $stmt->execute([$loginUsername]);
+    $user = $stmt->fetch();
+
+    if (!$user) {
+        http_response_code(401);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Invalid credentials'
+        ]);
+        exit();
+    }
+
+    // Verify password
+    $passwordValid = false;
+    
+    // Check if password is hashed
+    if (password_verify($loginPassword, $user['password'])) {
+        $passwordValid = true;
+    } else if ($user['password'] === $loginPassword) {
+        // Plain text password (for testing)
+        $passwordValid = true;
+    }
+
+    if (!$passwordValid) {
+        http_response_code(401);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Invalid credentials'
+        ]);
+        exit();
+    }
+
+    // Verify role matches
+    if ($user['role'] !== $loginRole) {
+        http_response_code(401);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Invalid role for this user'
+        ]);
+        exit();
+    }
+
+    // Generate JWT token
+    $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
+    $payload = json_encode([
+        'user_id' => $user['id'],
+        'username' => $user['username'],
+        'role' => $user['role'],
+        'exp' => time() + (24 * 60 * 60) // 24 hours
+    ]);
+
+    $headerEncoded = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
+    $payloadEncoded = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($payload));
+    
+    $signature = hash_hmac('sha256', $headerEncoded . "." . $payloadEncoded, 'your-secret-key', true);
+    $signatureEncoded = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
+    
+    $token = $headerEncoded . "." . $payloadEncoded . "." . $signatureEncoded;
+
+    // Prepare user data for response
+    $userData = [
+        'id' => (int)$user['id'],
+        'user_id' => $user['user_id'],
+        'username' => $user['username'],
+        'name' => $user['name'],
+        'email' => $user['email'],
+        'role' => $user['role'],
+        'status' => $user['status'],
+        'department_id' => $user['department_id'] ? (int)$user['department_id'] : null,
+        'division_id' => $user['division_id'] ? (int)$user['division_id'] : null,
+        'department_name' => $user['department_name'],
+        'division_name' => $user['division_name']
+    ];
+
+    // Success response
+    http_response_code(200);
+    echo json_encode([
+        'status' => 'success',
+        'message' => 'Login successful',
+        'data' => [
+            'token' => $token,
+            'user' => $userData
+        ]
+    ]);
+
+} catch (Exception $e) {
+    error_log("Login error: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'An error occurred during login'
     ]);
 }
 ?>
