@@ -1,18 +1,46 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { z } from 'zod';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { format } from 'date-fns';
+import { Loader2, Plus, Search, X, Edit, Trash2, Users, Check, X as XIcon, Eye, EyeOff } from 'lucide-react';
+
+// UI Components
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue,
+  SelectGroup,
+  SelectLabel 
+} from "@/components/ui/select";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger, 
+  DialogFooter,
+  DialogDescription 
+} from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/use-toast";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, Users } from 'lucide-react';
-import { useToast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+// Services
 import { apiService } from '@/services/api';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+
+// Components
+import { PublicUserIDCard } from './PublicUserIDCard';
 
 interface Department {
   id: number;
@@ -38,56 +66,193 @@ interface PublicUser {
   created_at: string;
   qr_code_data?: string;
   qr_code_url?: string;
+  date_of_birth?: string;
+  [key: string]: any; // Allow additional properties
 }
 
+// Enhanced form validation schema
 const formSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  nic: z.string().min(10, 'NIC must be at least 10 characters'),
-  address: z.string().min(5, 'Address must be at least 5 characters'),
-  mobile: z.string().regex(/^\+?[0-9]{10,}$/, 'Invalid mobile number'),
-  email: z.string().email('Invalid email address'),
-  username: z.string().min(4, 'Username must be at least 4 characters'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  name: z.string()
+    .min(2, 'Name must be at least 2 characters')
+    .max(100, 'Name cannot exceed 100 characters')
+    .regex(/^[a-zA-Z\s.'-]+$/, 'Name can only contain letters, spaces, and basic punctuation'),
+  nic: z.string()
+    .min(10, 'NIC must be at least 10 characters')
+    .max(12, 'NIC cannot exceed 12 characters')
+    .regex(/^[0-9]{9}[vVxX]?$|^[0-9]{12}$/, 'Invalid NIC format. Use 9 digits with optional V/X or 12 digits'),
+  address: z.string()
+    .min(5, 'Address must be at least 5 characters')
+    .max(200, 'Address cannot exceed 200 characters'),
+  mobile: z.string()
+    .min(10, 'Mobile number must be at least 10 digits')
+    .max(12, 'Mobile number cannot exceed 12 digits')
+    .regex(/^[0-9+]+$/, 'Mobile number can only contain numbers and +'),
+  email: z.string()
+    .email('Invalid email address')
+    .max(100, 'Email cannot exceed 100 characters')
+    .optional()
+    .or(z.literal('')),
+  username: z.string()
+    .min(4, 'Username must be at least 4 characters')
+    .max(50, 'Username cannot exceed 50 characters')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
   confirmPassword: z.string(),
-  department_id: z.string().optional(),
-  division_id: z.string().optional()
-}).refine(data => data.password === data.confirmPassword, {
+  department_id: z.string().min(1, 'Department is required'),
+  division_id: z.string().min(1, 'Division is required')
+}).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
+}).refine((data) => {
+  if (data.email && data.email.trim() !== '') {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email);
+  }
+  return true;
+}, {
+  message: 'Invalid email format',
+  path: ['email']
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 const PublicAccountCreation = () => {
+  // Component state
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [publicUsers, setPublicUsers] = useState<PublicUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showIdCard, setShowIdCard] = useState(false);
+  const [createdUser, setCreatedUser] = useState<PublicUser | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  
   const { toast } = useToast();
 
-  // Form state
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormData>({
+  // Form state with enhanced error handling
+  const { 
+    register, 
+    handleSubmit, 
+    reset, 
+    watch, 
+    setValue, 
+    trigger,
+    control,
+    formState: { errors, isDirty, isValid, isSubmitting } 
+  } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      department_id: undefined,
-      division_id: undefined
-    }
+      name: '',
+      nic: '',
+      address: '',
+      mobile: '',
+      email: '',
+      username: '',
+      password: '',
+      confirmPassword: '',
+      department_id: '',
+      division_id: ''
+    },
+    mode: 'onChange',
+    criteriaMode: 'all'
   });
-
-  // Watch department_id for division filtering
+  
   const selectedDepartmentId = watch('department_id');
+  const selectedDivisionId = watch('division_id');
+  const password = watch('password');
 
-  const getFilteredDivisions = () => {
+  // Memoize filtered divisions to prevent unnecessary re-renders
+  const filteredDivisions = useMemo(() => {
     if (!selectedDepartmentId) return [];
     return divisions.filter(d => d.department_id === parseInt(selectedDepartmentId));
+  }, [selectedDepartmentId, divisions]);
+
+  // Password strength indicator
+  const getPasswordStrength = (password: string) => {
+    if (!password) return { score: 0, label: 'Weak', color: 'bg-red-500' };
+    
+    let score = 0;
+    // Length check
+    if (password.length >= 8) score++;
+    // Has uppercase
+    if (/[A-Z]/.test(password)) score++;
+    // Has lowercase
+    if (/[a-z]/.test(password)) score++;
+    // Has number
+    if (/[0-9]/.test(password)) score++;
+    // Has special char
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    
+    if (score <= 2) return { score, label: 'Weak', color: 'bg-red-500' };
+    if (score <= 4) return { score, label: 'Good', color: 'bg-yellow-500' };
+    return { score, label: 'Strong', color: 'bg-green-500' };
+  };
+  
+  const passwordStrength = getPasswordStrength(password);
+
+  // Password requirements check
+  const passwordRequirements = [
+    { id: 'length', label: 'At least 8 characters', validate: (p: string) => p.length >= 8 },
+    { id: 'uppercase', label: 'At least 1 uppercase letter', validate: (p: string) => /[A-Z]/.test(p) },
+    { id: 'lowercase', label: 'At least 1 lowercase letter', validate: (p: string) => /[a-z]/.test(p) },
+    { id: 'number', label: 'At least 1 number', validate: (p: string) => /[0-9]/.test(p) },
+    { id: 'special', label: 'At least 1 special character', validate: (p: string) => /[^A-Za-z0-9]/.test(p) },
+  ];
+
+  // Reset division when department changes and validate form
+  useEffect(() => {
+    if (selectedDepartmentId) {
+      setValue('division_id', '', { shouldValidate: true });
+      trigger('division_id');
+    }
+  }, [selectedDepartmentId, setValue, trigger]);
+  
+  // Auto-generate username from name
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    if (name && !watch('username')) {
+      const username = name.toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_')
+        .replace(/_{2,}/g, '_')
+        .replace(/^_|_$/g, '');
+      setValue('username', username, { shouldValidate: true });
+    }
   };
 
-  // Reset division when department changes
-  useEffect(() => {
-    setValue('division_id', undefined);
-  }, [selectedDepartmentId, setValue]);
+  // Toggle password visibility
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
+
+  // Format form errors for display
+  const getFormErrors = () => {
+    const errorMessages: string[] = [];
+    
+    Object.entries(errors).forEach(([key, value]) => {
+      if (value && value.message) {
+        errorMessages.push(value.message as string);
+      } else if (Array.isArray(value)) {
+        value.forEach((item) => {
+          if (item && item.message) {
+            errorMessages.push(item.message);
+          }
+        });
+      }
+    });
+    
+    return errorMessages;
+  };
+
+  // Check if field has error
+  const hasError = (field: keyof FormData) => {
+    return errors[field] ? 'border-red-500 focus-visible:ring-red-500' : '';
+  };
 
   useEffect(() => {
     fetchPublicUsers();
@@ -95,12 +260,13 @@ const PublicAccountCreation = () => {
     fetchDivisions();
   }, []);
 
-  const fetchPublicUsers = async () => {
+  const fetchPublicUsers = useCallback(async () => {
     try {
       setIsLoading(true);
       const users = await apiService.getPublicUsers();
       setPublicUsers(users);
     } catch (error) {
+      console.error('Error fetching public users:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to fetch public users",
@@ -110,49 +276,85 @@ const PublicAccountCreation = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
-  const fetchDepartments = async () => {
+  const fetchDepartments = useCallback(async () => {
     try {
       const response = await apiService.getDepartments();
       setDepartments(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Error fetching departments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load departments. Please try again.",
+        variant: "destructive",
+      });
     }
-  };
+  }, [toast]);
 
-  const fetchDivisions = async () => {
+  const fetchDivisions = useCallback(async () => {
     try {
       const response = await apiService.getDivisions();
       setDivisions(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Error fetching divisions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load divisions. Please try again.",
+        variant: "destructive",
+      });
     }
-  };
+  }, [toast]);
 
   const onSubmit = async (data: FormData) => {
     try {
-      setIsLoading(true);
-      const response = await apiService.createPublicUser({
-        name: data.name,
-        nic: data.nic,
-        address: data.address,
-        mobile: data.mobile,
-        email: data.email,
-        username: data.username,
+      setIsSubmittingForm(true);
+      
+      // Validate form data
+      const validationResult = formSchema.safeParse(data);
+      if (!validationResult.success) {
+        const errorMessages = validationResult.error.issues.map(issue => issue.message).join('\n');
+        throw new Error(`Validation failed: ${errorMessages}`);
+      }
+
+      // Prepare user data
+      const userData = {
+        name: data.name.trim(),
+        nic: data.nic.trim(),
+        address: data.address.trim(),
+        mobile: data.mobile.trim(),
+        email: data.email?.trim() || undefined,
+        username: data.username.trim(),
         password: data.password,
         department_id: data.department_id ? parseInt(data.department_id) : undefined,
-        division_id: data.division_id ? parseInt(data.division_id) : undefined
-      });
+        division_id: data.division_id ? parseInt(data.division_id) : undefined,
+        status: 'active' as const
+      };
+
+      // Call API to create user
+      const response = await apiService.createPublicUser(userData);
 
       // Handle both object response and direct user response
-      if (response && (response.id || (typeof response === 'object' && 'status' in response && response.status === 'success'))) {
+      if (response && (response.id || (typeof response === 'object' && 'status' in response && (response as any).status === 'success'))) {
+        const newUser = (typeof response === 'object' && 'data' in response) ? (response as any).data : response as PublicUser;
+        const publicId = (newUser as any).public_id || `PUB-${new Date().getTime()}`;
+        const qrCodeUrl = (newUser as any).qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicId)}`;
+        
+        setCreatedUser({
+          ...newUser,
+          public_id: publicId,
+          qr_code_url: qrCodeUrl,
+          date_of_birth: new Date().toISOString().split('T')[0] // Add default date of birth
+        });
+        
         toast({
           title: "Success",
           description: "Public account created successfully",
         });
+        
         reset();
         setIsDialogOpen(false);
+        setShowIdCard(true);
         fetchPublicUsers(); // Refresh the list
       } else {
         throw new Error('Failed to create account');
@@ -169,15 +371,70 @@ const PublicAccountCreation = () => {
     }
   };
 
-  const filteredUsers = publicUsers.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.public_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.nic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.department_name && user.department_name.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Memoized filtered users based on search term
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm.trim()) return publicUsers;
+    
+    const searchLower = searchTerm.toLowerCase();
+    return publicUsers.filter(user => (
+      (user.name?.toLowerCase().includes(searchLower) || '') ||
+      (user.public_id?.toLowerCase().includes(searchLower) || '') ||
+      (user.nic?.toLowerCase().includes(searchLower) || '') ||
+      (user.email?.toLowerCase().includes(searchLower) || '') ||
+      (user.mobile?.toLowerCase().includes(searchLower) || '') ||
+      (user.department_name?.toLowerCase().includes(searchLower) || '') ||
+      (user.division_name?.toLowerCase().includes(searchLower) || '')
+    ));
+  }, [publicUsers, searchTerm]);
+  
+  // Handle search input change with debounce
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  };
+  
+  // Debounced search to prevent too many API calls
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      fetchPublicUsers();
+    }, 500);
+    
+    return () => clearTimeout(timerId);
+  }, [searchTerm, fetchPublicUsers]);
 
   return (
     <div className="space-y-6">
+      {showIdCard && createdUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">ID Card Preview</h2>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setShowIdCard(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </Button>
+            </div>
+            <PublicUserIDCard 
+              user={{
+                ...createdUser,
+                dateOfBirth: (createdUser as any).date_of_birth || new Date().toISOString().split('T')[0]
+              }} 
+            />
+            <div className="mt-4 flex justify-end space-x-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowIdCard(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
@@ -216,7 +473,8 @@ const PublicAccountCreation = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="name">Full Name *</Label>
-                        <Input                    id="name"
+                        <Input
+                          id="name"
                           {...register('name')}
                           placeholder="Enter full name"
                           autoComplete="name"
@@ -229,7 +487,8 @@ const PublicAccountCreation = () => {
                       
                       <div className="space-y-2">
                         <Label htmlFor="nic">NIC Number *</Label>
-                        <Input                    id="nic"
+                        <Input
+                          id="nic"
                           {...register('nic')}
                           placeholder="Enter NIC number"
                           autoComplete="off"
@@ -243,11 +502,12 @@ const PublicAccountCreation = () => {
 
                     <div className="space-y-2">
                       <Label htmlFor="address">Address *</Label>
-                      <Textarea                    id="address"
-                          {...register('address')}
-                          placeholder="Enter full address"
-                          autoComplete="street-address"
-                          required
+                      <Textarea
+                        id="address"
+                        {...register('address')}
+                        placeholder="Enter full address"
+                        autoComplete="street-address"
+                        required
                       />
                       {errors.address && (
                         <p className="text-sm text-red-500">{errors.address.message}</p>
@@ -257,7 +517,8 @@ const PublicAccountCreation = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="mobile">Mobile Number *</Label>
-                        <Input                    id="mobile"
+                        <Input
+                          id="mobile"
                           {...register('mobile')}
                           placeholder="+94771234567"
                           autoComplete="tel"
@@ -270,7 +531,8 @@ const PublicAccountCreation = () => {
                       
                       <div className="space-y-2">
                         <Label htmlFor="email">Email (Optional)</Label>
-                        <Input                    id="email"
+                        <Input
+                          id="email"
                           type="email"
                           {...register('email')}
                           placeholder="Enter email address"
@@ -286,9 +548,11 @@ const PublicAccountCreation = () => {
                       <div className="space-y-2">
                         <Label htmlFor="public-department">Department (Optional)</Label>
                         <Select
-                          name="department_id"
+                          {...register('department_id')}
                           value={selectedDepartmentId}
-                          onValueChange={(value) => setValue('department_id', value)}
+                          onValueChange={(value) => {
+                            setValue('department_id', value);
+                          }}
                         >
                           <SelectTrigger id="public-department" className="w-full">
                             <SelectValue placeholder="Select department" />
@@ -307,8 +571,8 @@ const PublicAccountCreation = () => {
                       <div className="space-y-2">
                         <Label htmlFor="public-division">Division (Optional)</Label>
                         <Select
-                          name="division_id"
-                          value={watch('division_id')}
+                          {...register('division_id')}
+                          value={selectedDivisionId}
                           onValueChange={(value) => setValue('division_id', value)}
                           disabled={!selectedDepartmentId}
                         >
@@ -316,7 +580,7 @@ const PublicAccountCreation = () => {
                             <SelectValue placeholder={selectedDepartmentId ? "Select division" : "Select department first"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {getFilteredDivisions().map((div) => (
+                            {filteredDivisions.map((div) => (
                               <SelectItem key={div.id} value={div.id.toString()}>
                                 {div.name}
                               </SelectItem>
@@ -326,7 +590,7 @@ const PublicAccountCreation = () => {
                         <small className="text-sm text-gray-500">
                           {!selectedDepartmentId 
                             ? "Please select a department first"
-                            : getFilteredDivisions().length === 0
+                            : filteredDivisions.length === 0
                             ? "No divisions available for selected department"
                             : "Select your division within the department if applicable"}
                         </small>

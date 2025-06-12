@@ -61,16 +61,29 @@ try {
 
 function getUsers($db) {
     try {
+        // Get status filter from query parameters
+        $statusFilter = isset($_GET['status']) ? $_GET['status'] : 'all';
+        
         $query = "SELECT u.*, d.name as department_name, `div`.name as division_name 
                  FROM users u 
                  LEFT JOIN departments d ON u.department_id = d.id 
-                 LEFT JOIN divisions `div` ON u.division_id = `div`.id 
-                 WHERE u.status = 'active' 
-                 ORDER BY u.role, u.name";
+                 LEFT JOIN divisions `div` ON u.division_id = `div`.id ";
+        
+        // Add status filter if not 'all'
+        if ($statusFilter !== 'all') {
+            $query .= " WHERE u.status = :status ";
+        }
+        
+        $query .= " ORDER BY u.role, u.name";
         
         $stmt = $db->prepare($query);
         if (!$stmt) {
             throw new Exception("Failed to prepare query");
+        }
+        
+        // Bind status parameter if needed
+        if ($statusFilter !== 'all') {
+            $stmt->bindParam(':status', $statusFilter);
         }
         
         $stmt->execute();
@@ -90,7 +103,11 @@ function getUsers($db) {
         sendResponse(200, [
             "status" => "success",
             "message" => "Users retrieved successfully",
-            "data" => $users
+            "data" => $users,
+            "count" => count($users),
+            "filters" => [
+                "status" => $statusFilter
+            ]
         ]);
     } catch (Exception $e) {
         error_log("Get users error: " . $e->getMessage());

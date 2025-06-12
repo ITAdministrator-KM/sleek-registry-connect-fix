@@ -45,11 +45,11 @@ export class AuthService extends ApiBase {
       console.log('AuthService: Attempting login with:', { 
         username: loginData.username, 
         role: loginData.role,
-        endpoint: '/auth/debug_login.php' 
+        endpoint: '/auth/login.php' 
       });
       
       // Make the request with proper headers and JSON body
-      const response = await this.makeRequest('/auth/debug_login.php', {
+      const response = await this.makeRequest('/auth/login.php', {
         method: 'POST',
         body: JSON.stringify(loginData), // Stringify the body here
         headers: {

@@ -124,10 +124,10 @@ class ApiService extends ApiBase {
   }
 
   // Users API
-  async getUsers(): Promise<User[]> {
+  async getUsers(status: string = 'all'): Promise<User[]> {
     try {
       const response = await this.retryRequest(() =>
-        this.makeRequest('/users/index.php')
+        this.makeRequest(`/users/index.php${status !== 'all' ? `?status=${status}` : ''}`)
       );
       // Handle both direct array response and data property
       if (Array.isArray(response)) {
@@ -142,24 +142,54 @@ class ApiService extends ApiBase {
 
   async createUser(userData: Partial<User>): Promise<User> {
     try {
-      const response = await this.makeRequest('/users/', {
+      const response = await this.makeRequest('/users/index.php', {
         method: 'POST',
         body: JSON.stringify(userData),
       });
-      return response.data || response;
+      
+      // If the response has a data property with user info, return that
+      if (response.data) {
+        return response.data;
+      }
+      
+      // If we have an ID in the response, fetch the full user data
+      if (response.id) {
+        const users = await this.getUsers('all');
+        const newUser = users.find(u => u.id === response.id);
+        if (newUser) return newUser;
+      }
+      
+      // If we can't get the full user, return what we have
+      return response as User;
     } catch (error) {
+      console.error('Error in createUser:', error);
       throw this.handleApiError(error, 'create user');
     }
   }
 
   async updateUser(id: number, userData: Partial<User>): Promise<User> {
     try {
-      const response = await this.makeRequest('/users/', {
+      const response = await this.makeRequest('/users/index.php', {
         method: 'PUT',
         body: JSON.stringify({ id, ...userData }),
       });
-      return response.data || response;
+      
+      // If the response has a data property with user info, return that
+      if (response.data) {
+        return response.data;
+      }
+      
+      // If we have an ID in the response, fetch the full user data
+      if (response.id) {
+        const users = await this.getUsers('all');
+        const updatedUser = users.find(u => u.id === response.id);
+        if (updatedUser) return updatedUser;
+      }
+      
+      // If we can't get the full user, return what we have
+      return { ...userData, id } as User;
     } catch (error) {
+      console.error('Error in updateUser:', error);
       throw this.handleApiError(error, 'update user');
     }
   }
