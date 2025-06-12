@@ -1,3 +1,4 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -37,19 +38,24 @@ try {
 }
 
 function generateDivisionId($db) {
-    // Get the last division ID
-    $stmt = $db->prepare("SELECT div_id FROM divisions WHERE div_id LIKE 'DIV%' ORDER BY CAST(SUBSTRING(div_id, 4) AS UNSIGNED) DESC LIMIT 1");
-    $stmt->execute();
-    $lastId = $stmt->fetchColumn();
-    
-    if ($lastId) {
-        $lastNumber = intval(substr($lastId, 3));
-        $newNumber = $lastNumber + 1;
-    } else {
-        $newNumber = 1;
+    try {
+        // Get the last division ID
+        $stmt = $db->prepare("SELECT div_id FROM divisions WHERE div_id LIKE 'DIV%' ORDER BY CAST(SUBSTRING(div_id, 4) AS UNSIGNED) DESC LIMIT 1");
+        $stmt->execute();
+        $lastId = $stmt->fetchColumn();
+        
+        if ($lastId) {
+            $lastNumber = intval(substr($lastId, 3));
+            $newNumber = $lastNumber + 1;
+        } else {
+            $newNumber = 1;
+        }
+        
+        return 'DIV' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
+    } catch (Exception $e) {
+        error_log("Error generating division ID: " . $e->getMessage());
+        return 'DIV001'; // fallback
     }
-    
-    return 'DIV' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
 }
 
 function getDivisions($db) {
@@ -78,6 +84,13 @@ function getDivisions($db) {
         }
         
         $divisions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Ensure div_id is set for all divisions
+        foreach ($divisions as &$division) {
+            if (empty($division['div_id'])) {
+                $division['div_id'] = 'DIV' . str_pad($division['id'], 3, '0', STR_PAD_LEFT);
+            }
+        }
         
         sendResponse($divisions, "Divisions retrieved successfully");
     } catch (Exception $e) {
@@ -118,7 +131,7 @@ function createDivision($db) {
         // Check for duplicate division name
         $duplicateQuery = "SELECT id FROM divisions WHERE name = ? AND department_id = ? AND status = 'active'";
         $dupStmt = $db->prepare($duplicateQuery);
-        $dupStmt->execute([$data->name, $data->department_id]);
+        $dupStmt->execute([trim($data->name), $data->department_id]);
         
         if ($dupStmt->rowCount() > 0) {
             sendError(409, "A division with this name already exists in the selected department");
@@ -130,9 +143,9 @@ function createDivision($db) {
 
         $query = "INSERT INTO divisions (div_id, name, department_id, description) VALUES (?, ?, ?, ?)";
         $stmt = $db->prepare($query);
-        $description = $data->description ?? '';
+        $description = isset($data->description) ? trim($data->description) : '';
         
-        if ($stmt->execute([$divId, $data->name, $data->department_id, $description])) {
+        if ($stmt->execute([$divId, trim($data->name), $data->department_id, $description])) {
             sendResponse([
                 "id" => $db->lastInsertId(),
                 "div_id" => $divId,
@@ -165,6 +178,7 @@ function updateDivision($db) {
         $checkDivStmt->execute([$data->id]);
         
         if ($checkDivStmt->rowCount() === 0) {
+            $db->rollBack();
             sendError(404, "Division not found or is inactive");
             return;
         }
@@ -175,6 +189,7 @@ function updateDivision($db) {
         $checkDeptStmt->execute([$data->department_id]);
         
         if ($checkDeptStmt->rowCount() === 0) {
+            $db->rollBack();
             sendError(400, "Invalid or inactive department");
             return;
         }
@@ -186,9 +201,10 @@ function updateDivision($db) {
                         AND id != ? 
                         AND status = 'active'";
         $dupStmt = $db->prepare($duplicateQuery);
-        $dupStmt->execute([$data->name, $data->department_id, $data->id]);
+        $dupStmt->execute([trim($data->name), $data->department_id, $data->id]);
         
         if ($dupStmt->rowCount() > 0) {
+            $db->rollBack();
             sendError(409, "A division with this name already exists in the selected department");
             return;
         }
@@ -199,9 +215,9 @@ function updateDivision($db) {
                     description = ? 
                 WHERE id = ?";
         $stmt = $db->prepare($query);
-        $description = $data->description ?? '';
+        $description = isset($data->description) ? trim($data->description) : '';
         
-        if ($stmt->execute([$data->name, $data->department_id, $description, $data->id])) {
+        if ($stmt->execute([trim($data->name), $data->department_id, $description, $data->id])) {
             $db->commit();
             sendResponse([], "Division updated successfully");
         } else {
@@ -223,8 +239,10 @@ function deleteDivision($db) {
         
         if (!$id) {
             $input = file_get_contents("php://input");
-            $data = json_decode($input);
-            $id = $data->id ?? null;
+            if (!empty($input)) {
+                $data = json_decode($input);
+                $id = $data->id ?? null;
+            }
         }
         
         if (!$id) {
@@ -244,6 +262,7 @@ function deleteDivision($db) {
         $division = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$division) {
+            $db->rollBack();
             sendError(404, "Division not found or is already inactive");
             return;
         }
@@ -255,6 +274,7 @@ function deleteDivision($db) {
         $userCount = $usersStmt->fetchColumn();
 
         if ($userCount > 0) {
+            $db->rollBack();
             sendError(409, "Cannot delete division with active users. Please reassign users first.");
             return;
         }
