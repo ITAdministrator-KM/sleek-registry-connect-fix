@@ -1,4 +1,3 @@
-
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
@@ -17,12 +16,14 @@ export class IDCardPrinter {
         users.map(async (user) => {
           try {
             let qrDataUrl = '';
+            const userPublicId = (user as any).public_user_id || user.public_id || `PUB-${user.id}`;
+            
             if (user.qr_code && user.qr_code.trim() !== '') {
               if (user.qr_code.startsWith('data:image/')) {
                 qrDataUrl = user.qr_code;
               } else {
                 const qrData = {
-                  id: user.public_user_id || user.public_id,
+                  id: userPublicId,
                   name: user.name,
                   nic: user.nic,
                   mobile: user.mobile,
@@ -42,7 +43,7 @@ export class IDCardPrinter {
               }
             } else {
               const qrData = {
-                id: user.public_user_id || user.public_id,
+                id: userPublicId,
                 name: user.name,
                 nic: user.nic,
                 mobile: user.mobile,
@@ -60,10 +61,10 @@ export class IDCardPrinter {
                 errorCorrectionLevel: 'H'
               });
             }
-            return { ...user, qr_data_url: qrDataUrl };
+            return { ...user, qr_data_url: qrDataUrl, public_user_id: userPublicId };
           } catch (error) {
-            console.error('QR generation error for user:', user.public_user_id || user.public_id, error);
-            return { ...user, qr_data_url: '' };
+            console.error('QR generation error for user:', userPublicId, error);
+            return { ...user, qr_data_url: '', public_user_id: userPublicId };
           }
         })
       );
@@ -196,7 +197,7 @@ export class IDCardPrinter {
                 <span class="value">${user.address.length > 40 ? user.address.substring(0, 40) + '...' : user.address}</span>
               </div>
               <div class="info-row">
-                <span class="label">ID:</span>
+                <span class="label">Public ID:</span>
                 <span class="value">${displayId}</span>
               </div>
             </div>

@@ -337,14 +337,16 @@ const PublicAccountCreation = () => {
       // Handle both object response and direct user response
       if (response && (response.id || (typeof response === 'object' && 'status' in response && (response as any).status === 'success'))) {
         const newUser = (typeof response === 'object' && 'data' in response) ? (response as any).data : response as PublicUser;
-        const publicId = (newUser as any).public_id || `PUB-${new Date().getTime()}`;
-        const qrCodeUrl = (newUser as any).qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicId)}`;
+        const publicUserId = (newUser as any).public_user_id || (newUser as any).public_id || `PUB-${new Date().getTime()}`;
+        const publicId = (newUser as any).public_id || publicUserId;
+        const qrCodeUrl = (newUser as any).qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUserId)}`;
         
         setCreatedUser({
           ...newUser,
+          public_user_id: publicUserId,
           public_id: publicId,
           qr_code_url: qrCodeUrl,
-          date_of_birth: new Date().toISOString().split('T')[0] // Add default date of birth
+          dateOfBirth: new Date().toISOString().split('T')[0] // Add default date of birth
         });
         
         toast({
@@ -420,7 +422,8 @@ const PublicAccountCreation = () => {
             <PublicUserIDCard 
               user={{
                 ...createdUser,
-                dateOfBirth: (createdUser as any).date_of_birth || new Date().toISOString().split('T')[0]
+                public_user_id: createdUser.public_user_id || createdUser.public_id || 'Unknown',
+                dateOfBirth: (createdUser as any).dateOfBirth || new Date().toISOString().split('T')[0]
               }} 
             />
             <div className="mt-4 flex justify-end space-x-2">
