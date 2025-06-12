@@ -14,9 +14,10 @@ export class IDCardPrinter {
       // Generate QR codes for all users
       const usersWithQR = await Promise.all(
         users.map(async (user) => {
+          const userPublicId = (user as any).public_user_id || user.public_id || `PUB-${user.id}`;
+          
           try {
             let qrDataUrl = '';
-            const userPublicId = (user as any).public_user_id || user.public_id || `PUB-${user.id}`;
             
             if (user.qr_code && user.qr_code.trim() !== '') {
               if (user.qr_code.startsWith('data:image/')) {
