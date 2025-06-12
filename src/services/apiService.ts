@@ -11,7 +11,7 @@ export interface ApiResponse<T = any> {
 
 export interface User {
   id: number;
-  user_id?: string;
+  user_id: string;
   name: string;
   nic: string;
   email: string;
@@ -27,6 +27,7 @@ export interface User {
 
 export interface Department {
   id: number;
+  dept_id?: string;
   name: string;
   description: string;
   division_count?: number;
@@ -36,6 +37,7 @@ export interface Department {
 
 export interface Division {
   id: number;
+  div_id?: string;
   name: string;
   department_id: number;
   department_name?: string;
@@ -213,9 +215,8 @@ class ApiService extends ApiBase {
   async deleteDepartment(id: number): Promise<void> {
     try {
       await this.retryRequest(() =>
-        this.makeRequest('/departments/index.php', {
-          method: 'DELETE',
-          body: JSON.stringify({ id })
+        this.makeRequest(`/departments/?id=${id}`, {
+          method: 'DELETE'
         })
       );
     } catch (error) {
@@ -264,9 +265,8 @@ class ApiService extends ApiBase {
   async deleteDivision(id: number): Promise<void> {
     try {
       await this.retryRequest(() =>
-        this.makeRequest('/divisions/index.php', {
-          method: 'DELETE',
-          body: JSON.stringify({ id })
+        this.makeRequest(`/divisions/?id=${id}`, {
+          method: 'DELETE'
         })
       );
     } catch (error) {

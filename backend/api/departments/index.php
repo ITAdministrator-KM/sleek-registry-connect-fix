@@ -1,3 +1,4 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -42,6 +43,22 @@ try {
         "status" => "error",
         "message" => $e->getMessage()
     ]);
+}
+
+function generateDepartmentId($db) {
+    // Get the last department ID
+    $stmt = $db->prepare("SELECT dept_id FROM departments WHERE dept_id LIKE 'DEP%' ORDER BY CAST(SUBSTRING(dept_id, 4) AS UNSIGNED) DESC LIMIT 1");
+    $stmt->execute();
+    $lastId = $stmt->fetchColumn();
+    
+    if ($lastId) {
+        $lastNumber = intval(substr($lastId, 3));
+        $newNumber = $lastNumber + 1;
+    } else {
+        $newNumber = 1;
+    }
+    
+    return 'DEP' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
 }
 
 function getDepartments($db) {
@@ -103,7 +120,10 @@ function createDepartment($db) {
             throw new Exception("Department with this name already exists", 409);
         }
 
-        $query = "INSERT INTO departments (name, description) VALUES (:name, :description)";
+        // Generate unique department ID
+        $deptId = generateDepartmentId($db);
+
+        $query = "INSERT INTO departments (dept_id, name, description) VALUES (:dept_id, :name, :description)";
         $stmt = $db->prepare($query);
         if (!$stmt) {
             throw new Exception("Failed to prepare query", 500);
@@ -112,6 +132,7 @@ function createDepartment($db) {
         $name = $data->name;
         $description = isset($data->description) ? $data->description : null;
         
+        $stmt->bindParam(":dept_id", $deptId);
         $stmt->bindParam(":name", $name);
         $stmt->bindParam(":description", $description, PDO::PARAM_STR);
         
@@ -127,6 +148,7 @@ function createDepartment($db) {
             "message" => "Department created successfully",
             "data" => [
                 "id" => $id,
+                "dept_id" => $deptId,
                 "name" => $data->name
             ]
         ]);
@@ -193,7 +215,14 @@ function updateDepartment($db) {
 
 function deleteDepartment($db) {
     try {
+        // Handle both query parameter and request body
         $id = $_GET['id'] ?? null;
+        
+        if (!$id) {
+            $data = json_decode(file_get_contents("php://input"));
+            $id = $data->id ?? null;
+        }
+        
         if (!$id) {
             throw new Exception("Department ID is required", 400);
         }
@@ -279,6 +308,62 @@ function deleteDepartment($db) {
         if ($db && $db->inTransaction()) {
             $db->rollBack();
         }
+        throw $e;
+    }
+}
+
+function updateDepartment($db) {
+    try {
+        $data = json_decode(file_get_contents("php://input"));
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new Exception("Invalid JSON payload: " . json_last_error_msg(), 400);
+        }
+        
+        if (!isset($data->id) || !isset($data->name)) {
+            throw new Exception("Department ID and name are required", 400);
+        }
+        
+        // Check department exists
+        $checkQuery = "SELECT id FROM departments WHERE id = :id AND status = 'active'";
+        $checkStmt = $db->prepare($checkQuery);
+        $checkStmt->bindParam(":id", $data->id);
+        $checkStmt->execute();
+        
+        if ($checkStmt->rowCount() === 0) {
+            throw new Exception("Department not found", 404);
+        }
+
+        // Check for duplicate name
+        $checkQuery = "SELECT id FROM departments WHERE name = :name AND id != :id AND status = 'active'";
+        $checkStmt = $db->prepare($checkQuery);
+        $checkStmt->bindParam(":name", $data->name);
+        $checkStmt->bindParam(":id", $data->id);
+        $checkStmt->execute();
+        
+        if ($checkStmt->rowCount() > 0) {
+            throw new Exception("Another department with this name already exists", 409);
+        }
+
+        $query = "UPDATE departments SET name = :name, description = :description WHERE id = :id";
+        $stmt = $db->prepare($query);
+        if (!$stmt) {
+            throw new Exception("Failed to prepare query", 500);
+        }
+        
+        $stmt->bindValue(":id", $data->id);
+        $stmt->bindValue(":name", $data->name);
+        $stmt->bindValue(":description", $data->description ?? null, PDO::PARAM_STR);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to update department", 500);
+        }
+        
+        http_response_code(200);
+        echo json_encode([
+            "status" => "success",
+            "message" => "Department updated successfully"
+        ]);
+    } catch (Exception $e) {
         throw $e;
     }
 }

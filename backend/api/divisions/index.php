@@ -1,4 +1,3 @@
-
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -35,6 +34,22 @@ try {
 } catch (Exception $e) {
     error_log("Divisions API Error: " . $e->getMessage());
     sendError(500, "Internal server error: " . $e->getMessage());
+}
+
+function generateDivisionId($db) {
+    // Get the last division ID
+    $stmt = $db->prepare("SELECT div_id FROM divisions WHERE div_id LIKE 'DIV%' ORDER BY CAST(SUBSTRING(div_id, 4) AS UNSIGNED) DESC LIMIT 1");
+    $stmt->execute();
+    $lastId = $stmt->fetchColumn();
+    
+    if ($lastId) {
+        $lastNumber = intval(substr($lastId, 3));
+        $newNumber = $lastNumber + 1;
+    } else {
+        $newNumber = 1;
+    }
+    
+    return 'DIV' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
 }
 
 function getDivisions($db) {
@@ -110,13 +125,17 @@ function createDivision($db) {
             return;
         }
 
-        $query = "INSERT INTO divisions (name, department_id, description) VALUES (?, ?, ?)";
+        // Generate unique division ID
+        $divId = generateDivisionId($db);
+
+        $query = "INSERT INTO divisions (div_id, name, department_id, description) VALUES (?, ?, ?, ?)";
         $stmt = $db->prepare($query);
         $description = $data->description ?? '';
         
-        if ($stmt->execute([$data->name, $data->department_id, $description])) {
+        if ($stmt->execute([$divId, $data->name, $data->department_id, $description])) {
             sendResponse([
                 "id" => $db->lastInsertId(),
+                "div_id" => $divId,
                 "name" => $data->name
             ], "Division created successfully");
         } else {
@@ -199,10 +218,16 @@ function updateDivision($db) {
 
 function deleteDivision($db) {
     try {
-        $input = file_get_contents("php://input");
-        $data = json_decode($input);
+        // Handle both query parameter and request body
+        $id = $_GET['id'] ?? null;
         
-        if (!$data || !isset($data->id)) {
+        if (!$id) {
+            $input = file_get_contents("php://input");
+            $data = json_decode($input);
+            $id = $data->id ?? null;
+        }
+        
+        if (!$id) {
             sendError(400, "Division ID is required");
             return;
         }
@@ -215,7 +240,7 @@ function deleteDivision($db) {
                     INNER JOIN departments dept ON d.department_id = dept.id 
                     WHERE d.id = ? AND d.status = 'active'";
         $checkStmt = $db->prepare($checkQuery);
-        $checkStmt->execute([$data->id]);
+        $checkStmt->execute([$id]);
         $division = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$division) {
@@ -226,7 +251,7 @@ function deleteDivision($db) {
         // Check for active users
         $usersQuery = "SELECT COUNT(*) as user_count FROM users WHERE division_id = ? AND status = 'active'";
         $usersStmt = $db->prepare($usersQuery);
-        $usersStmt->execute([$data->id]);
+        $usersStmt->execute([$id]);
         $userCount = $usersStmt->fetchColumn();
 
         if ($userCount > 0) {
@@ -238,7 +263,7 @@ function deleteDivision($db) {
         $query = "UPDATE divisions SET status = 'inactive' WHERE id = ?";
         $stmt = $db->prepare($query);
         
-        if ($stmt->execute([$data->id])) {
+        if ($stmt->execute([$id])) {
             $db->commit();
             sendResponse([], "Division deleted successfully");
         } else {

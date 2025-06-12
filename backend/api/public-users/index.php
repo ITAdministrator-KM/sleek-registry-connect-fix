@@ -36,6 +36,22 @@ try {
     sendError(500, "Internal server error: " . $e->getMessage());
 }
 
+function generateSequentialPublicId($db) {
+    // Get the last sequential number
+    $stmt = $db->prepare("SELECT public_user_id FROM public_users WHERE public_user_id LIKE 'PUB%' ORDER BY CAST(SUBSTRING(public_user_id, 4) AS UNSIGNED) DESC LIMIT 1");
+    $stmt->execute();
+    $lastId = $stmt->fetchColumn();
+    
+    if ($lastId) {
+        $lastNumber = intval(substr($lastId, 3));
+        $newNumber = $lastNumber + 1;
+    } else {
+        $newNumber = 1;
+    }
+    
+    return 'PUB' . str_pad($newNumber, 5, '0', STR_PAD_LEFT);
+}
+
 function getPublicUsers($db) {
     try {
         $id = $_GET['id'] ?? null;
@@ -194,22 +210,6 @@ function createPublicUser($db) {
         error_log("Create public user error: " . $e->getMessage());
         sendError(500, "Failed to create public user: " . $e->getMessage());
     }
-}
-
-function generateSequentialPublicId($db) {
-    // Get the last sequential number
-    $stmt = $db->prepare("SELECT public_user_id FROM public_users WHERE public_user_id LIKE 'PUB%' ORDER BY CAST(SUBSTRING(public_user_id, 4) AS UNSIGNED) DESC LIMIT 1");
-    $stmt->execute();
-    $lastId = $stmt->fetchColumn();
-    
-    if ($lastId) {
-        $lastNumber = intval(substr($lastId, 3));
-        $newNumber = $lastNumber + 1;
-    } else {
-        $newNumber = 1;
-    }
-    
-    return 'PUB' . str_pad($newNumber, 5, '0', STR_PAD_LEFT);
 }
 
 function updatePublicUser($db) {
