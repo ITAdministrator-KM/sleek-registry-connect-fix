@@ -1,3 +1,4 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { componentTagger } from 'lovable-tagger';
@@ -18,9 +19,7 @@ export default ({ mode }: ConfigEnv): UserConfig => {
         babel: {
           plugins: ['@emotion/babel-plugin'],
         },
-        // Handle React 18's concurrent features
         jsxRuntime: 'automatic',
-        // Enable React Refresh in development
         ...(!isProduction && {
           fastRefresh: true,
         }),
@@ -33,11 +32,15 @@ export default ({ mode }: ConfigEnv): UserConfig => {
       },
     },
     server: {
-      port: 3000,
+      port: 8080,
       open: true,
       hmr: {
         overlay: true,
       },
+      // Fix for TrustedTypes policy error
+      headers: {
+        'Content-Security-Policy': "script-src 'self' 'unsafe-inline' 'unsafe-eval'; object-src 'none';"
+      }
     },
     optimizeDeps: {
       include: [
@@ -46,10 +49,21 @@ export default ({ mode }: ConfigEnv): UserConfig => {
         'react-router-dom',
         '@emotion/react',
         '@emotion/styled',
+        'qrcode',
+        'html5-qrcode'
       ],
-      // Force dependency pre-bundling in dev
       force: true,
     },
-    // Environment variables are already handled in the define block above
+    build: {
+      // Fix for TrustedTypes in production
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: ['react', 'react-dom'],
+            utils: ['qrcode', 'html5-qrcode']
+          }
+        }
+      }
+    }
   };
 };
