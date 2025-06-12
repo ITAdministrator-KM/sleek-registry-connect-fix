@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Download, Printer } from 'lucide-react';
@@ -11,12 +12,13 @@ export interface PublicUserIDCardProps {
     dateOfBirth?: string;
     mobile: string;
     address: string;
-    public_id: string;
+    public_user_id: string;
+    public_id?: string;
     qr_code_url?: string;
     department_name?: string;
     division_name?: string;
     email?: string;
-    [key: string]: any; // Allow additional properties
+    [key: string]: any;
   };
   onPrint?: () => void;
   onDownload?: () => void;
@@ -36,7 +38,7 @@ export const PublicUserIDCard = ({
   const handlePrint = useReactToPrint({
     content: () => cardRef.current,
     onAfterPrint: onPrint,
-    documentTitle: `ID_Card_${user.public_id}`,
+    documentTitle: `ID_Card_${user.public_user_id}`,
     pageStyle: `
       @page { 
         size: 85mm 54mm;
@@ -55,42 +57,44 @@ export const PublicUserIDCard = ({
     if (onDownload) {
       onDownload();
     } else {
-      // Default download behavior
       handlePrint();
     }
   };
 
   return (
     <div className="bg-white rounded-lg p-6 max-w-2xl mx-auto">
-      <div className="flex justify-between mb-6 print:hidden">
-        <h2 className="text-2xl font-bold">Public User ID Card</h2>
-        <div className="flex space-x-2">
-          <Button variant="outline" size="sm" onClick={handleDownload}>
-            <Download className="h-4 w-4 mr-2" />
-            Download
-          </Button>
-          <Button variant="default" size="sm" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" />
-            Print
-          </Button>
+      {showActions && (
+        <div className="flex justify-between mb-6 print:hidden">
+          <h2 className="text-2xl font-bold">Government ID Card</h2>
+          <div className="flex space-x-2">
+            <Button variant="outline" size="sm" onClick={handleDownload}>
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+            <Button variant="default" size="sm" onClick={handlePrint}>
+              <Printer className="h-4 w-4 mr-2" />
+              Print
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
       
       {/* ID Card */}
       <div 
         ref={cardRef}
-        className="bg-white border-2 border-gray-800 rounded-lg p-3 w-[85mm] h-[54mm] flex flex-col"
+        className="bg-white border-2 border-black rounded-none p-2 flex flex-col"
         style={{
           width: '85mm',
           height: '54mm',
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
+          fontFamily: 'Arial, sans-serif'
         }}
       >
-        {/* Header */}
-        <div className="flex justify-between items-center mb-3 px-2">
-          {/* Left Logo - Emblem */}
-          <div className="w-14 h-14 flex-shrink-0">
+        {/* Header with Logos and Title */}
+        <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-2">
+          {/* Left Logo */}
+          <div className="w-12 h-12 flex-shrink-0">
             <img 
               src="/emblem.svg" 
               alt="Government Emblem"
@@ -104,12 +108,14 @@ export const PublicUserIDCard = ({
           
           {/* Center Title */}
           <div className="text-center px-2 flex-1">
-            <h1 className="text-sm font-bold uppercase tracking-wider">Divisional Secretariat</h1>
-            <h2 className="text-xs font-semibold text-gray-700">Kalmunai</h2>
+            <h1 className="text-xs font-bold uppercase tracking-wide leading-tight">
+              DIVISIONAL SECRETARIAT
+            </h1>
+            <h2 className="text-xs font-bold tracking-wide">KALMUNAI</h2>
           </div>
           
           {/* Right Logo */}
-          <div className="w-14 h-14 flex-shrink-0">
+          <div className="w-12 h-12 flex-shrink-0">
             <img 
               src="/logo.svg" 
               alt="DS Logo"
@@ -122,80 +128,78 @@ export const PublicUserIDCard = ({
           </div>
         </div>
         
-        {/* Divider */}
-        <div className="w-full h-0.5 bg-gray-200 my-1"></div>
-        
-        <div className="flex h-48">
-          {/* Left Side - User Info */}
-          <div className="w-1/2 pr-2">
-            <div className="mb-2">
-              <p className="text-[10px] font-semibold uppercase text-gray-500">Name</p>
-              <p className="text-xs font-medium">{user.name}</p>
-            </div>
-            
-            <div className="mb-2">
-              <p className="text-[10px] font-semibold uppercase text-gray-500">NIC</p>
-              <p className="text-xs font-mono">{user.nic}</p>
-            </div>
-            
-            {user.dateOfBirth && (
-              <div className="mb-2">
-                <p className="text-[10px] font-semibold uppercase text-gray-500">Date of Birth</p>
-                <p className="text-xs">{user.dateOfBirth}</p>
+        {/* Main Content Area */}
+        <div className="flex flex-1">
+          {/* Left Side - User Information */}
+          <div className="w-1/2 pr-2 flex flex-col justify-between">
+            <div className="space-y-1">
+              <div>
+                <p className="text-[8px] font-bold uppercase text-black">Name:</p>
+                <p className="text-[9px] font-semibold leading-tight">{user.name}</p>
               </div>
-            )}
-            
-            <div className="mb-2">
-              <p className="text-[10px] font-semibold uppercase text-gray-500">Mobile</p>
-              <p className="text-xs">{user.mobile}</p>
-            </div>
-            
-            <div className="mb-2">
-              <p className="text-[10px] font-semibold uppercase text-gray-500">Address</p>
-              <p className="text-xs">{user.address}</p>
-            </div>
-            
-            <div className="mt-4">
-              <p className="text-[10px] font-semibold uppercase text-gray-500">Public ID</p>
-              <p className="text-xs font-mono font-bold">{user.public_id}</p>
+              
+              <div>
+                <p className="text-[8px] font-bold uppercase text-black">NIC:</p>
+                <p className="text-[9px] font-mono font-semibold">{user.nic}</p>
+              </div>
+              
+              {user.dateOfBirth && (
+                <div>
+                  <p className="text-[8px] font-bold uppercase text-black">Date of Birth:</p>
+                  <p className="text-[9px] font-semibold">{user.dateOfBirth}</p>
+                </div>
+              )}
+              
+              <div>
+                <p className="text-[8px] font-bold uppercase text-black">Mobile:</p>
+                <p className="text-[9px] font-semibold">{user.mobile}</p>
+              </div>
+              
+              <div>
+                <p className="text-[8px] font-bold uppercase text-black">Address:</p>
+                <p className="text-[8px] leading-tight" style={{ wordBreak: 'break-word' }}>
+                  {user.address.length > 40 ? user.address.substring(0, 40) + '...' : user.address}
+                </p>
+              </div>
+              
+              <div>
+                <p className="text-[8px] font-bold uppercase text-black">ID:</p>
+                <p className="text-[9px] font-mono font-bold">{user.public_user_id}</p>
+              </div>
             </div>
           </div>
           
           {/* Right Side - QR Code */}
-          <div className="w-1/2 flex flex-col items-center justify-center border-l-2 border-gray-800 pl-2">
-            <div className="bg-white p-1 border border-gray-300 rounded">
+          <div className="w-1/2 flex flex-col items-center justify-center border-l-2 border-black pl-2">
+            <div className="bg-white p-1 border border-black">
               <QRCodeSVG 
-                value={user.qr_code_url || user.public_id} 
-                size={120}
+                value={user.qr_code_url || user.public_user_id} 
+                size={100}
                 level="H"
                 includeMargin={false}
                 className="w-full h-auto"
               />
             </div>
-            <p className="text-[6px] text-center mt-1 text-gray-600 font-medium">
-              SCAN TO VERIFY AUTHENTICITY
+            <p className="text-[6px] text-center mt-1 font-semibold uppercase">
+              SCAN TO VERIFY
             </p>
-            <div className="mt-1 text-center">
-              <p className="text-[5px] text-gray-500">Issued by:</p>
-              <p className="text-[6px] font-semibold">Divisional Secretariat - Kalmunai</p>
-              <p className="text-[5px] text-gray-500 mt-0.5">
-                {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
-            </div>
           </div>
         </div>
         
         {/* Footer */}
-        <div className="mt-auto pt-1">
-          <div className="border-t-2 border-gray-800 my-1"></div>
-          <p className="text-[6px] text-center text-gray-500">
-            This is an official ID card. Any misuse is punishable by law.
-          </p>
+        <div className="mt-2 pt-1 border-t border-black">
+          <div className="flex justify-between items-center">
+            <p className="text-[6px] font-semibold">
+              Issued: {new Date().toLocaleDateString('en-GB')}
+            </p>
+            <p className="text-[6px] font-semibold">
+              OFFICIAL DOCUMENT
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// Export as both default and named export for backward compatibility
 export default PublicUserIDCard;
