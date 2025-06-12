@@ -1,12 +1,13 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Edit, Trash2, Search, Eye, User } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Eye, User as UserIcon } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { apiService, User } from '@/services/apiService';
+import { apiService, type User } from '@/services/apiService';
 import UserForm from './forms/UserForm';
 
 type UserRole = 'admin' | 'staff' | 'public';
@@ -201,7 +202,7 @@ const UserManagement = () => {
             </div>
           ) : filteredUsers.length === 0 ? (
             <div className="text-center py-8">
-              <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <UserIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600">No users found</p>
             </div>
           ) : (
