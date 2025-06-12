@@ -369,7 +369,7 @@ const PublicAccountCreation = () => {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmittingForm(false);
     }
   };
 
@@ -416,7 +416,7 @@ const PublicAccountCreation = () => {
                 onClick={() => setShowIdCard(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
-                ✕
+                <X className="h-4 w-4" />
               </Button>
             </div>
             <PublicUserIDCard 
