@@ -13,8 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 type UserRole = 'admin' | 'staff' | 'public';
 
 interface UserFormData {
+  id?: number;  // Add id as optional
   name: string;
-  nic?: string;  // Make nic optional to match User interface
+  nic?: string;
   email: string;
   username: string;
   password: string;
@@ -148,6 +149,21 @@ const UserManagement = () => {
     }
   };
 
+  // Convert User to UserFormData when editing
+  const convertUserToFormData = (user: User): UserFormData => {
+    return {
+      id: user.id,
+      name: user.name,
+      nic: user.nic || '',
+      email: user.email,
+      username: user.username,
+      password: '', // Password field for editing (leave empty to keep current)
+      role: user.role,
+      department_id: user.department_id || null,
+      division_id: user.division_id || null
+    };
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -204,7 +220,7 @@ const UserManagement = () => {
                   </DialogDescription>
                 </DialogHeader>
                 <UserForm
-                  user={editingUser as UserFormData | null}
+                  user={editingUser ? convertUserToFormData(editingUser) : null}
                   onSubmit={handleSubmit}
                   onCancel={handleCancel}
                 />
