@@ -66,19 +66,34 @@ class ApiService {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json, */*',
         ...options.headers,
       },
+      credentials: 'include' as const,
     };
 
     try {
       const response = await fetch(url, config);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`API request failed: ${response.status}`, {
+          status: response.status,
+          statusText: response.statusText,
+          url,
+          response: errorText,
+        });
+        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
       }
       
-      const data = await response.json();
-      return data;
+      // Check if response has content before trying to parse as JSON
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        return await response.json();
+      }
+      
+      // For non-JSON responses, return the raw response
+      return await response.text();
     } catch (error) {
       console.error(`API request failed:`, error);
       throw error;
