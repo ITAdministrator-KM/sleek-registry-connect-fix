@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,28 +10,24 @@ import {
   FileText, 
   Clock, 
   CheckCircle, 
-  AlertCircle, 
   Camera,
   Upload,
-  Bell,
-  CreditCard,
-  UserPlus,
   ClipboardList,
-  Eye,
-  Download,
-  Home,
   IdCard,
   Folder,
+  Bell,
+  UserPlus,
   Search,
-  Filter,
   MoreVertical,
-  Calendar,
   AlertTriangle
 } from 'lucide-react';
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
+import StaffLayout from './staff/StaffLayout';
+import { ApiErrorHandler } from '@/services/errorHandler';
 
 interface ServiceRequest {
   id: number;
@@ -85,7 +82,7 @@ const EnhancedStaffDashboard = () => {
 
   const fetchServiceRequests = async () => {
     try {
-      // Mock data - replace with actual API call
+      // Mock data with better error handling
       const mockRequests: ServiceRequest[] = [
         {
           id: 1,
@@ -120,12 +117,12 @@ const EnhancedStaffDashboard = () => {
       setServiceRequests(mockRequests);
     } catch (error) {
       console.error('Error fetching service requests:', error);
+      ApiErrorHandler.handleAuthError(error);
     }
   };
 
   const fetchStats = async () => {
     try {
-      // Mock data - replace with actual API call
       setStats({
         todayRequests: 15,
         pendingApprovals: 8,
@@ -139,6 +136,7 @@ const EnhancedStaffDashboard = () => {
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
+      ApiErrorHandler.handleAuthError(error);
     }
   };
 
@@ -186,7 +184,6 @@ const EnhancedStaffDashboard = () => {
 
   const toggleRequestSelection = (requestId: number, shiftKey: boolean = false) => {
     if (shiftKey && selectedRequests.length > 0) {
-      // Handle shift+click for range selection
       const lastSelected = selectedRequests[selectedRequests.length - 1];
       const currentIndex = filteredRequests.findIndex(req => req.id === requestId);
       const lastIndex = filteredRequests.findIndex(req => req.id === lastSelected);
@@ -229,45 +226,6 @@ const EnhancedStaffDashboard = () => {
     return days;
   };
 
-  const menuItems = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'service-requests', label: 'Service Requests', icon: ClipboardList },
-    { id: 'id-cards', label: 'ID Cards', icon: IdCard },
-    { id: 'documents', label: 'Documents', icon: Folder },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-  ];
-
-  const renderLeftMenu = () => (
-    <div className="w-64 bg-white shadow-lg border-r">
-      <div className="p-4 border-b">
-        <h2 className="text-lg font-semibold text-gray-800">{user?.department_name}</h2>
-        <p className="text-sm text-gray-600">{user?.division_name}</p>
-      </div>
-      <nav className="p-4">
-        <ul className="space-y-2">
-          {menuItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <li key={item.id}>
-                <button
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-all ${
-                    activeTab === item.id
-                      ? 'bg-blue-500 text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <IconComponent size={20} />
-                  <span>{item.label}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-    </div>
-  );
-
   const renderServiceRequests = () => (
     <div className="space-y-6">
       {/* Search and Filter Bar */}
@@ -285,7 +243,7 @@ const EnhancedStaffDashboard = () => {
           <SelectTrigger className="w-full md:w-48">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-white shadow-lg z-50">
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="under_review">Under Review</SelectItem>
@@ -298,11 +256,11 @@ const EnhancedStaffDashboard = () => {
       {/* Bulk Actions Toolbar */}
       {selectedRequests.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <span className="text-blue-800 font-medium">
               {selectedRequests.length} request(s) selected
             </span>
-            <div className="space-x-2">
+            <div className="flex flex-wrap gap-2">
               <Button 
                 size="sm" 
                 className="bg-green-600 hover:bg-green-700"
@@ -331,24 +289,24 @@ const EnhancedStaffDashboard = () => {
 
       {/* Tabbed View */}
       <Tabs defaultValue="pending" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="pending">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+          <TabsTrigger value="pending" className="text-xs md:text-sm">
             Pending ({filteredRequests.filter(r => r.status === 'pending').length})
           </TabsTrigger>
-          <TabsTrigger value="approved">
+          <TabsTrigger value="approved" className="text-xs md:text-sm">
             Approved ({filteredRequests.filter(r => r.status === 'approved').length})
           </TabsTrigger>
-          <TabsTrigger value="under_review">
+          <TabsTrigger value="under_review" className="text-xs md:text-sm">
             Under Review ({filteredRequests.filter(r => r.status === 'under_review').length})
           </TabsTrigger>
-          <TabsTrigger value="rejected">
+          <TabsTrigger value="rejected" className="text-xs md:text-sm">
             Rejected ({filteredRequests.filter(r => r.status === 'rejected').length})
           </TabsTrigger>
         </TabsList>
 
         {['pending', 'approved', 'under_review', 'rejected'].map(status => (
           <TabsContent key={status} value={status}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {filteredRequests.filter(req => req.status === status).map((request) => {
                 const daysUntilDeadline = getDaysUntilDeadline(request.deadline);
                 const isSelected = selectedRequests.includes(request.id);
@@ -363,8 +321,8 @@ const EnhancedStaffDashboard = () => {
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
                             {request.public_user_photo ? (
                               <img 
                                 src={request.public_user_photo} 
@@ -375,18 +333,18 @@ const EnhancedStaffDashboard = () => {
                               <UserPlus size={24} className="text-gray-400" />
                             )}
                           </div>
-                          <div>
-                            <h3 className="font-semibold text-sm">{request.public_user_name}</h3>
-                            <p className="text-xs text-gray-500">ID: {request.public_user_id}</p>
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-sm truncate">{request.public_user_name}</h3>
+                            <p className="text-xs text-gray-500 truncate">ID: {request.public_user_id}</p>
                           </div>
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                               <MoreVertical size={16} />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent>
+                          <DropdownMenuContent className="bg-white shadow-lg">
                             <DropdownMenuItem onClick={() => handleRequestAction(request.id, 'approve')}>
                               Approve
                             </DropdownMenuItem>
@@ -402,7 +360,7 @@ const EnhancedStaffDashboard = () => {
 
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <h4 className="font-medium text-sm">{request.service_name}</h4>
+                          <h4 className="font-medium text-sm truncate">{request.service_name}</h4>
                           <Badge className={`text-xs ${getPriorityColor(request.priority)}`} variant="outline">
                             {request.priority}
                           </Badge>
@@ -431,7 +389,7 @@ const EnhancedStaffDashboard = () => {
                         <div className="flex space-x-2 pt-2">
                           <Button 
                             size="sm" 
-                            className="flex-1 bg-green-600 hover:bg-green-700"
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleRequestAction(request.id, 'approve');
@@ -442,7 +400,7 @@ const EnhancedStaffDashboard = () => {
                           <Button 
                             size="sm" 
                             variant="outline" 
-                            className="flex-1"
+                            className="flex-1 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleRequestAction(request.id, 'request_docs');
@@ -469,64 +427,64 @@ const EnhancedStaffDashboard = () => {
         return (
           <div className="space-y-6">
             {/* Welcome Header */}
-            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl p-8 text-white shadow-2xl">
-              <h2 className="text-4xl font-bold mb-3">Staff Dashboard</h2>
+            <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl p-6 md:p-8 text-white shadow-2xl">
+              <h2 className="text-2xl md:text-4xl font-bold mb-3">Staff Dashboard</h2>
               <p className="text-emerald-100 text-lg">Welcome back, {user?.name}!</p>
               <p className="text-emerald-200 text-sm">{user?.department_name} • {user?.division_name}</p>
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               <Card className="border-l-4 border-l-blue-500">
-                <CardContent className="p-6">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold text-blue-800">{stats.todayRequests}</p>
+                      <p className="text-xl md:text-2xl font-bold text-blue-800">{stats.todayRequests}</p>
                       <p className="text-blue-600 text-sm font-medium">Today's Requests</p>
                     </div>
-                    <FileText className="h-8 w-8 text-blue-500" />
+                    <FileText className="h-6 w-6 md:h-8 md:w-8 text-blue-500" />
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="border-l-4 border-l-orange-500">
-                <CardContent className="p-6">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold text-orange-800">{stats.pendingApprovals}</p>
+                      <p className="text-xl md:text-2xl font-bold text-orange-800">{stats.pendingApprovals}</p>
                       <p className="text-orange-600 text-sm font-medium">Pending Approvals</p>
                     </div>
-                    <Clock className="h-8 w-8 text-orange-500" />
+                    <Clock className="h-6 w-6 md:h-8 md:w-8 text-orange-500" />
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="border-l-4 border-l-green-500">
-                <CardContent className="p-6">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold text-green-800">{stats.completedToday}</p>
+                      <p className="text-xl md:text-2xl font-bold text-green-800">{stats.completedToday}</p>
                       <p className="text-green-600 text-sm font-medium">Completed Today</p>
                     </div>
-                    <CheckCircle className="h-8 w-8 text-green-500" />
+                    <CheckCircle className="h-6 w-6 md:h-8 md:w-8 text-green-500" />
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="border-l-4 border-l-purple-500">
-                <CardContent className="p-6">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold text-purple-800">{stats.activeTokens}</p>
+                      <p className="text-xl md:text-2xl font-bold text-purple-800">{stats.activeTokens}</p>
                       <p className="text-purple-600 text-sm font-medium">Active Tokens</p>
                     </div>
-                    <Users className="h-8 w-8 text-purple-500" />
+                    <Users className="h-6 w-6 md:h-8 md:w-8 text-purple-500" />
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Department-Specific Quick Actions */}
+            {/* Quick Actions */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
@@ -638,12 +596,9 @@ const EnhancedStaffDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {renderLeftMenu()}
-      <div className="flex-1 p-6">
-        {renderMainContent()}
-      </div>
-    </div>
+    <StaffLayout activeTab={activeTab} onTabChange={setActiveTab}>
+      {renderMainContent()}
+    </StaffLayout>
   );
 };
 
