@@ -11,6 +11,12 @@ export interface AuthUser {
   status: string;
   department_name?: string;
   department_id?: number;
+  division_name?: string;
+  division_id?: number;
+  public_id?: string;
+  nic?: string;
+  mobile?: string;
+  address?: string;
 }
 
 export const useAuth = (requiredRole?: string) => {
