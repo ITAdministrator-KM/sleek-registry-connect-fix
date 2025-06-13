@@ -48,7 +48,7 @@ function getServices($db) {
                      FROM service_catalog sc 
                      LEFT JOIN departments d ON sc.department_id = d.id 
                      LEFT JOIN divisions dv ON sc.division_id = dv.id 
-                     WHERE sc.id = ? AND sc.is_active = 1";
+                     WHERE sc.id = ? AND sc.status = 'active'";
             
             $stmt = $db->prepare($query);
             $stmt->execute([$id]);
@@ -65,7 +65,7 @@ function getServices($db) {
             
             sendResponse($service, "Service retrieved successfully");
         } else {
-            $whereClause = $public_view ? "WHERE sc.is_active = 1" : "";
+            $whereClause = $public_view ? "WHERE sc.status = 'active'" : "";
             
             $query = "SELECT sc.*, d.name as department_name, dv.name as division_name
                      FROM service_catalog sc 
@@ -127,7 +127,7 @@ function createService($db) {
         
         $query = "INSERT INTO service_catalog (service_name, service_code, description, department_id, division_id, 
                   icon, fee_amount, required_documents, processing_time_days, eligibility_criteria, 
-                  form_template_url, is_active) 
+                  form_template_url, status) 
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         $stmt = $db->prepare($query);
@@ -143,7 +143,7 @@ function createService($db) {
             $data->processing_time_days ?? 7,
             $data->eligibility_criteria ?? null,
             $data->form_template_url ?? null,
-            $data->is_active ?? true
+            $data->status ?? 'active'
         ];
         
         if (!$stmt->execute($params)) {
@@ -194,7 +194,7 @@ function updateService($db) {
         
         $allowedFields = ['service_name', 'service_code', 'description', 'department_id', 'division_id', 
                          'icon', 'fee_amount', 'required_documents', 'processing_time_days', 
-                         'eligibility_criteria', 'form_template_url', 'is_active'];
+                         'eligibility_criteria', 'form_template_url', 'status'];
         
         foreach ($allowedFields as $field) {
             if (isset($data->$field)) {
@@ -250,8 +250,8 @@ function deleteService($db) {
             return;
         }
         
-        // Soft delete by setting is_active to false
-        $query = "UPDATE service_catalog SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+        // Soft delete by setting status to inactive
+        $query = "UPDATE service_catalog SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE id = ?";
         $stmt = $db->prepare($query);
         $stmt->execute([$id]);
         

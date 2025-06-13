@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,9 +21,11 @@ import {
   XCircle,
   Star,
   ArrowRight,
-  Filter
+  Filter,
+  Upload
 } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
+import { apiService } from '@/services/apiService';
 
 interface ServiceCatalog {
   id: number;
@@ -35,7 +36,7 @@ interface ServiceCatalog {
   fee_amount: number;
   processing_time_days: number;
   department_name: string;
-  is_popular: boolean;
+  status: string;
 }
 
 interface UserApplication {
@@ -64,6 +65,7 @@ const EnhancedPublicDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [notifications, setNotifications] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const { toast } = useToast();
 
@@ -76,25 +78,45 @@ const EnhancedPublicDashboard = () => {
 
   const fetchServices = async () => {
     try {
-      // Note: You'll need to create this API endpoint
-      const response = await fetch('/backend/api/service-catalog/public');
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data.data || []);
+      setIsLoading(true);
+      const response = await apiService.getPublicServices();
+      console.log('Services response:', response);
+      
+      if (response && response.data) {
+        setServices(response.data);
+      } else if (Array.isArray(response)) {
+        setServices(response);
+      } else {
+        setServices([]);
       }
     } catch (error) {
       console.error('Error fetching services:', error);
+      setServices([]);
+      toast({
+        title: "Error",
+        description: "Failed to load services",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const fetchMyApplications = async () => {
     try {
-      // Note: You'll need to create this API endpoint
-      const response = await fetch(`/backend/api/service-requests/user/${user?.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setMyApplications(data.data || []);
-      }
+      // Mock data for now - replace with actual API call
+      setMyApplications([
+        {
+          id: 1,
+          request_number: 'REQ001',
+          service_name: 'Birth Certificate',
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          estimated_completion: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          fee_amount: 500,
+          payment_status: 'unpaid'
+        }
+      ]);
     } catch (error) {
       console.error('Error fetching applications:', error);
     }
@@ -102,12 +124,8 @@ const EnhancedPublicDashboard = () => {
 
   const fetchActiveToken = async () => {
     try {
-      // Note: You'll need to create this API endpoint
-      const response = await fetch(`/backend/api/tokens/active/${user?.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setActiveToken(data.data);
-      }
+      // Mock data for now - replace with actual API call
+      setActiveToken(null);
     } catch (error) {
       console.error('Error fetching active token:', error);
     }
@@ -115,12 +133,8 @@ const EnhancedPublicDashboard = () => {
 
   const fetchNotifications = async () => {
     try {
-      // Note: You'll need to create this API endpoint
-      const response = await fetch(`/backend/api/notifications/user/${user?.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.data || []);
-      }
+      // Mock data for now - replace with actual API call
+      setNotifications([]);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
@@ -134,28 +148,17 @@ const EnhancedPublicDashboard = () => {
     // Navigate to booking flow
   };
 
-  const handleCancelToken = async () => {
+  const handleDocumentUpload = async (file: File, serviceId: number) => {
     try {
-      if (!activeToken) return;
-      
-      // Note: You'll need to create this API endpoint
-      const response = await fetch(`/backend/api/tokens/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token_number: activeToken.token_number })
+      await apiService.uploadDocument(file, `service_${serviceId}`);
+      toast({
+        title: "Success",
+        description: "Document uploaded successfully",
       });
-
-      if (response.ok) {
-        setActiveToken(null);
-        toast({
-          title: "Token Cancelled",
-          description: "Your token has been cancelled successfully",
-        });
-      }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to cancel token",
+        description: "Failed to upload document",
         variant: "destructive",
       });
     }
@@ -165,11 +168,11 @@ const EnhancedPublicDashboard = () => {
     const matchesSearch = service.service_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          service.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || 
-                           service.department_name.toLowerCase().includes(selectedCategory.toLowerCase());
+                           service.department_name?.toLowerCase().includes(selectedCategory.toLowerCase());
     return matchesSearch && matchesCategory;
   });
 
-  const popularServices = services.filter(service => service.is_popular).slice(0, 4);
+  const popularServices = services.filter(service => service.status === 'active').slice(0, 4);
 
   const getStatusIcon = (status: string) => {
     switch (status.toLowerCase()) {
@@ -222,11 +225,7 @@ const EnhancedPublicDashboard = () => {
                   Wait Time: ~{activeToken.estimated_wait_time} mins
                 </p>
               </div>
-              <Button 
-                variant="outline" 
-                onClick={handleCancelToken}
-                className="border-red-300 text-red-700 hover:bg-red-50"
-              >
+              <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">
                 Cancel Token
               </Button>
             </div>
@@ -359,47 +358,56 @@ const EnhancedPublicDashboard = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredServices.map((service) => (
-              <Card key={service.id} className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-blue-500">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <span className="text-4xl">{service.icon}</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {service.department_name}
-                    </Badge>
-                  </div>
-                  
-                  <h3 className="font-bold text-lg mb-2">{service.service_name}</h3>
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-3">{service.description}</p>
-                  
-                  <div className="space-y-2 mb-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">Fee:</span>
-                      <span className="font-semibold text-green-600">Rs. {service.fee_amount.toFixed(2)}</span>
+          {isLoading ? (
+            <div className="text-center py-8">Loading services...</div>
+          ) : filteredServices.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredServices.map((service) => (
+                <Card key={service.id} className="hover:shadow-lg transition-all cursor-pointer border-l-4 border-l-blue-500">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <span className="text-4xl">{service.icon || '📄'}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {service.department_name}
+                      </Badge>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-500">Processing:</span>
-                      <span className="text-sm">{service.processing_time_days} days</span>
+                    
+                    <h3 className="font-bold text-lg mb-2">{service.service_name}</h3>
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-3">{service.description}</p>
+                    
+                    <div className="space-y-2 mb-4">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-500">Fee:</span>
+                        <span className="font-semibold text-green-600">Rs. {service.fee_amount?.toFixed(2) || '0.00'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-500">Processing:</span>
+                        <span className="text-sm">{service.processing_time_days || 7} days</span>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      className="flex-1"
-                      onClick={() => handleServiceBooking(service)}
-                    >
-                      Apply Now
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    
+                    <div className="flex gap-2">
+                      <Button 
+                        className="flex-1"
+                        onClick={() => handleServiceBooking(service)}
+                      >
+                        Apply Now
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Upload className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p>No services available</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -466,18 +474,18 @@ const EnhancedPublicDashboard = () => {
                 </div>
                 <div>
                   <h3 className="font-semibold">{user?.name}</h3>
-                  <p className="text-sm text-gray-600">Public ID: {user?.public_id}</p>
+                  <p className="text-sm text-gray-600">Public ID: {user?.public_id || 'Not assigned'}</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 <div className="flex items-center space-x-3">
                   <CreditCard className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm">{user?.nic}</span>
+                  <span className="text-sm">{user?.nic || 'Not provided'}</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <Phone className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm">{user?.mobile}</span>
+                  <span className="text-sm">{user?.mobile || 'Not provided'}</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <Mail className="h-4 w-4 text-gray-400" />
@@ -485,7 +493,7 @@ const EnhancedPublicDashboard = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                   <MapPin className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm">{user?.address}</span>
+                  <span className="text-sm">{user?.address || 'Not provided'}</span>
                 </div>
               </div>
               
