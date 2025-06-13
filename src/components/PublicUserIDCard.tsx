@@ -10,9 +10,10 @@ export interface PublicUserIDCardProps {
     name: string;
     nic: string;
     dateOfBirth?: string;
+    date_of_birth?: string;
     mobile: string;
     address: string;
-    public_user_id: string;
+    public_user_id?: string;
     public_id?: string;
     qr_code_url?: string;
     department_name?: string;
@@ -34,6 +35,19 @@ export const PublicUserIDCard = ({
   showActions = true 
 }: PublicUserIDCardProps) => {
   const cardRef = useRef<HTMLDivElement>(null);
+  
+  // Format date of birth for display
+  const formattedDateOfBirth = user.dateOfBirth 
+    ? new Date(user.dateOfBirth).toLocaleDateString('en-GB')
+    : user.date_of_birth 
+      ? new Date(user.date_of_birth).toLocaleDateString('en-GB')
+      : 'N/A';
+      
+  // Ensure public user ID is available
+  const publicUserId = user.public_user_id || user.public_id || 'N/A';
+  
+  // Generate QR code URL if not provided
+  const qrCodeUrl = user.qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUserId)}`;
 
   const handlePrint = useReactToPrint({
     content: () => cardRef.current,
@@ -135,24 +149,24 @@ export const PublicUserIDCard = ({
             <div className="space-y-1">
               <div>
                 <p className="text-[8px] font-bold uppercase text-black">Name:</p>
-                <p className="text-[9px] font-semibold leading-tight">{user.name}</p>
+                <p className="text-[9px] font-semibold leading-tight uppercase">{user.name}</p>
               </div>
               
               <div>
                 <p className="text-[8px] font-bold uppercase text-black">NIC:</p>
-                <p className="text-[9px] font-mono font-semibold">{user.nic}</p>
+                <p className="text-[9px] font-mono font-semibold uppercase">{user.nic}</p>
               </div>
               
               {user.dateOfBirth && (
                 <div>
                   <p className="text-[8px] font-bold uppercase text-black">Date of Birth:</p>
-                  <p className="text-[9px] font-semibold">{user.dateOfBirth}</p>
+                  <p className="text-[9px] font-semibold">{formattedDateOfBirth}</p>
                 </div>
               )}
               
               <div>
                 <p className="text-[8px] font-bold uppercase text-black">Mobile:</p>
-                <p className="text-[9px] font-semibold">{user.mobile}</p>
+                <p className="text-[9px] font-semibold">{user.mobile || 'N/A'}</p>
               </div>
               
               <div>
@@ -164,7 +178,7 @@ export const PublicUserIDCard = ({
               
               <div>
                 <p className="text-[8px] font-bold uppercase text-black">ID:</p>
-                <p className="text-[9px] font-mono font-bold">{user.public_user_id}</p>
+                <p className="text-[9px] font-mono font-bold">{publicUserId}</p>
               </div>
             </div>
           </div>
@@ -173,7 +187,7 @@ export const PublicUserIDCard = ({
           <div className="w-1/2 flex flex-col items-center justify-center border-l-2 border-black pl-2">
             <div className="bg-white p-1 border border-black">
               <QRCodeSVG 
-                value={user.qr_code_url || user.public_user_id} 
+                value={qrCodeUrl}
                 size={100}
                 level="H"
                 includeMargin={false}
