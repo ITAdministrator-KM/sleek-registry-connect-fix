@@ -17,6 +17,7 @@ import AdminHeader from '@/components/AdminHeader';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
+import ServiceCatalogManagement from '@/components/ServiceCatalogManagement';
 
 const AdminDashboard = () => {
   const { user, loading, isAuthenticated, logout } = useAuth('admin');
@@ -64,6 +65,7 @@ const AdminDashboard = () => {
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
     { id: 'public-users', label: 'Public Accounts', icon: Shield },
+    { id: 'service-catalog', label: 'Service Catalog', icon: Activity },
     { id: 'notifications', label: 'Notifications', icon: Activity },
     { id: 'settings', label: 'Account Settings', icon: Shield },
   ];
@@ -177,24 +179,28 @@ const AdminDashboard = () => {
   );
 
   const renderContent = () => {
-    const contentMap = {
-      overview: renderOverviewContent(),
-      departments: <DepartmentManagement />,
-      divisions: <DivisionManagement />,
-      users: <UserManagement />,
-      tokens: <TokenManagement />,
-      'public-users': <PublicAccountCreation />,
-      notifications: <NotificationManagement />,
-      settings: <AccountSettings />,
-    };
-
-    const content = contentMap[activeTab as keyof typeof contentMap] || renderOverviewContent();
-    
-    return (
-      <ErrorBoundary>
-        {content}
-      </ErrorBoundary>
-    );
+    switch (activeTab) {
+      case 'overview':
+        return <DashboardStats />;
+      case 'departments':
+        return <DepartmentManagement />;
+      case 'divisions':
+        return <DivisionManagement />;
+      case 'users':
+        return <UserManagement />;
+      case 'tokens':
+        return <TokenManagement />;
+      case 'public-users':
+        return <PublicAccountCreation />;
+      case 'service-catalog':
+        return <ServiceCatalogManagement />;
+      case 'notifications':
+        return <NotificationManagement />;
+      case 'settings':
+        return <AccountSettings />;
+      default:
+        return <DashboardStats />;
+    }
   };
 
   const getCurrentTitle = () => {

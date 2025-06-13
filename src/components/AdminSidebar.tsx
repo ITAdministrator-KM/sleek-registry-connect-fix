@@ -36,6 +36,7 @@ const AdminSidebar = ({ activeTab, onTabChange, onLogout, username }: AdminSideb
     { id: 'departments', label: 'Departments', icon: Building },
     { id: 'divisions', label: 'Divisions', icon: FileText },
     { id: 'users', label: 'User Management', icon: Users },
+    { id: 'service-catalog', label: 'Service Catalog', icon: FileText },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
     { id: 'public-users', label: 'Public Accounts', icon: UserPlus },
     { id: 'notifications', label: 'Notifications', icon: Bell },
