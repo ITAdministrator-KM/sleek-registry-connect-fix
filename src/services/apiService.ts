@@ -58,6 +58,18 @@ export interface Division {
   updated_at: string;
 }
 
+export interface TokenInfo {
+  id?: number;
+  token_number: string;
+  estimated_wait_time: number;
+  queue_position: number;
+  status: string;
+  service_name: string;
+  is_next: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 class ApiService {
   private async makeRequest(endpoint: string, options: RequestInit = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
@@ -97,6 +109,31 @@ class ApiService {
     } catch (error) {
       console.error(`API request failed:`, error);
       throw error;
+    }
+  }
+
+  // Tokens
+  async getActiveToken(): Promise<TokenInfo | null> {
+    try {
+      return await this.makeRequest('/tokens/active');
+    } catch (error) {
+      console.warn('Failed to fetch active token:', error);
+      return null;
+    }
+  }
+
+  // Notifications
+  async getNotifications(recipientId: number, recipientType?: 'public' | 'staff' | 'admin'): Promise<Notification[]> {
+    try {
+      let endpoint = `/notifications?recipient_id=${recipientId}`;
+      if (recipientType) {
+        endpoint += `&recipient_type=${recipientType}`;
+      }
+      const response = await this.makeRequest(endpoint);
+      return Array.isArray(response) ? response : [];
+    } catch (error) {
+      console.warn('Failed to fetch notifications:', error);
+      return [];
     }
   }
 

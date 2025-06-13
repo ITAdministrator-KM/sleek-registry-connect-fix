@@ -24,6 +24,11 @@ export class NotificationService extends ApiBase {
       const response = await this.makeRequest(endpoint);
       return Array.isArray(response) ? response : [];
     } catch (error) {
+      // If the error is 404, the notifications endpoint doesn't exist yet
+      if (error.message.includes('404')) {
+        console.warn('Notifications endpoint not found. This feature may not be implemented yet.');
+        return [];
+      }
       console.error('Error fetching notifications:', error);
       return [];
     }
@@ -36,17 +41,35 @@ export class NotificationService extends ApiBase {
     message: string;
     type?: 'info' | 'success' | 'warning' | 'error';
   }) {
-    return this.makeRequest('/notifications/index.php', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    try {
+      return await this.makeRequest('/notifications/index.php', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch (error) {
+      // If the error is 404, the notifications endpoint doesn't exist yet
+      if (error.message.includes('404')) {
+        console.warn('Notifications endpoint not found. This feature may not be implemented yet.');
+        return { success: false, message: 'Notifications feature not available' };
+      }
+      throw error;
+    }
   }
 
   async markNotificationAsRead(id: number) {
-    return this.makeRequest('/notifications/index.php', {
-      method: 'PUT',
-      body: JSON.stringify({ id, is_read: true }),
-    });
+    try {
+      return await this.makeRequest('/notifications/index.php', {
+        method: 'PUT',
+        body: JSON.stringify({ id, is_read: true }),
+      });
+    } catch (error) {
+      // If the error is 404, the notifications endpoint doesn't exist yet
+      if (error.message.includes('404')) {
+        console.warn('Notifications endpoint not found. This feature may not be implemented yet.');
+        return { success: false, message: 'Notifications feature not available' };
+      }
+      throw error;
+    }
   }
 }
 

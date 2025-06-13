@@ -13,9 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 type UserRole = 'admin' | 'staff' | 'public';
 
 interface UserFormData {
-  id?: number;  // Add id as optional
+  id: number;  // Make id required
   name: string;
-  nic?: string;
+  nic: string;
   email: string;
   username: string;
   password: string;

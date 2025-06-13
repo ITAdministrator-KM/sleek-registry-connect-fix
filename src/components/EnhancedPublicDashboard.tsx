@@ -3,6 +3,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+
+declare global {
+  interface Window {
+    webkitAudioContext: typeof AudioContext;
+  }
+}
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -35,41 +41,9 @@ import {
 } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { apiService } from '@/services/apiService';
+import { TokenInfo, ServiceCatalog, UserApplication } from '@/types';
 
-interface ServiceCatalog {
-  id: number;
-  service_name: string;
-  service_code: string;
-  description: string;
-  icon: string;
-  fee_amount: number;
-  processing_time_days: number;
-  department_name: string;
-  status: string;
-  category: string;
-  duration_minutes: number;
-}
-
-interface UserApplication {
-  id: number;
-  request_number: string;
-  service_name: string;
-  status: string;
-  created_at: string;
-  estimated_completion: string;
-  fee_amount: number;
-  payment_status: string;
-  progress_percentage: number;
-}
-
-interface TokenInfo {
-  token_number: string;
-  estimated_wait_time: number;
-  queue_position: number;
-  status: string;
-  service_name: string;
-  is_next: boolean;
-}
+// All interfaces are now imported from @/types
 
 const EnhancedPublicDashboard = () => {
   const { user } = useAuth('public');
@@ -215,27 +189,50 @@ const EnhancedPublicDashboard = () => {
 
   const fetchActiveToken = async () => {
     try {
-      // Mock data - replace with actual API call
-      const mockToken: TokenInfo = {
-        token_number: 'A042',
-        estimated_wait_time: 15,
-        queue_position: 3,
-        status: 'waiting',
-        service_name: 'Vehicle License Renewal',
-        is_next: Math.random() > 0.8 // Randomly simulate being next
-      };
-      setActiveToken(mockToken);
+      // Try to get the active token from the API
+      const token = await apiService.getActiveToken();
+      
+      if (token) {
+        setActiveToken({
+          token_number: token.token_number,
+          estimated_wait_time: token.estimated_wait_time || 0,
+          queue_position: token.queue_position || 0,
+          status: token.status || 'waiting',
+          service_name: token.service_name || 'Service',
+          is_next: token.is_next || false
+        });
+      } else {
+        // Fallback to mock data if no token from API
+        const mockToken: TokenInfo = {
+          token_number: 'A042',
+          estimated_wait_time: 15,
+          queue_position: 3,
+          status: 'waiting',
+          service_name: 'Vehicle License Renewal',
+          is_next: Math.random() > 0.8 // Randomly simulate being next
+        };
+        setActiveToken(mockToken);
+      }
     } catch (error) {
-      console.error('Error fetching active token:', error);
+      console.error('Error in fetchActiveToken:', error);
+      // Don't show error to user, just log it
     }
   };
 
   const fetchNotifications = async () => {
     try {
-      // Mock data
-      setNotifications([]);
+      if (!user?.id) {
+        setNotifications([]);
+        return;
+      }
+      
+      // Get notifications from the API
+      const notifications = await apiService.getNotifications(user.id, 'public');
+      setNotifications(notifications);
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('Error in fetchNotifications:', error);
+      // Don't show error to user, just log it and set empty array
+      setNotifications([]);
     }
   };
 
