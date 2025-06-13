@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -205,7 +204,7 @@ const UserManagement = () => {
                   </DialogDescription>
                 </DialogHeader>
                 <UserForm
-                  user={editingUser}
+                  user={editingUser as UserFormData | null}
                   onSubmit={handleSubmit}
                   onCancel={handleCancel}
                 />
