@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,7 @@ type UserRole = 'admin' | 'staff' | 'public';
 
 interface UserFormData {
   name: string;
-  nic: string;
+  nic?: string;  // Make nic optional to match User interface
   email: string;
   username: string;
   password: string;
