@@ -1,6 +1,6 @@
 
 import React from 'react';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface StandardIDCardProps {
   userData: {
@@ -170,12 +170,11 @@ const StandardIDCard: React.FC<StandardIDCardProps> = ({ userData, showBack = fa
 
         {/* Right side - QR Code */}
         <div style={rightSideStyle}>
-          <QRCode
+          <QRCodeSVG
             value={qrData}
             size={120}
             level="M"
             includeMargin={false}
-            renderAs="svg"
             style={{
               width: '100%',
               height: 'auto',

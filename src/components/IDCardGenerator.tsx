@@ -1,11 +1,12 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/services/api';
-import type { PublicUser } from '@/services/api';
+import { apiService } from '@/services/apiService';
+import type { PublicUser } from '@/services/apiService';
 import { Search, Printer, AlertCircle, Download } from 'lucide-react';
 import StandardIDCard from './id-card/StandardIDCard';
 import html2canvas from 'html2canvas';
@@ -117,7 +118,7 @@ const IDCardGenerator = () => {
                 </div>
                 <div style="margin-bottom: 1.5mm; display: flex; font-size: 7px;">
                   <span style="font-weight: bold; width: 25mm;">Public ID:</span>
-                  <span>${user.public_user_id}</span>
+                  <span>${user.public_id}</span>
                 </div>
               </div>
               <div style="width: 50%; display: flex; align-items: center; justify-content: center;">
@@ -212,6 +213,12 @@ const IDCardGenerator = () => {
     }
   };
 
+  const handleAutoPrintChange = (checked: boolean | "indeterminate") => {
+    if (typeof checked === 'boolean') {
+      setAutoPrint(checked);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -228,7 +235,7 @@ const IDCardGenerator = () => {
                 <Checkbox 
                   id="auto-print" 
                   checked={autoPrint}
-                  onCheckedChange={setAutoPrint}
+                  onCheckedChange={handleAutoPrintChange}
                 />
                 <label htmlFor="auto-print" className="text-sm">Auto Print</label>
               </div>
@@ -303,7 +310,7 @@ const IDCardGenerator = () => {
                         
                         <div className="space-y-1 text-sm">
                           <p className="font-semibold">{user.name}</p>
-                          <p className="text-gray-600">ID: {user.public_user_id}</p>
+                          <p className="text-gray-600">ID: {user.public_id}</p>
                           <p className="text-gray-600">NIC: {user.nic}</p>
                           <p className="text-gray-500 text-xs">{user.mobile}</p>
                         </div>
