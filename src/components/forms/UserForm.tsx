@@ -20,6 +20,7 @@ interface Division {
 type UserRole = 'admin' | 'staff' | 'public';
 
 interface UserData {
+  id?: number;  // Make id optional
   name: string;
   nic: string;
   email: string;
@@ -28,6 +29,7 @@ interface UserData {
   role: UserRole;
   department_id: number | null;
   division_id: number | null;
+  [key: string]: any; // Add index signature to allow dynamic property access
 }
 
 interface UserFormProps {
@@ -142,7 +144,7 @@ const UserForm = ({ user, onSubmit, onCancel }: UserFormProps) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -151,26 +153,30 @@ const UserForm = ({ user, onSubmit, onCancel }: UserFormProps) => {
         description: "Please check the form for errors and try again",
         variant: "destructive",
       });
+      
+      // Focus the first field with an error
+      const firstError = Object.keys(errors)[0];
+      if (firstError) {
+        const element = document.querySelector(`[name="${firstError}"]`);
+        if (element && element instanceof HTMLElement) {
+          element.focus();
+        }
+      }
       return;
     }
 
     setIsLoading(true);
-    try {
-      await onSubmit(formData);
-      toast({
-        title: "Success",
-        description: `User successfully ${user ? 'updated' : 'created'}`,
-        variant: "default",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "An error occurred while saving the user",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+    
+    // Create a new object with the form data
+    const formSubmission: Partial<UserData> = { ...formData };
+    
+    // Remove password field if it's empty (for updates)
+    if (formSubmission.id && !formSubmission.password) {
+      delete formSubmission.password;
     }
+    
+    // Call the onSubmit handler with the prepared data
+    onSubmit(formSubmission as UserData);
   };
 
   return (
