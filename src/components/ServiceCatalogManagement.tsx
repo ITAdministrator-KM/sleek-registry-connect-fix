@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Edit, Trash2, FileText, DollarSign, Clock, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, Search, Filter, Download, Eye } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,8 +27,9 @@ import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { apiService } from '@/services/api';
+import { apiService } from '@/services/apiService';
 
 interface ServiceCatalog {
   id: number;
@@ -43,9 +44,11 @@ interface ServiceCatalog {
   processing_time_days: number;
   eligibility_criteria?: string;
   form_template_url?: string;
-  is_active: boolean;
+  status: string;
   department_name?: string;
   division_name?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Department {
@@ -71,7 +74,7 @@ const serviceSchema = z.object({
   processing_time_days: z.number().min(1, 'Processing time must be at least 1 day'),
   eligibility_criteria: z.string().optional(),
   form_template_url: z.string().optional(),
-  is_active: z.boolean().default(true)
+  status: z.string().default('active')
 });
 
 type ServiceFormData = z.infer<typeof serviceSchema>;
@@ -80,13 +83,24 @@ const ServiceCatalogManagement = () => {
   const [services, setServices] = useState<ServiceCatalog[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
+  const [filteredDivisions, setFilteredDivisions] = useState<Division[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<ServiceCatalog | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   
   const { toast } = useToast();
 
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<ServiceFormData>({
+  const { 
+    register, 
+    handleSubmit, 
+    reset, 
+    watch, 
+    setValue, 
+    formState: { errors } 
+  } = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema)
   });
 
@@ -98,14 +112,27 @@ const ServiceCatalogManagement = () => {
     fetchDivisions();
   }, []);
 
+  useEffect(() => {
+    if (selectedDepartmentId) {
+      const filtered = divisions.filter(d => d.department_id === parseInt(selectedDepartmentId));
+      setFilteredDivisions(filtered);
+    } else {
+      setFilteredDivisions([]);
+    }
+  }, [selectedDepartmentId, divisions]);
+
   const fetchServices = async () => {
     try {
       setIsLoading(true);
-      // Note: You'll need to create this API endpoint
-      const response = await fetch('/backend/api/service-catalog/');
-      if (response.ok) {
-        const data = await response.json();
-        setServices(data.data || []);
+      const response = await apiService.getServices();
+      console.log('Services response:', response);
+      
+      if (response && response.data) {
+        setServices(response.data);
+      } else if (Array.isArray(response)) {
+        setServices(response);
+      } else {
+        setServices([]);
       }
     } catch (error) {
       console.error('Error fetching services:', error);
@@ -137,10 +164,6 @@ const ServiceCatalogManagement = () => {
     }
   };
 
-  const filteredDivisions = divisions.filter(d => 
-    selectedDepartmentId ? d.department_id === parseInt(selectedDepartmentId) : false
-  );
-
   const onSubmit = async (data: ServiceFormData) => {
     try {
       const serviceData = {
@@ -152,31 +175,24 @@ const ServiceCatalogManagement = () => {
         processing_time_days: Number(data.processing_time_days)
       };
 
-      // Note: You'll need to create this API endpoint
-      const url = editingService 
-        ? `/backend/api/service-catalog/?id=${editingService.id}`
-        : '/backend/api/service-catalog/';
-      
-      const method = editingService ? 'PUT' : 'POST';
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(serviceData)
-      });
-
-      if (response.ok) {
+      if (editingService) {
+        await apiService.updateService(editingService.id, serviceData);
         toast({
           title: "Success",
-          description: `Service ${editingService ? 'updated' : 'created'} successfully`,
+          description: "Service updated successfully",
         });
-        fetchServices();
-        setIsDialogOpen(false);
-        reset();
-        setEditingService(null);
       } else {
-        throw new Error('Failed to save service');
+        await apiService.createService(serviceData);
+        toast({
+          title: "Success",
+          description: "Service created successfully",
+        });
       }
+
+      fetchServices();
+      setIsDialogOpen(false);
+      reset();
+      setEditingService(null);
     } catch (error) {
       toast({
         title: "Error",
@@ -199,7 +215,7 @@ const ServiceCatalogManagement = () => {
     setValue('processing_time_days', service.processing_time_days);
     setValue('eligibility_criteria', service.eligibility_criteria || '');
     setValue('form_template_url', service.form_template_url || '');
-    setValue('is_active', service.is_active);
+    setValue('status', service.status);
     setIsDialogOpen(true);
   };
 
@@ -207,20 +223,12 @@ const ServiceCatalogManagement = () => {
     if (!confirm('Are you sure you want to delete this service?')) return;
 
     try {
-      // Note: You'll need to create this API endpoint
-      const response = await fetch(`/backend/api/service-catalog/?id=${id}`, {
-        method: 'DELETE'
+      await apiService.deleteService(id);
+      toast({
+        title: "Success",
+        description: "Service deleted successfully",
       });
-
-      if (response.ok) {
-        toast({
-          title: "Success",
-          description: "Service deleted successfully",
-        });
-        fetchServices();
-      } else {
-        throw new Error('Failed to delete service');
-      }
+      fetchServices();
     } catch (error) {
       toast({
         title: "Error",
@@ -230,14 +238,31 @@ const ServiceCatalogManagement = () => {
     }
   };
 
+  const filteredServices = services.filter(service => {
+    const matchesSearch = service.service_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         service.service_code.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDepartment = selectedDepartment === 'all' || 
+                             service.department_id === parseInt(selectedDepartment);
+    const matchesStatus = selectedStatus === 'all' || service.status === selectedStatus;
+    
+    return matchesSearch && matchesDepartment && matchesStatus;
+  });
+
+  const servicesByCategory = {
+    administrative: filteredServices.filter(s => s.department_name?.toLowerCase().includes('admin')),
+    business: filteredServices.filter(s => s.department_name?.toLowerCase().includes('business')),
+    social: filteredServices.filter(s => s.department_name?.toLowerCase().includes('social')),
+    permits: filteredServices.filter(s => s.department_name?.toLowerCase().includes('permit'))
+  };
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>Service Catalog Management</CardTitle>
-              <CardDescription>Manage available government services</CardDescription>
+              <CardTitle className="text-2xl font-bold">Service Catalog Management</CardTitle>
+              <CardDescription>Manage and oversee system operations</CardDescription>
             </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -246,14 +271,14 @@ const ServiceCatalogManagement = () => {
                   Add Service
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
                     {editingService ? 'Edit Service' : 'Add New Service'}
                   </DialogTitle>
                 </DialogHeader>
                 
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="service_name">Service Name *</Label>
@@ -286,6 +311,7 @@ const ServiceCatalogManagement = () => {
                       id="description"
                       {...register('description')}
                       placeholder="Detailed description of the service"
+                      rows={3}
                     />
                     {errors.description && (
                       <p className="text-sm text-red-500">{errors.description.message}</p>
@@ -296,13 +322,16 @@ const ServiceCatalogManagement = () => {
                     <div className="space-y-2">
                       <Label htmlFor="department_id">Department *</Label>
                       <Select
-                        value={selectedDepartmentId}
-                        onValueChange={(value) => setValue('department_id', value)}
+                        value={watch('department_id') || ''}
+                        onValueChange={(value) => {
+                          setValue('department_id', value);
+                          setValue('division_id', ''); // Reset division when department changes
+                        }}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select department" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-white border shadow-lg z-50">
                           {departments.map((dept) => (
                             <SelectItem key={dept.id} value={dept.id.toString()}>
                               {dept.name}
@@ -320,12 +349,18 @@ const ServiceCatalogManagement = () => {
                       <Select
                         value={watch('division_id') || ''}
                         onValueChange={(value) => setValue('division_id', value)}
-                        disabled={!selectedDepartmentId}
+                        disabled={!selectedDepartmentId || filteredDivisions.length === 0}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select division" />
+                          <SelectValue placeholder={
+                            !selectedDepartmentId 
+                              ? "Select department first" 
+                              : filteredDivisions.length === 0 
+                                ? "No divisions available" 
+                                : "Select division"
+                          } />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-white border shadow-lg z-50">
                           {filteredDivisions.map((div) => (
                             <SelectItem key={div.id} value={div.id.toString()}>
                               {div.name}
@@ -383,6 +418,7 @@ const ServiceCatalogManagement = () => {
                       id="required_documents"
                       {...register('required_documents')}
                       placeholder="Vehicle Registration, Insurance Certificate, Revenue License (comma separated)"
+                      rows={2}
                     />
                     {errors.required_documents && (
                       <p className="text-sm text-red-500">{errors.required_documents.message}</p>
@@ -395,11 +431,36 @@ const ServiceCatalogManagement = () => {
                       id="eligibility_criteria"
                       {...register('eligibility_criteria')}
                       placeholder="Who can apply for this service..."
+                      rows={2}
                     />
                   </div>
 
-                  <div className="flex justify-end space-x-2">
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  <div className="space-y-2">
+                    <Label htmlFor="status">Status</Label>
+                    <Select
+                      value={watch('status') || 'active'}
+                      onValueChange={(value) => setValue('status', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border shadow-lg z-50">
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex justify-end space-x-2 pt-4">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => {
+                        setIsDialogOpen(false);
+                        setEditingService(null);
+                        reset();
+                      }}
+                    >
                       Cancel
                     </Button>
                     <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
@@ -411,64 +472,156 @@ const ServiceCatalogManagement = () => {
             </Dialog>
           </div>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8">Loading services...</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Fee</TableHead>
-                  <TableHead>Processing</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {services.map((service) => (
-                  <TableRow key={service.id}>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-lg">{service.icon}</span>
-                        <span className="font-medium">{service.service_name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{service.service_code}</TableCell>
-                    <TableCell>{service.department_name}</TableCell>
-                    <TableCell>Rs. {service.fee_amount.toFixed(2)}</TableCell>
-                    <TableCell>{service.processing_time_days} days</TableCell>
-                    <TableCell>
-                      <Badge variant={service.is_active ? "default" : "secondary"}>
-                        {service.is_active ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(service)}
-                        >
-                          <Edit size={16} />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(service.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 size={16} />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+
+        <CardContent className="space-y-6">
+          {/* Search and Filter Section */}
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Input
+                placeholder="Search services..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="All Departments" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border shadow-lg z-50">
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept.id} value={dept.id.toString()}>
+                    {dept.name}
+                  </SelectItem>
                 ))}
-              </TableBody>
-            </Table>
-          )}
+              </SelectContent>
+            </Select>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-full md:w-32">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border shadow-lg z-50">
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Services Table/Grid */}
+          <Tabs defaultValue="table" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="table">Table View</TabsTrigger>
+              <TabsTrigger value="category">Category View</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="table">
+              {isLoading ? (
+                <div className="text-center py-8">Loading services...</div>
+              ) : (
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Service</TableHead>
+                        <TableHead>Code</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Division</TableHead>
+                        <TableHead>Fee</TableHead>
+                        <TableHead>Processing</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredServices.map((service) => (
+                        <TableRow key={service.id}>
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <span className="text-2xl">{service.icon}</span>
+                              <div>
+                                <div className="font-medium">{service.service_name}</div>
+                                <div className="text-sm text-gray-500 max-w-xs truncate">
+                                  {service.description}
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">{service.service_code}</TableCell>
+                          <TableCell>{service.department_name || 'N/A'}</TableCell>
+                          <TableCell>{service.division_name || 'N/A'}</TableCell>
+                          <TableCell>Rs. {service.fee_amount.toFixed(2)}</TableCell>
+                          <TableCell>{service.processing_time_days} days</TableCell>
+                          <TableCell>
+                            <Badge variant={service.status === 'active' ? "default" : "secondary"}>
+                              {service.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEdit(service)}
+                              >
+                                <Edit size={16} />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDelete(service.id)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="category">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
+                  <Card key={category}>
+                    <CardHeader>
+                      <CardTitle className="capitalize">{category} Services</CardTitle>
+                      <CardDescription>{categoryServices.length} services available</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {categoryServices.slice(0, 5).map((service) => (
+                          <div key={service.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center space-x-3">
+                              <span className="text-xl">{service.icon}</span>
+                              <div>
+                                <div className="font-medium text-sm">{service.service_name}</div>
+                                <div className="text-xs text-gray-500">Rs. {service.fee_amount.toFixed(2)}</div>
+                              </div>
+                            </div>
+                            <Badge variant={service.status === 'active' ? "default" : "secondary"}>
+                              {service.status}
+                            </Badge>
+                          </div>
+                        ))}
+                        {categoryServices.length > 5 && (
+                          <div className="text-sm text-gray-500 text-center">
+                            +{categoryServices.length - 5} more services
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
