@@ -25,7 +25,7 @@ export interface User {
   id: number;
   user_id: string;
   name: string;
-  nic?: string;
+  nic?: string;  // Make nic optional to match the actual API response
   email: string;
   username: string;
   role: 'admin' | 'staff' | 'public';
