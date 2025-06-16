@@ -84,18 +84,29 @@ const ServiceCatalogManagement = () => {
       setIsLoading(true);
       const response = await ApiErrorHandler.safeApiCall(
         () => apiService.getServices(),
-        []
+        { error: 'Failed to fetch services', status: 500 }
       );
       
       const servicesData = ApiErrorHandler.handleApiResponse(response, []);
+      
+      if (servicesData === null || (typeof servicesData === 'object' && 'error' in servicesData)) {
+        throw new Error(servicesData?.error || 'Failed to load services');
+      }
+      
       setServices(servicesData);
     } catch (error) {
-      console.error('Error fetching services:', error);
+      console.error('Error in fetchServices:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load services';
+      
       toast({
-        title: "Error",
-        description: "Failed to load services. Please check your connection.",
+        title: "Service Unavailable",
+        description: "The service catalog is currently unavailable. Please try again later.",
         variant: "destructive",
+        duration: 5000,
       });
+      
+      // Set empty services to prevent UI errors
+      setServices([]);
     } finally {
       setIsLoading(false);
     }
@@ -103,27 +114,43 @@ const ServiceCatalogManagement = () => {
 
   const fetchDepartments = async () => {
     try {
-      const response = await ApiErrorHandler.safeApiCall(
+      const response = await ApiErrorHandler.safeApiCall<Department[] | { error: string }>(
         () => apiService.getDepartments(),
-        []
+        [] as Department[]
       );
+      
       const departmentsData = ApiErrorHandler.handleApiResponse(response, []);
+      
+      if (!Array.isArray(departmentsData) || (departmentsData as any)?.error) {
+        console.warn('Failed to load departments:', (departmentsData as any)?.error || 'Unknown error');
+        return;
+      }
+      
       setDepartments(departmentsData);
     } catch (error) {
-      console.error('Error fetching departments:', error);
+      console.error('Error in fetchDepartments:', error);
+      setDepartments([]);
     }
   };
 
   const fetchDivisions = async () => {
     try {
-      const response = await ApiErrorHandler.safeApiCall(
+      const response = await ApiErrorHandler.safeApiCall<Division[] | { error: string }>(
         () => apiService.getDivisions(),
-        []
+        [] as Division[]
       );
+      
       const divisionsData = ApiErrorHandler.handleApiResponse(response, []);
+      
+      if (!Array.isArray(divisionsData) || (divisionsData as any)?.error) {
+        console.warn('Failed to load divisions:', (divisionsData as any)?.error || 'Unknown error');
+        return;
+      }
+      
       setDivisions(divisionsData);
     } catch (error) {
-      console.error('Error fetching divisions:', error);
+      console.error('Error in fetchDivisions:', error);
+      setDivisions([]);
     }
   };
 
@@ -193,14 +220,26 @@ const ServiceCatalogManagement = () => {
     setIsDialogOpen(false);
   };
 
-  const filteredServices = services.filter(service => {
-    const matchesSearch = service.service_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         service.service_code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDepartment = selectedDepartment === 'all' || 
-                             service.department_id === parseInt(selectedDepartment);
-    const matchesStatus = selectedStatus === 'all' || service.status === selectedStatus;
-    
-    return matchesSearch && matchesDepartment && matchesStatus;
+  const filteredServices = (services || []).filter(service => {
+    try {
+      if (!service) return false;
+      
+      const searchLower = searchTerm.toLowerCase();
+      const matchesSearch = 
+        (service.service_name?.toLowerCase().includes(searchLower) || false) ||
+        (service.description?.toLowerCase().includes(searchLower) || false);
+      
+      const matchesDept = selectedDepartment === 'all' || 
+                         service.department_id === parseInt(selectedDepartment);
+      
+      const matchesStatus = selectedStatus === 'all' || 
+                           service.status === selectedStatus;
+      
+      return matchesSearch && matchesDept && matchesStatus;
+    } catch (error) {
+      console.warn('Error filtering service:', service, error);
+      return false;
+    }
   });
 
   return (

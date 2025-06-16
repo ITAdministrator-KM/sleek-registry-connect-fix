@@ -91,13 +91,21 @@ export interface TokenInfo {
 }
 
 class ApiService {
-  private async makeRequest(endpoint: string, options: RequestInit = {}) {
+  private async makeRequest(
+    endpoint: string, 
+    options: RequestInit = {}, 
+    retries = 3, 
+    backoff = 1000
+  ): Promise<any> {
     const url = `${API_BASE_URL}${endpoint}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
     
     const authToken = localStorage.getItem('authToken');
     
     const config: RequestInit = {
       ...options,
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -117,18 +125,40 @@ class ApiService {
     });
 
     try {
+      console.log(`Making API request to: ${url}`, { method: options.method || 'GET' });
       const response = await fetch(url, config);
+      clearTimeout(timeoutId);
+      
+      // Clone the response for error handling
+      const responseClone = response.clone();
       
       console.log(`Response [${response.status}] from: ${url}`);
       console.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
+<<<<<<< HEAD
         const errorText = await response.text();
         console.error(`API request failed with status ${response.status}:`, {
+=======
+        let errorText = '';
+        let errorData: any = null;
+        
+        try {
+          errorText = await response.text();
+          // Try to parse as JSON if possible
+          errorData = errorText ? JSON.parse(errorText) : null;
+        } catch (parseError) {
+          console.warn('Error parsing error response as JSON:', parseError);
+          errorData = { message: errorText || 'Unknown error occurred' };
+        }
+        
+        const errorDetails = {
+>>>>>>> 5c4261f (Updated repository with latest changes)
           status: response.status,
           statusText: response.statusText,
           url,
           endpoint,
+<<<<<<< HEAD
           response: errorText,
         });
         
@@ -141,9 +171,43 @@ class ApiService {
         }
         
         throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+=======
+          error: errorData || errorText,
+        };
+        
+        console.error(`API request failed with status ${response.status}:`, errorDetails);
+        
+        // Create a proper error object with status
+        const error = new Error(errorData?.message || `HTTP error! status: ${response.status}`) as Error & {
+          status?: number;
+          statusText?: string;
+          url?: string;
+          response?: any;
+        };
+        
+        error.status = response.status;
+        error.statusText = response.statusText;
+        error.url = url;
+        error.response = errorData;
+        
+        // Don't retry 500 errors, just throw
+        if (response.status >= 500) {
+          throw error;
+        }
+        
+        // For other errors, retry if we have retries left
+        if (retries > 0) {
+          console.log(`Retrying request (${retries} attempts remaining)...`);
+          await new Promise(resolve => setTimeout(resolve, backoff));
+          return this.makeRequest(endpoint, options, retries - 1, backoff * 2);
+        }
+        
+        throw error;
+>>>>>>> 5c4261f (Updated repository with latest changes)
       }
       
       const contentType = response.headers.get('content-type');
+<<<<<<< HEAD
       if (contentType && contentType.includes('application/json')) {
         const data = await response.json();
         console.log('API responses:', data);
@@ -151,8 +215,48 @@ class ApiService {
       }
       
       return await response.text();
+=======
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.log(`API request successful (non-JSON): ${url}`);
+        return textResponse;
+      }
+      
+      try {
+        const data = await response.json();
+        console.log(`API request successful: ${url}`);
+        return data;
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        // Return empty object instead of throwing to prevent UI crashes
+        return {};
+      }
+      
+>>>>>>> 5c4261f (Updated repository with latest changes)
     } catch (error) {
-      console.error(`API request failed:`, error);
+      clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError') {
+        const errorMsg = `Request timed out after 15s: ${url}`;
+        console.error(errorMsg);
+        throw new Error('Request timed out. Please check your internet connection and try again.');
+      }
+      
+      // Network errors - retry if we have retries left
+      if (error instanceof TypeError && error.message === 'Failed to fetch' && retries > 0) {
+        console.log(`Network error, retrying request (${retries} attempts remaining)...`);
+        await new Promise(resolve => setTimeout(resolve, backoff));
+        return this.makeRequest(endpoint, options, retries - 1, backoff * 2);
+      }
+      
+      const errorDetails = {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        url,
+        endpoint,
+        stack: error instanceof Error ? error.stack : undefined,
+      };
+      
+      console.error('API request failed:', errorDetails);
       throw error;
     }
   }
@@ -196,6 +300,7 @@ class ApiService {
     }
   }
 
+<<<<<<< HEAD
   async getTokens(): Promise<TokenInfo[]> {
     try {
       const response = await this.makeRequestWithRetry('/tokens/');
@@ -215,8 +320,30 @@ class ApiService {
       }
       const response = await this.makeRequestWithRetry(endpoint);
       return Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+=======
+  // Notifications
+  async getNotifications(recipientId: number, recipientType: 'public' | 'staff' | 'admin' = 'staff'): Promise<Notification[]> {
+    try {
+      console.log(`Fetching notifications for ${recipientType} ID: ${recipientId}`);
+      const endpoint = `/notifications/index.php?recipient_id=${recipientId}&recipient_type=${recipientType}`;
+      const response = await this.makeRequest(endpoint);
+      
+      if (!Array.isArray(response)) {
+        console.warn('Unexpected notifications response format:', response);
+        return [];
+      }
+      
+      console.log(`Successfully fetched ${response.length} notifications`);
+      return response;
+>>>>>>> 5c4261f (Updated repository with latest changes)
     } catch (error) {
-      console.warn('Failed to fetch notifications:', error);
+      console.error('Failed to fetch notifications:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        recipientId,
+        recipientType,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      // Return empty array on error to prevent UI from breaking
       return [];
     }
   }
