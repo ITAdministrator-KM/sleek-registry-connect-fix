@@ -1,8 +1,10 @@
+
 const API_BASE_URL = 'https://dskalmunai.lk/backend/api';
 
 export interface PublicUser {
   id: number;
   public_id: string;
+  public_user_id: string; // Added missing property
   name: string;
   nic: string;
   email: string;

@@ -1,204 +1,125 @@
-
 import { useState, useEffect } from 'react';
-import { Plus, Search } from 'lucide-react';
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogTrigger 
-} from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Plus, Edit, Trash2, Search, Filter } from 'lucide-react';
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 
-import { apiService } from '@/services/apiService';
-import { ApiErrorHandler } from '@/services/errorHandler';
-import ServiceCatalogTable from './service-catalog/ServiceCatalogTable';
-import ServiceCatalogForm from './service-catalog/ServiceCatalogForm';
-
-interface ServiceCatalog {
-  id: number;
-  service_name: string;
-  service_code: string;
-  description: string;
-  department_id: number;
-  division_id?: number;
-  icon: string;
-  fee_amount: number;
-  required_documents: string[];
-  processing_time_days: number;
-  eligibility_criteria?: string;
-  form_template_url?: string;
-  status: string;
-  department_name?: string;
-  division_name?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Department {
-  id: number;
-  name: string;
-}
-
-interface Division {
-  id: number;
-  name: string;
-  department_id: number;
-}
+import StaffLayout from './staff/StaffLayout';
+import { apiService, ServiceCatalog } from '@/services/apiService';
 
 const ServiceCatalogManagement = () => {
+  const [activeTab, setActiveTab] = useState('service-catalog');
   const [services, setServices] = useState<ServiceCatalog[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [divisions, setDivisions] = useState<Division[]>([]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingService, setEditingService] = useState<ServiceCatalog | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState('all');
-  
+  const [filterDepartment, setFilterDepartment] = useState('all');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedService, setSelectedService] = useState<ServiceCatalog | null>(null);
   const { toast } = useToast();
 
+  const [formData, setFormData] = useState({
+    service_name: '',
+    service_code: '',
+    description: '',
+    department_id: '',
+    division_id: '',
+    icon: '',
+    fee_amount: '',
+    required_documents: '',
+    processing_time_days: '',
+    eligibility_criteria: '',
+    form_template_url: '',
+    status: 'active',
+  });
+
   useEffect(() => {
-    Promise.all([
-      fetchServices(),
-      fetchDepartments(),
-      fetchDivisions()
-    ]);
+    fetchServices();
   }, []);
 
   const fetchServices = async () => {
     try {
-      setIsLoading(true);
-      const response = await ApiErrorHandler.safeApiCall(
-        () => apiService.getServices(),
-        { error: 'Failed to fetch services', status: 500 }
-      );
-      
-      const servicesData = ApiErrorHandler.handleApiResponse(response, []);
-      
-      if (servicesData === null || (typeof servicesData === 'object' && 'error' in servicesData)) {
-        throw new Error(servicesData?.error || 'Failed to load services');
-      }
-      
-      setServices(servicesData);
+      setLoading(true);
+      const data = await apiService.getServices();
+      setServices(data);
     } catch (error) {
-      console.error('Error in fetchServices:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load services';
-      
-      toast({
-        title: "Service Unavailable",
-        description: "The service catalog is currently unavailable. Please try again later.",
-        variant: "destructive",
-        duration: 5000,
-      });
-      
-      // Set empty services to prevent UI errors
-      setServices([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchDepartments = async () => {
-    try {
-      const response = await ApiErrorHandler.safeApiCall<Department[] | { error: string }>(
-        () => apiService.getDepartments(),
-        [] as Department[]
-      );
-      
-      const departmentsData = ApiErrorHandler.handleApiResponse(response, []);
-      
-      if (!Array.isArray(departmentsData) || (departmentsData as any)?.error) {
-        console.warn('Failed to load departments:', (departmentsData as any)?.error || 'Unknown error');
-        return;
-      }
-      
-      setDepartments(departmentsData);
-    } catch (error) {
-      console.error('Error in fetchDepartments:', error);
-      setDepartments([]);
-    }
-  };
-
-  const fetchDivisions = async () => {
-    try {
-      const response = await ApiErrorHandler.safeApiCall<Division[] | { error: string }>(
-        () => apiService.getDivisions(),
-        [] as Division[]
-      );
-      
-      const divisionsData = ApiErrorHandler.handleApiResponse(response, []);
-      
-      if (!Array.isArray(divisionsData) || (divisionsData as any)?.error) {
-        console.warn('Failed to load divisions:', (divisionsData as any)?.error || 'Unknown error');
-        return;
-      }
-      
-      setDivisions(divisionsData);
-    } catch (error) {
-      console.error('Error in fetchDivisions:', error);
-      setDivisions([]);
-    }
-  };
-
-  const onSubmit = async (data: any) => {
-    try {
-      const serviceData = {
-        ...data,
-        department_id: parseInt(data.department_id),
-        division_id: data.division_id ? parseInt(data.division_id) : null,
-        required_documents: data.required_documents.split(',').map((doc: string) => doc.trim()),
-        fee_amount: Number(data.fee_amount),
-        processing_time_days: Number(data.processing_time_days)
-      };
-
-      if (editingService) {
-        await apiService.updateService(editingService.id, serviceData);
-        toast({
-          title: "Success",
-          description: "Service updated successfully",
-        });
-      } else {
-        await apiService.createService(serviceData);
-        toast({
-          title: "Success",
-          description: "Service created successfully",
-        });
-      }
-
-      fetchServices();
-      setIsDialogOpen(false);
-      setEditingService(null);
-    } catch (error) {
+      console.error('Failed to fetch services:', error);
       toast({
         title: "Error",
-        description: `Failed to ${editingService ? 'update' : 'create'} service`,
+        description: "Failed to load services",
         variant: "destructive",
       });
+      setServices([]);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { id, value } = e.target;
+    setFormData(prevState => ({
+      ...prevState,
+      [id]: value
+    }));
+  };
+
+  const handleDialogClose = () => {
+    setIsDialogOpen(false);
+    setIsEditing(false);
+    setSelectedService(null);
+    resetForm();
+  };
+
+  const handleCreate = () => {
+    setIsDialogOpen(true);
+    setIsEditing(false);
   };
 
   const handleEdit = (service: ServiceCatalog) => {
-    setEditingService(service);
     setIsDialogOpen(true);
+    setIsEditing(true);
+    setSelectedService(service);
+    setFormData({
+      service_name: service.service_name,
+      service_code: service.service_code,
+      description: service.description,
+      department_id: service.department_id?.toString() || '',
+      division_id: service.division_id?.toString() || '',
+      icon: service.icon,
+      fee_amount: service.fee_amount?.toString() || '',
+      required_documents: service.required_documents?.join(',') || '',
+      processing_time_days: service.processing_time_days?.toString() || '',
+      eligibility_criteria: service.eligibility_criteria || '',
+      form_template_url: service.form_template_url || '',
+      status: service.status,
+    });
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this service?')) return;
-
     try {
       await apiService.deleteService(id);
       toast({
@@ -207,6 +128,7 @@ const ServiceCatalogManagement = () => {
       });
       fetchServices();
     } catch (error) {
+      console.error('Failed to delete service:', error);
       toast({
         title: "Error",
         description: "Failed to delete service",
@@ -215,167 +137,259 @@ const ServiceCatalogManagement = () => {
     }
   };
 
-  const handleCancel = () => {
-    setEditingService(null);
-    setIsDialogOpen(false);
+  const handleSubmit = async () => {
+    try {
+      if (isEditing && selectedService) {
+        await apiService.updateService(selectedService.id, {
+          service_name: formData.service_name,
+          service_code: formData.service_code,
+          description: formData.description,
+          department_id: parseInt(formData.department_id),
+          division_id: formData.division_id ? parseInt(formData.division_id) : null,
+          icon: formData.icon,
+          fee_amount: parseFloat(formData.fee_amount),
+          required_documents: formData.required_documents.split(','),
+          processing_time_days: parseInt(formData.processing_time_days),
+          eligibility_criteria: formData.eligibility_criteria,
+          form_template_url: formData.form_template_url,
+          status: formData.status,
+        });
+        toast({
+          title: "Success",
+          description: "Service updated successfully",
+        });
+      } else {
+        await apiService.createService({
+          service_name: formData.service_name,
+          service_code: formData.service_code,
+          description: formData.description,
+          department_id: parseInt(formData.department_id),
+          division_id: formData.division_id ? parseInt(formData.division_id) : null,
+          icon: formData.icon,
+          fee_amount: parseFloat(formData.fee_amount),
+          required_documents: formData.required_documents.split(','),
+          processing_time_days: parseInt(formData.processing_time_days),
+          eligibility_criteria: formData.eligibility_criteria,
+          form_template_url: formData.form_template_url,
+          status: formData.status,
+        });
+        toast({
+          title: "Success",
+          description: "Service created successfully",
+        });
+      }
+      fetchServices();
+      handleDialogClose();
+    } catch (error) {
+      console.error('Failed to save service:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save service",
+        variant: "destructive",
+      });
+    }
   };
 
-  const filteredServices = (services || []).filter(service => {
-    try {
-      if (!service) return false;
-      
-      const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = 
-        (service.service_name?.toLowerCase().includes(searchLower) || false) ||
-        (service.description?.toLowerCase().includes(searchLower) || false);
-      
-      const matchesDept = selectedDepartment === 'all' || 
-                         service.department_id === parseInt(selectedDepartment);
-      
-      const matchesStatus = selectedStatus === 'all' || 
-                           service.status === selectedStatus;
-      
-      return matchesSearch && matchesDept && matchesStatus;
-    } catch (error) {
-      console.warn('Error filtering service:', service, error);
-      return false;
-    }
+  const resetForm = () => {
+    setFormData({
+      service_name: '',
+      service_code: '',
+      description: '',
+      department_id: '',
+      division_id: '',
+      icon: '',
+      fee_amount: '',
+      required_documents: '',
+      processing_time_days: '',
+      eligibility_criteria: '',
+      form_template_url: '',
+      status: 'active',
+    });
+  };
+
+  const filteredServices = services.filter(service => {
+    const matchesSearch = service.service_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.service_code.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDepartment = filterDepartment === 'all' || service.department_id.toString() === filterDepartment;
+    return matchesSearch && matchesDepartment;
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <Card className="w-full max-w-7xl mx-auto">
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <CardTitle className="text-2xl font-bold">Service Catalog Management</CardTitle>
-              <CardDescription>Manage and oversee system operations</CardDescription>
-            </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+    <StaffLayout activeTab={activeTab} onTabChange={setActiveTab}>
+      <div className="container mx-auto py-6">
+        <Card className="shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-2xl font-bold">Service Catalog Management</CardTitle>
+            <Dialog>
               <DialogTrigger asChild>
-                <Button 
-                  className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
-                  onClick={() => {
-                    setEditingService(null);
-                    setIsDialogOpen(true);
-                  }}
-                >
-                  <Plus className="mr-2" size={20} />
+                <Button variant="outline" onClick={handleCreate}>
+                  <Plus className="mr-2 h-4 w-4" />
                   Add Service
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden">
+              <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>
-                    {editingService ? 'Edit Service' : 'Add New Service'}
-                  </DialogTitle>
+                  <DialogTitle>{isEditing ? 'Edit Service' : 'Create Service'}</DialogTitle>
+                  <DialogDescription>
+                    {isEditing ? 'Edit the service details.' : 'Add a new service to the catalog.'}
+                  </DialogDescription>
                 </DialogHeader>
-                <ServiceCatalogForm
-                  onSubmit={onSubmit}
-                  onCancel={handleCancel}
-                  departments={departments}
-                  divisions={divisions}
-                  editingService={editingService}
-                />
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="service_name" className="text-right">
+                      Name
+                    </Label>
+                    <Input type="text" id="service_name" value={formData.service_name} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="service_code" className="text-right">
+                      Code
+                    </Label>
+                    <Input type="text" id="service_code" value={formData.service_code} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="description" className="text-right">
+                      Description
+                    </Label>
+                    <Textarea id="description" value={formData.description} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="department_id" className="text-right">
+                      Department ID
+                    </Label>
+                    <Input type="text" id="department_id" value={formData.department_id} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="division_id" className="text-right">
+                      Division ID
+                    </Label>
+                    <Input type="text" id="division_id" value={formData.division_id} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="icon" className="text-right">
+                      Icon
+                    </Label>
+                    <Input type="text" id="icon" value={formData.icon} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="fee_amount" className="text-right">
+                      Fee Amount
+                    </Label>
+                    <Input type="text" id="fee_amount" value={formData.fee_amount} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="required_documents" className="text-right">
+                      Required Documents
+                    </Label>
+                    <Input type="text" id="required_documents" value={formData.required_documents} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="processing_time_days" className="text-right">
+                      Processing Time (Days)
+                    </Label>
+                    <Input type="text" id="processing_time_days" value={formData.processing_time_days} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="eligibility_criteria" className="text-right">
+                      Eligibility Criteria
+                    </Label>
+                    <Textarea id="eligibility_criteria" value={formData.eligibility_criteria} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="form_template_url" className="text-right">
+                      Form Template URL
+                    </Label>
+                    <Input type="text" id="form_template_url" value={formData.form_template_url} onChange={handleInputChange} className="col-span-3" />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="status" className="text-right">
+                      Status
+                    </Label>
+                    <Select value={formData.status} onValueChange={(value) => setFormData(prevState => ({ ...prevState, status: value }))}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button type="submit" onClick={handleSubmit}>
+                  {isEditing ? 'Update Service' : 'Create Service'}
+                </Button>
               </DialogContent>
             </Dialog>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          {/* Search and Filter Section */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 md:space-x-4">
               <Input
                 placeholder="Search services..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                onChange={e => setSearchTerm(e.target.value)}
+                className="max-w-sm"
               />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="All Departments" />
+              <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by department" />
                 </SelectTrigger>
-                <SelectContent className="bg-white border shadow-lg z-50">
+                <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id.toString()}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="w-full sm:w-32">
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border shadow-lg z-50">
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="1">Department 1</SelectItem>
+                  <SelectItem value="2">Department 2</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          {/* Services Table */}
-          <Tabs defaultValue="table" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-2">
-              <TabsTrigger value="table">Table View</TabsTrigger>
-              <TabsTrigger value="category">Category View</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="table">
-              <ServiceCatalogTable
-                services={filteredServices}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                isLoading={isLoading}
-              />
-            </TabsContent>
-
-            <TabsContent value="category">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {departments.map((dept) => {
-                  const deptServices = filteredServices.filter(s => s.department_id === dept.id);
-                  return (
-                    <Card key={dept.id}>
-                      <CardHeader>
-                        <CardTitle className="text-lg">{dept.name}</CardTitle>
-                        <CardDescription>{deptServices.length} services available</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          {deptServices.slice(0, 5).map((service) => (
-                            <div key={service.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                              <div className="flex items-center space-x-3 min-w-0">
-                                <span className="text-xl flex-shrink-0">{service.icon}</span>
-                                <div className="min-w-0">
-                                  <div className="font-medium text-sm truncate">{service.service_name}</div>
-                                  <div className="text-xs text-gray-500">Rs. {service.fee_amount.toFixed(2)}</div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                          {deptServices.length > 5 && (
-                            <div className="text-sm text-gray-500 text-center">
-                              +{deptServices.length - 5} more services
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
+            <ScrollArea className="my-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[100px]">Code</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-4">Loading...</TableCell>
+                    </TableRow>
+                  ) : filteredServices.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-4">No services found.</TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredServices.map((service) => (
+                      <TableRow key={service.id}>
+                        <TableCell className="font-medium">{service.service_code}</TableCell>
+                        <TableCell>{service.service_name}</TableCell>
+                        <TableCell>{service.description}</TableCell>
+                        <TableCell>{service.department_id}</TableCell>
+                        <TableCell>{service.status}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(service)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(service.id)}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+    </StaffLayout>
   );
 };
 
