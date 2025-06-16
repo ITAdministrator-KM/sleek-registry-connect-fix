@@ -124,6 +124,40 @@ const StaffDashboard = () => {
     }
   };
 
+  const handleQRScanSuccess = (result: string) => {
+    try {
+      const qrData = JSON.parse(result);
+      if (qrData.public_id) {
+        toast({
+          title: "QR Code Scanned",
+          description: `Public ID: ${qrData.public_id}`,
+        });
+        // Handle the scanned data as needed
+      } else {
+        toast({
+          title: "Invalid QR Code",
+          description: "QR code does not contain valid public ID",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Invalid QR Code",
+        description: "Please scan a valid Public ID QR code",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleQRScanError = (error: any) => {
+    console.error('QR Scan error:', error);
+    toast({
+      title: "Scan Error",
+      description: "Failed to scan QR code",
+      variant: "destructive",
+    });
+  };
+
   const menuItems = [
     { id: 'overview', label: 'Dashboard', icon: Clock },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
@@ -285,7 +319,7 @@ const StaffDashboard = () => {
       case 'id-cards':
         return <IDCardGenerator />;
       case 'qr-scanner':
-        return <ResponsiveQRScanner />;
+        return <ResponsiveQRScanner onScanSuccess={handleQRScanSuccess} onError={handleQRScanError} />;
       case 'notifications':
         return <NotificationManagement />;
       case 'settings':

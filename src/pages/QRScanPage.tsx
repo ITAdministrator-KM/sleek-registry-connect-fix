@@ -58,6 +58,36 @@ const QRScanPage = () => {
     }
   };
 
+  const handleQRScanSuccess = (result: string) => {
+    try {
+      const qrData = JSON.parse(result);
+      if (qrData.public_id) {
+        navigate(`/qr-scan/${qrData.public_id}`);
+      } else {
+        toast({
+          title: "Invalid QR Code",
+          description: "QR code does not contain valid public ID",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Invalid QR Code",
+        description: "Please scan a valid Public ID QR code",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleQRScanError = (error: any) => {
+    console.error('QR Scan error:', error);
+    toast({
+      title: "Scan Error",
+      description: "Failed to scan QR code",
+      variant: "destructive",
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
@@ -121,10 +151,16 @@ const QRScanPage = () => {
               </CardContent>
             </Card>
 
-            <ResponsiveQRScanner />
+            <ResponsiveQRScanner 
+              onScanSuccess={handleQRScanSuccess}
+              onError={handleQRScanError}
+            />
           </div>
         ) : (
-          <ResponsiveQRScanner />
+          <ResponsiveQRScanner 
+            onScanSuccess={handleQRScanSuccess}
+            onError={handleQRScanError}
+          />
         )}
       </div>
     </div>

@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react';
-import { Html5QrcodeScanner, Html5QrcodeScannerConfig } from 'html5-qrcode';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { Button } from '@/components/ui/button';
 import { Camera, X } from 'lucide-react';
 
@@ -15,7 +15,7 @@ const ResponsiveQRScanner = ({ onScanSuccess, onError, onClose }: ResponsiveQRSc
   const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
-    const config: Html5QrcodeScannerConfig = {
+    const config = {
       fps: 10,
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0,
