@@ -46,22 +46,40 @@ export const PublicUserIDCard = ({
   // Ensure public user ID is available
   const publicUserId = user.public_user_id || user.public_id || 'N/A';
   
-  // Generate QR code URL if not provided
-  const qrCodeUrl = user.qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUserId)}`;
+  // Generate QR code data for verification
+  const qrCodeData = JSON.stringify({
+    public_id: publicUserId,
+    name: user.name,
+    nic: user.nic,
+    issued: new Date().toISOString().split('T')[0],
+    authority: 'Divisional Secretariat Kalmunai'
+  });
 
   const handlePrint = useReactToPrint({
     content: () => cardRef.current,
     onAfterPrint: onPrint,
-    documentTitle: `ID_Card_${user.public_user_id}`,
+    documentTitle: `ID_Card_${publicUserId}`,
     pageStyle: `
       @page { 
-        size: 85mm 54mm;
+        size: 85.6mm 54mm;
         margin: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
       @media print { 
         body { 
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+          margin: 0;
+          padding: 0;
+        }
+        .id-card-print {
+          width: 85.6mm !important;
+          height: 54mm !important;
+          border: 2px solid #000 !important;
+          background: white !important;
+          color: black !important;
+          font-family: Arial, sans-serif !important;
         }
       }
     `
@@ -96,119 +114,143 @@ export const PublicUserIDCard = ({
       {/* ID Card */}
       <div 
         ref={cardRef}
-        className="bg-white border-2 border-black rounded-none p-2 flex flex-col"
+        className="id-card-print bg-white border-2 border-black font-mono text-black p-1"
         style={{
-          width: '85mm',
+          width: '85.6mm',
           height: '54mm',
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
-          fontFamily: 'Arial, sans-serif'
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '8px',
+          lineHeight: '1.2'
         }}
       >
         {/* Header with Logos and Title */}
-        <div className="flex justify-between items-center mb-2 border-b-2 border-black pb-2">
+        <div className="flex justify-between items-center mb-1 border-b-2 border-black pb-1">
           {/* Left Logo */}
-          <div className="w-12 h-12 flex-shrink-0">
+          <div className="w-10 h-10 flex-shrink-0 border border-black bg-white">
             <img 
               src="/emblem.svg" 
               alt="Government Emblem"
               className="w-full h-full object-contain"
+              style={{
+                WebkitPrintColorAdjust: 'exact',
+                printColorAdjust: 'exact',
+                filter: 'contrast(1) brightness(1)'
+              }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
-                target.src = '/placeholder.svg';
+                target.style.display = 'none';
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:6px;font-weight:bold;">LOGO1</div>';
+                }
               }}
             />
           </div>
           
           {/* Center Title */}
-          <div className="text-center px-2 flex-1">
-            <h1 className="text-xs font-bold uppercase tracking-wide leading-tight">
+          <div className="text-center px-1 flex-1">
+            <div className="text-xs font-bold uppercase tracking-tight leading-tight">
               DIVISIONAL SECRETARIAT
-            </h1>
-            <h2 className="text-xs font-bold tracking-wide">KALMUNAI</h2>
+            </div>
+            <div className="text-xs font-bold tracking-wide">KALMUNAI</div>
           </div>
           
           {/* Right Logo */}
-          <div className="w-12 h-12 flex-shrink-0">
+          <div className="w-10 h-10 flex-shrink-0 border border-black bg-white">
             <img 
               src="/logo.svg" 
               alt="DS Logo"
               className="w-full h-full object-contain"
+              style={{
+                WebkitPrintColorAdjust: 'exact',
+                printColorAdjust: 'exact',
+                filter: 'contrast(1) brightness(1)'
+              }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
-                target.src = '/placeholder.svg';
+                target.style.display = 'none';
+                const parent = target.parentElement;
+                if (parent) {
+                  parent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:6px;font-weight:bold;">LOGO2</div>';
+                }
               }}
             />
           </div>
         </div>
         
         {/* Main Content Area */}
-        <div className="flex flex-1">
-          {/* Left Side - User Information */}
-          <div className="w-1/2 pr-2 flex flex-col justify-between">
-            <div className="space-y-1">
+        <div className="flex h-full">
+          {/* Left Side - User Information (50%) */}
+          <div className="w-1/2 pr-1 flex flex-col justify-around">
+            <div className="space-y-0.5">
               <div>
-                <p className="text-[8px] font-bold uppercase text-black">Name:</p>
-                <p className="text-[9px] font-semibold leading-tight uppercase">{user.name}</p>
+                <span className="text-xs font-bold uppercase text-black block">Name:</span>
+                <span className="text-xs font-semibold leading-tight block">{user.name}</span>
               </div>
               
               <div>
-                <p className="text-[8px] font-bold uppercase text-black">NIC:</p>
-                <p className="text-[9px] font-mono font-semibold uppercase">{user.nic}</p>
+                <span className="text-xs font-bold uppercase text-black block">NIC:</span>
+                <span className="text-xs font-mono font-semibold block">{user.nic}</span>
               </div>
               
-              {user.dateOfBirth && (
+              {formattedDateOfBirth !== 'N/A' && (
                 <div>
-                  <p className="text-[8px] font-bold uppercase text-black">Date of Birth:</p>
-                  <p className="text-[9px] font-semibold">{formattedDateOfBirth}</p>
+                  <span className="text-xs font-bold uppercase text-black block">Date of Birth:</span>
+                  <span className="text-xs font-semibold block">{formattedDateOfBirth}</span>
                 </div>
               )}
               
               <div>
-                <p className="text-[8px] font-bold uppercase text-black">Mobile:</p>
-                <p className="text-[9px] font-semibold">{user.mobile || 'N/A'}</p>
+                <span className="text-xs font-bold uppercase text-black block">Mobile:</span>
+                <span className="text-xs font-semibold block">{user.mobile || 'N/A'}</span>
               </div>
               
               <div>
-                <p className="text-[8px] font-bold uppercase text-black">Address:</p>
-                <p className="text-[8px] leading-tight" style={{ wordBreak: 'break-word' }}>
-                  {user.address.length > 40 ? user.address.substring(0, 40) + '...' : user.address}
-                </p>
+                <span className="text-xs font-bold uppercase text-black block">Address:</span>
+                <span className="text-xs leading-tight block" style={{ wordBreak: 'break-word' }}>
+                  {user.address.length > 35 ? user.address.substring(0, 35) + '...' : user.address}
+                </span>
               </div>
               
               <div>
-                <p className="text-[8px] font-bold uppercase text-black">ID:</p>
-                <p className="text-[9px] font-mono font-bold">{publicUserId}</p>
+                <span className="text-xs font-bold uppercase text-black block">Public ID:</span>
+                <span className="text-xs font-mono font-bold block">{publicUserId}</span>
               </div>
             </div>
           </div>
           
-          {/* Right Side - QR Code */}
-          <div className="w-1/2 flex flex-col items-center justify-center border-l-2 border-black pl-2">
-            <div className="bg-white p-1 border border-black">
+          {/* Right Side - QR Code (50%) */}
+          <div className="w-1/2 flex flex-col items-center justify-center border-l-2 border-black pl-1">
+            <div className="bg-white p-0.5 border border-black">
               <QRCodeSVG 
-                value={qrCodeUrl}
-                size={100}
+                value={qrCodeData}
+                size={80}
                 level="H"
                 includeMargin={false}
                 className="w-full h-auto"
+                style={{
+                  WebkitPrintColorAdjust: 'exact',
+                  printColorAdjust: 'exact'
+                }}
               />
             </div>
-            <p className="text-[6px] text-center mt-1 font-semibold uppercase">
-              SCAN TO VERIFY
-            </p>
+            <div className="text-xs text-center mt-0.5 font-semibold uppercase">
+              QR CODE
+            </div>
           </div>
         </div>
         
         {/* Footer */}
-        <div className="mt-2 pt-1 border-t border-black">
+        <div className="mt-1 pt-0.5 border-t border-black">
           <div className="flex justify-between items-center">
-            <p className="text-[6px] font-semibold">
+            <span className="text-xs font-semibold">
               Issued: {new Date().toLocaleDateString('en-GB')}
-            </p>
-            <p className="text-[6px] font-semibold">
+            </span>
+            <span className="text-xs font-semibold">
               OFFICIAL DOCUMENT
-            </p>
+            </span>
           </div>
         </div>
       </div>

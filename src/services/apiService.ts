@@ -1,22 +1,23 @@
-
 const API_BASE_URL = 'https://dskalmunai.lk/backend/api';
 
 export interface PublicUser {
   id: number;
   public_id: string;
-  public_user_id: string; // Added missing property
+  public_user_id: string;
   name: string;
   nic: string;
   email: string;
   mobile: string;
   address: string;
   date_of_birth?: string;
+  dateOfBirth?: string;
   department_id?: number;
   division_id?: number;
   department_name?: string;
   division_name?: string;
   qr_code_data?: string;
   qr_code_url?: string;
+  qr_code?: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -115,9 +116,12 @@ export interface RegistryEntry {
   remarks?: string;
   entry_time: string;
   visitor_type: 'new' | 'existing';
-  status: 'active' | 'checked_out';
+  status: 'active' | 'checked_out' | 'deleted';
   department_name?: string;
   division_name?: string;
+  public_user_name?: string;
+  public_user_id_ref?: string;
+  updated_at?: string;
 }
 
 class ApiService {
@@ -330,10 +334,23 @@ class ApiService {
   async getServices(): Promise<ServiceCatalog[]> {
     try {
       const response = await this.makeRequestWithRetry('/service-catalog/');
-      return Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+      console.log('Services API response:', response);
+      
+      // Handle different response formats
+      if (response?.data && Array.isArray(response.data)) {
+        return response.data;
+      } else if (Array.isArray(response)) {
+        return response;
+      } else if (response?.services && Array.isArray(response.services)) {
+        return response.services;
+      }
+      
+      console.warn('Unexpected services response format:', response);
+      return [];
     } catch (error) {
       console.error('Failed to fetch services:', error);
-      return [];
+      // Don't redirect to login on service catalog errors
+      throw error;
     }
   }
 
@@ -388,7 +405,19 @@ class ApiService {
   async getPublicUsers(): Promise<PublicUser[]> {
     try {
       const response = await this.makeRequestWithRetry('/public-users/');
-      return Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+      console.log('Public users API response:', response);
+      
+      // Handle different response formats
+      if (response?.data && Array.isArray(response.data)) {
+        return response.data;
+      } else if (Array.isArray(response)) {
+        return response;
+      } else if (response?.users && Array.isArray(response.users)) {
+        return response.users;
+      }
+      
+      console.warn('Unexpected public users response format:', response);
+      return [];
     } catch (error) {
       console.error('Failed to fetch public users:', error);
       return [];
@@ -418,12 +447,24 @@ class ApiService {
     });
   }
 
-  // Users
+  // Users - Fixed to properly handle API responses
   async getUsers(status?: string): Promise<User[]> {
     try {
       const query = status && status !== 'all' ? `?status=${status}` : '';
       const response = await this.makeRequestWithRetry(`/users/${query}`);
-      return Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+      console.log('Users API response:', response);
+      
+      // Handle different response formats
+      if (response?.data && Array.isArray(response.data)) {
+        return response.data;
+      } else if (Array.isArray(response)) {
+        return response;
+      } else if (response?.users && Array.isArray(response.users)) {
+        return response.users;
+      }
+      
+      console.warn('Unexpected users response format:', response);
+      return [];
     } catch (error) {
       console.error('Failed to fetch users:', error);
       return [];
@@ -511,21 +552,55 @@ class ApiService {
   }
 
   async updateRegistryEntry(id: number, entryData: any): Promise<RegistryEntry> {
-    const response = await this.makeRequestWithRetry(`/registry/?id=${id}`, {
+    const response = await this.makeRequestWithRetry('/registry/', {
       method: 'PUT',
-      body: JSON.stringify(entryData),
+      body: JSON.stringify({ id, ...entryData }),
     });
     return response?.data || response;
+  }
+
+  async deleteRegistryEntry(id: number): Promise<void> {
+    await this.makeRequestWithRetry('/registry/', {
+      method: 'DELETE',
+      body: JSON.stringify({ id }),
+    });
   }
 
   async getPublicUserById(publicId: string): Promise<PublicUser | null> {
     try {
       const users = await this.getPublicUsers();
-      return users.find(user => user.public_user_id === publicId) || null;
+      return users.find(user => user.public_user_id === publicId || user.public_id === publicId) || null;
     } catch (error) {
       console.error('Failed to fetch public user by ID:', error);
       return null;
     }
+  }
+
+  // Token Management
+  async getTokens(): Promise<any[]> {
+    try {
+      const response = await this.makeRequestWithRetry('/tokens/');
+      return Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+    } catch (error) {
+      console.error('Failed to fetch tokens:', error);
+      return [];
+    }
+  }
+
+  async createToken(tokenData: any): Promise<any> {
+    const response = await this.makeRequestWithRetry('/tokens/', {
+      method: 'POST',
+      body: JSON.stringify(tokenData),
+    });
+    return response?.data || response;
+  }
+
+  async updateToken(id: number, tokenData: any): Promise<any> {
+    const response = await this.makeRequestWithRetry('/tokens/', {
+      method: 'PUT',
+      body: JSON.stringify({ id, ...tokenData }),
+    });
+    return response?.data || response;
   }
 }
 
