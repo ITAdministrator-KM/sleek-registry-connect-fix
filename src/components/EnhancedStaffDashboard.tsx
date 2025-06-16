@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,8 @@ import {
   UserPlus,
   Search,
   MoreVertical,
-  AlertTriangle
+  AlertTriangle,
+  Settings
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import StaffLayout from './staff/StaffLayout';
+import StaffServiceCatalog from './staff/StaffServiceCatalog';
 import { ApiErrorHandler } from '@/services/errorHandler';
 
 interface ServiceRequest {
@@ -82,7 +83,7 @@ const EnhancedStaffDashboard = () => {
 
   const fetchServiceRequests = async () => {
     try {
-      // Mock data with better error handling
+      // Mock data for demo purposes
       const mockRequests: ServiceRequest[] = [
         {
           id: 1,
@@ -493,14 +494,6 @@ const EnhancedStaffDashboard = () => {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Button 
-                    onClick={() => setActiveTab('id-cards')}
-                    className="w-full justify-start h-12 bg-gradient-to-r from-blue-500 to-blue-600"
-                  >
-                    <Camera className="mr-3" size={20} />
-                    📱 ID Card Generator
-                  </Button>
-                  
-                  <Button 
                     onClick={() => setActiveTab('service-requests')}
                     className="w-full justify-start h-12 bg-gradient-to-r from-green-500 to-green-600"
                   >
@@ -509,11 +502,19 @@ const EnhancedStaffDashboard = () => {
                   </Button>
                   
                   <Button 
-                    onClick={() => setActiveTab('documents')}
+                    onClick={() => setActiveTab('service-catalog')}
+                    className="w-full justify-start h-12 bg-gradient-to-r from-blue-500 to-blue-600"
+                  >
+                    <Settings className="mr-3" size={20} />
+                    📋 Service Catalog
+                  </Button>
+                  
+                  <Button 
+                    onClick={() => setActiveTab('id-cards')}
                     className="w-full justify-start h-12 bg-gradient-to-r from-purple-500 to-purple-600"
                   >
-                    <Upload className="mr-3" size={20} />
-                    📄 Upload Documents
+                    <Camera className="mr-3" size={20} />
+                    📱 ID Card Generator
                   </Button>
                 </CardContent>
               </Card>
@@ -544,7 +545,98 @@ const EnhancedStaffDashboard = () => {
           </div>
         );
       case 'service-requests':
-        return renderServiceRequests();
+        return (
+          <div className="space-y-6">
+            {/* Search and Filter Bar */}
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <Input
+                  placeholder="Search requests..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-48">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent className="bg-white shadow-lg z-50">
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Service Requests Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredRequests.map((request) => (
+                <Card key={request.id} className="transition-all cursor-pointer hover:shadow-lg">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                          {request.public_user_photo ? (
+                            <img 
+                              src={request.public_user_photo} 
+                              alt={request.public_user_name}
+                              className="w-12 h-12 rounded-full object-cover"
+                            />
+                          ) : (
+                            <UserPlus size={24} className="text-gray-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-sm truncate">{request.public_user_name}</h3>
+                          <p className="text-xs text-gray-500 truncate">ID: {request.public_user_id}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm truncate">{request.service_name}</h4>
+                      <p className="text-xs text-gray-600">#{request.request_number}</p>
+                      
+                      <Badge variant="outline" className="text-xs">
+                        {request.status.replace('_', ' ')}
+                      </Badge>
+
+                      <div className="flex space-x-2 pt-2">
+                        <Button 
+                          size="sm" 
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRequestAction(request.id, 'approve');
+                          }}
+                        >
+                          Approve
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="flex-1 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRequestAction(request.id, 'request_docs');
+                          }}
+                        >
+                          Request Docs
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        );
+      case 'service-catalog':
+        return <StaffServiceCatalog />;
       case 'id-cards':
         return (
           <Card>
@@ -591,7 +683,7 @@ const EnhancedStaffDashboard = () => {
           </Card>
         );
       default:
-        return renderServiceRequests();
+        return null;
     }
   };
 

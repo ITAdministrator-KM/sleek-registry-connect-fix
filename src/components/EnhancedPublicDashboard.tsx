@@ -4,7 +4,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { 
   Clock, 
@@ -18,32 +17,48 @@ import {
   Upload,
   Eye,
   CreditCard,
-  Timer
+  Timer,
+  Settings
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import PublicLayout from './public/PublicLayout';
+import PublicServiceCatalog from './public/PublicServiceCatalog';
 import { ApiErrorHandler } from '@/services/errorHandler';
-import { ServiceCatalog, UserApplication, TokenInfo } from '@/types';
+
+interface UserApplication {
+  id: number;
+  request_number: string;
+  service_name: string;
+  status: 'pending' | 'approved' | 'rejected' | 'under_review';
+  created_at: string;
+  estimated_completion: string;
+  fee_amount: number;
+  payment_status: 'paid' | 'pending' | 'failed';
+  progress_percentage: number;
+}
+
+interface TokenInfo {
+  token_number: string;
+  estimated_wait_time: number;
+  queue_position: number;
+  status: string;
+  service_name: string;
+  is_next: boolean;
+}
 
 const EnhancedPublicDashboard = () => {
   const { user } = useAuth('public');
   const [activeTab, setActiveTab] = useState('home');
-  const [services, setServices] = useState<ServiceCatalog[]>([]);
   const [applications, setApplications] = useState<UserApplication[]>([]);
   const [activeToken, setActiveToken] = useState<TokenInfo | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [isBookingFlow, setIsBookingFlow] = useState(false);
-  const [selectedService, setSelectedService] = useState<ServiceCatalog | null>(null);
-  const [bookingStep, setBookingStep] = useState(1);
   
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchServices();
     fetchApplications();
     fetchActiveToken();
     
@@ -52,58 +67,9 @@ const EnhancedPublicDashboard = () => {
     return () => clearInterval(tokenInterval);
   }, []);
 
-  const fetchServices = async () => {
-    try {
-      const mockServices: ServiceCatalog[] = [
-        {
-          id: 1,
-          service_name: 'Vehicle License Renewal',
-          service_code: 'VLR001',
-          description: 'Renew your vehicle license with ease',
-          icon: '🚗',
-          fee_amount: 1500,
-          processing_time_days: 7,
-          department_name: 'Transport',
-          status: 'active',
-          category: 'administrative',
-          duration_minutes: 15
-        },
-        {
-          id: 2,
-          service_name: 'Birth Certificate',
-          service_code: 'BC001',
-          description: 'Apply for birth certificate',
-          icon: '👶',
-          fee_amount: 500,
-          processing_time_days: 5,
-          department_name: 'Civil Registration',
-          status: 'active',
-          category: 'social',
-          duration_minutes: 10
-        },
-        {
-          id: 3,
-          service_name: 'Business Registration',
-          service_code: 'BR001',
-          description: 'Register your new business',
-          icon: '🏢',
-          fee_amount: 2500,
-          processing_time_days: 14,
-          department_name: 'Commerce',
-          status: 'active',
-          category: 'business',
-          duration_minutes: 30
-        }
-      ];
-      setServices(mockServices);
-    } catch (error) {
-      console.error('Error fetching services:', error);
-      ApiErrorHandler.handleAuthError(error);
-    }
-  };
-
   const fetchApplications = async () => {
     try {
+      // Mock data for demo purposes
       const mockApplications: UserApplication[] = [
         {
           id: 1,
@@ -139,226 +105,6 @@ const EnhancedPublicDashboard = () => {
       console.error('Error fetching token:', error);
     }
   };
-
-  const handleServiceBooking = (service: ServiceCatalog) => {
-    setSelectedService(service);
-    setIsBookingFlow(true);
-    setBookingStep(1);
-  };
-
-  const handleBookingComplete = () => {
-    setIsBookingFlow(false);
-    setBookingStep(1);
-    setSelectedService(null);
-    
-    toast({
-      title: "Booking Successful! ✅",
-      description: "Your token has been generated. Please wait for your turn.",
-    });
-    
-    // Generate new token
-    const newToken: TokenInfo = {
-      token_number: `T${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`,
-      estimated_wait_time: Math.floor(Math.random() * 30) + 10,
-      queue_position: Math.floor(Math.random() * 10) + 1,
-      status: 'waiting',
-      service_name: selectedService?.service_name || '',
-      is_next: false
-    };
-    setActiveToken(newToken);
-  };
-
-  const filteredServices = services.filter(service => {
-    const matchesSearch = service.service_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         service.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'all' || service.category === selectedCategory;
-    
-    return matchesSearch && matchesCategory;
-  });
-
-  const servicesByCategory = {
-    administrative: filteredServices.filter(s => s.category === 'administrative'),
-    business: filteredServices.filter(s => s.category === 'business'),
-    social: filteredServices.filter(s => s.category === 'social'),
-    permits: filteredServices.filter(s => s.category === 'permits')
-  };
-
-  const renderBookingFlow = () => {
-    if (!selectedService) return null;
-
-    return (
-      <Card className="max-w-2xl mx-auto">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Book Service: {selectedService.service_name}</span>
-            <Button variant="outline" onClick={() => setIsBookingFlow(false)}>✖️</Button>
-          </CardTitle>
-          <Progress value={(bookingStep / 3) * 100} className="w-full" />
-        </CardHeader>
-        <CardContent>
-          {bookingStep === 1 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Step 1: Service Details</h3>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex items-center space-x-3 mb-3">
-                  <span className="text-3xl">{selectedService.icon}</span>
-                  <div>
-                    <h4 className="font-medium">{selectedService.service_name}</h4>
-                    <p className="text-sm text-gray-600">{selectedService.description}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Fee:</span> Rs. {selectedService.fee_amount}
-                  </div>
-                  <div>
-                    <span className="font-medium">Processing:</span> {selectedService.processing_time_days} days
-                  </div>
-                  <div>
-                    <span className="font-medium">Duration:</span> ~{selectedService.duration_minutes} minutes
-                  </div>
-                  <div>
-                    <span className="font-medium">Department:</span> {selectedService.department_name}
-                  </div>
-                </div>
-              </div>
-              <Button className="w-full" onClick={() => setBookingStep(2)}>
-                Continue to Documents
-              </Button>
-            </div>
-          )}
-
-          {bookingStep === 2 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Step 2: Upload Documents</h3>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <p className="text-gray-600 mb-4">Drag and drop your documents here</p>
-                <Button variant="outline">Choose Files</Button>
-                <p className="text-xs text-gray-500 mt-2">Accepted: PDF, JPG, PNG (Max 5MB each)</p>
-              </div>
-              <div className="flex space-x-2">
-                <Button variant="outline" onClick={() => setBookingStep(1)}>
-                  Back
-                </Button>
-                <Button className="flex-1" onClick={() => setBookingStep(3)}>
-                  Continue to Confirmation
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {bookingStep === 3 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Step 3: Confirmation</h3>
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center space-x-2 mb-2">
-                  <CheckCircle className="text-green-600" size={20} />
-                  <span className="font-medium text-green-800">Ready to Submit</span>
-                </div>
-                <p className="text-sm text-green-700">
-                  Your application for "{selectedService.service_name}" is ready to be submitted.
-                  You will receive a token number for queue management.
-                </p>
-              </div>
-              <div className="flex space-x-2">
-                <Button variant="outline" onClick={() => setBookingStep(2)}>
-                  Back
-                </Button>
-                <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleBookingComplete}>
-                  🎉 Confirm & Get Token
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  };
-
-  const renderServices = () => (
-    <div className="space-y-6">
-      {/* Search and Filter */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <Input
-            placeholder="Search services..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-full md:w-48">
-            <SelectValue placeholder="All Categories" />
-          </SelectTrigger>
-          <SelectContent className="bg-white shadow-lg z-50">
-            <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="administrative">Administrative</SelectItem>
-            <SelectItem value="business">Business</SelectItem>
-            <SelectItem value="social">Social Services</SelectItem>
-            <SelectItem value="permits">Permits</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {isBookingFlow ? renderBookingFlow() : (
-        <Tabs defaultValue="administrative" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
-            <TabsTrigger value="administrative">Administrative</TabsTrigger>
-            <TabsTrigger value="business">Business</TabsTrigger>
-            <TabsTrigger value="social">Social</TabsTrigger>
-            <TabsTrigger value="permits">Permits</TabsTrigger>
-          </TabsList>
-
-          {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
-            <TabsContent key={category} value={category}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {categoryServices.map((service) => (
-                  <Card key={service.id} className="hover:shadow-lg transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-3 mb-3">
-                        <span className="text-3xl">{service.icon}</span>
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-sm truncate">{service.service_name}</h3>
-                          <p className="text-xs text-gray-500">{service.department_name}</p>
-                        </div>
-                      </div>
-                      
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{service.description}</p>
-                      
-                      <div className="space-y-2 text-xs text-gray-500 mb-4">
-                        <div className="flex items-center justify-between">
-                          <span>💰 Fee: Rs. {service.fee_amount}</span>
-                          <span>⏱️ ~{service.duration_minutes} min</span>
-                        </div>
-                        <div>
-                          <span>📅 Processing: {service.processing_time_days} days</span>
-                        </div>
-                      </div>
-
-                      <div className="flex space-x-2">
-                        <Button 
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-xs"
-                          onClick={() => handleServiceBooking(service)}
-                        >
-                          📝 Book Now
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-xs">
-                          📄 Download Form
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-          ))}
-        </Tabs>
-      )}
-    </div>
-  );
 
   const renderMainContent = () => {
     switch (activeTab) {
@@ -401,7 +147,7 @@ const EnhancedPublicDashboard = () => {
                 <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xl md:text-2xl font-bold text-green-800">{services.length}</p>
+                      <p className="text-xl md:text-2xl font-bold text-green-800">25</p>
                       <p className="text-green-600 text-sm font-medium">Available Services</p>
                     </div>
                     <FileText className="h-6 w-6 md:h-8 md:w-8 text-green-500" />
@@ -454,23 +200,33 @@ const EnhancedPublicDashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Popular Services</CardTitle>
-                  <CardDescription>Most frequently used services</CardDescription>
+                  <CardTitle>Quick Actions</CardTitle>
+                  <CardDescription>Access popular services</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {services.slice(0, 3).map((service) => (
-                    <Button 
-                      key={service.id}
-                      onClick={() => {
-                        setActiveTab('services');
-                        handleServiceBooking(service);
-                      }}
-                      className="w-full justify-start h-12 bg-gradient-to-r from-green-500 to-green-600"
-                    >
-                      <span className="mr-3 text-lg">{service.icon}</span>
-                      {service.service_name}
-                    </Button>
-                  ))}
+                  <Button 
+                    onClick={() => setActiveTab('services')}
+                    className="w-full justify-start h-12 bg-gradient-to-r from-green-500 to-green-600"
+                  >
+                    <Search className="mr-3" size={20} />
+                    🔍 Browse Services
+                  </Button>
+                  
+                  <Button 
+                    onClick={() => setActiveTab('applications')}
+                    className="w-full justify-start h-12 bg-gradient-to-r from-blue-500 to-blue-600"
+                  >
+                    <FileText className="mr-3" size={20} />
+                    📋 My Applications
+                  </Button>
+                  
+                  <Button 
+                    onClick={() => setActiveTab('documents')}
+                    className="w-full justify-start h-12 bg-gradient-to-r from-purple-500 to-purple-600"
+                  >
+                    <Upload className="mr-3" size={20} />
+                    📄 Upload Documents
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -513,7 +269,7 @@ const EnhancedPublicDashboard = () => {
           </div>
         );
       case 'services':
-        return renderServices();
+        return <PublicServiceCatalog />;
       case 'applications':
         return (
           <Card>
@@ -578,8 +334,38 @@ const EnhancedPublicDashboard = () => {
             </CardContent>
           </Card>
         );
+      case 'documents':
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle>Documents</CardTitle>
+              <CardDescription>Manage your documents</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <Upload size={48} className="mx-auto mb-4 text-gray-400" />
+                <p className="text-gray-500">Document management will be implemented here</p>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      case 'notifications':
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle>Notifications</CardTitle>
+              <CardDescription>System notifications and updates</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <AlertCircle size={48} className="mx-auto mb-4 text-gray-400" />
+                <p className="text-gray-500">Notifications will be implemented here</p>
+              </div>
+            </CardContent>
+          </Card>
+        );
       default:
-        return renderServices();
+        return null;
     }
   };
 

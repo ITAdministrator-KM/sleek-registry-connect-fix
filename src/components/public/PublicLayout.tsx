@@ -9,7 +9,8 @@ import {
   Folder, 
   Bell,
   Menu,
-  X
+  X,
+  Settings
 } from 'lucide-react';
 
 interface PublicLayoutProps {

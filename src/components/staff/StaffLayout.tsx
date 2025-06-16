@@ -9,7 +9,8 @@ import {
   Folder, 
   Bell,
   Menu,
-  X
+  X,
+  Settings
 } from 'lucide-react';
 
 interface StaffLayoutProps {
@@ -25,6 +26,7 @@ const StaffLayout = ({ children, activeTab, onTabChange }: StaffLayoutProps) => 
   const menuItems = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'service-requests', label: 'Service Requests', icon: ClipboardList },
+    { id: 'service-catalog', label: 'Service Catalog', icon: Settings },
     { id: 'id-cards', label: 'ID Cards', icon: IdCard },
     { id: 'documents', label: 'Documents', icon: Folder },
     { id: 'notifications', label: 'Notifications', icon: Bell },
