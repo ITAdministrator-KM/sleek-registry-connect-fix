@@ -28,6 +28,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import StaffLayout from './staff/StaffLayout';
 import StaffServiceCatalog from './staff/StaffServiceCatalog';
+import PublicRegistry from './staff/PublicRegistry';
 import { ApiErrorHandler } from '@/services/errorHandler';
 
 interface ServiceRequest {
@@ -635,6 +636,8 @@ const EnhancedStaffDashboard = () => {
             </div>
           </div>
         );
+      case 'public-registry':
+        return <PublicRegistry />;
       case 'service-catalog':
         return <StaffServiceCatalog />;
       case 'id-cards':

@@ -1,4 +1,3 @@
-
 const API_BASE_URL = 'https://dskalmunai.lk/backend/api';
 
 export interface PublicUser {
@@ -90,6 +89,35 @@ export interface TokenInfo {
   updated_at?: string;
 }
 
+export interface Notification {
+    id: number;
+    recipient_id: number;
+    recipient_type: string;
+    message: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface RegistryEntry {
+  id: number;
+  registry_id: string;
+  public_user_id?: number;
+  visitor_name: string;
+  visitor_nic: string;
+  visitor_address?: string;
+  visitor_phone?: string;
+  department_id: number;
+  division_id?: number;
+  purpose_of_visit: string;
+  remarks?: string;
+  entry_time: string;
+  visitor_type: 'new' | 'existing';
+  status: 'active' | 'checked_out';
+  department_name?: string;
+  division_name?: string;
+}
+
 class ApiService {
   private async makeRequest(
     endpoint: string, 
@@ -136,10 +164,6 @@ class ApiService {
       console.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
-<<<<<<< HEAD
-        const errorText = await response.text();
-        console.error(`API request failed with status ${response.status}:`, {
-=======
         let errorText = '';
         let errorData: any = null;
         
@@ -153,25 +177,10 @@ class ApiService {
         }
         
         const errorDetails = {
->>>>>>> 5c4261f (Updated repository with latest changes)
           status: response.status,
           statusText: response.statusText,
           url,
           endpoint,
-<<<<<<< HEAD
-          response: errorText,
-        });
-        
-        if (response.status === 401) {
-          console.warn('Authentication failed, clearing auth data');
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('userRole');
-          localStorage.removeItem('userData');
-          window.location.href = '/login';
-        }
-        
-        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
-=======
           error: errorData || errorText,
         };
         
@@ -203,19 +212,9 @@ class ApiService {
         }
         
         throw error;
->>>>>>> 5c4261f (Updated repository with latest changes)
       }
       
       const contentType = response.headers.get('content-type');
-<<<<<<< HEAD
-      if (contentType && contentType.includes('application/json')) {
-        const data = await response.json();
-        console.log('API responses:', data);
-        return data;
-      }
-      
-      return await response.text();
-=======
       if (!contentType || !contentType.includes('application/json')) {
         const textResponse = await response.text();
         console.log(`API request successful (non-JSON): ${url}`);
@@ -232,7 +231,6 @@ class ApiService {
         return {};
       }
       
->>>>>>> 5c4261f (Updated repository with latest changes)
     } catch (error) {
       clearTimeout(timeoutId);
       
@@ -300,27 +298,6 @@ class ApiService {
     }
   }
 
-<<<<<<< HEAD
-  async getTokens(): Promise<TokenInfo[]> {
-    try {
-      const response = await this.makeRequestWithRetry('/tokens/');
-      return Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
-    } catch (error) {
-      console.warn('Failed to fetch tokens:', error);
-      return [];
-    }
-  }
-
-  // Notifications
-  async getNotifications(recipientId: number, recipientType?: 'public' | 'staff' | 'admin'): Promise<any[]> {
-    try {
-      let endpoint = `/notifications/index.php?recipient_id=${recipientId}`;
-      if (recipientType) {
-        endpoint += `&recipient_type=${recipientType}`;
-      }
-      const response = await this.makeRequestWithRetry(endpoint);
-      return Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
-=======
   // Notifications
   async getNotifications(recipientId: number, recipientType: 'public' | 'staff' | 'admin' = 'staff'): Promise<Notification[]> {
     try {
@@ -335,7 +312,6 @@ class ApiService {
       
       console.log(`Successfully fetched ${response.length} notifications`);
       return response;
->>>>>>> 5c4261f (Updated repository with latest changes)
     } catch (error) {
       console.error('Failed to fetch notifications:', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -510,6 +486,44 @@ class ApiService {
       method: 'POST',
       body: formData,
     }).then(response => response.json());
+  }
+
+  // Registry Management
+  async getRegistryEntries(date?: string): Promise<RegistryEntry[]> {
+    try {
+      const query = date ? `?date=${date}` : '';
+      const response = await this.makeRequestWithRetry(`/registry/${query}`);
+      return Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
+    } catch (error) {
+      console.error('Failed to fetch registry entries:', error);
+      return [];
+    }
+  }
+
+  async createRegistryEntry(entryData: any): Promise<RegistryEntry> {
+    const response = await this.makeRequestWithRetry('/registry/', {
+      method: 'POST',
+      body: JSON.stringify(entryData),
+    });
+    return response?.data || response;
+  }
+
+  async updateRegistryEntry(id: number, entryData: any): Promise<RegistryEntry> {
+    const response = await this.makeRequestWithRetry(`/registry/?id=${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(entryData),
+    });
+    return response?.data || response;
+  }
+
+  async getPublicUserById(publicId: string): Promise<PublicUser | null> {
+    try {
+      const users = await this.getPublicUsers();
+      return users.find(user => user.public_user_id === publicId) || null;
+    } catch (error) {
+      console.error('Failed to fetch public user by ID:', error);
+      return null;
+    }
   }
 }
 
