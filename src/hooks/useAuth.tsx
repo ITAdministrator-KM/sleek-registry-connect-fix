@@ -19,7 +19,7 @@ export interface AuthUser {
   address?: string;
 }
 
-export const useAuth = (requiredRole?: string) => {
+export const useAuth = (requiredRole?: string | string[]) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -78,12 +78,15 @@ export const useAuth = (requiredRole?: string) => {
             return;
           }
           
-          // Check if user has required role
-          if (requiredRole && userRole !== requiredRole) {
-            console.log(`useAuth: User role ${userRole} doesn't match required role ${requiredRole}`);
-            clearAuth();
-            navigate('/login', { replace: true });
-            return;
+          // Check if user has required role(s)
+          if (requiredRole) {
+            const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+            if (!allowedRoles.includes(userRole)) {
+              console.log(`useAuth: User role ${userRole} doesn't match required roles ${allowedRoles.join(', ')}`);
+              clearAuth();
+              navigate('/login', { replace: true });
+              return;
+            }
           }
 
           // If we have all required data and roles match, set the user

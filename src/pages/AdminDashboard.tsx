@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +21,7 @@ import { Loader2 } from 'lucide-react';
 import ServiceCatalogManagement from '@/components/ServiceCatalogManagement';
 
 const AdminDashboard = () => {
-  const { user, loading, isAuthenticated, logout } = useAuth('admin');
+  const { user, loading, isAuthenticated, logout } = useAuth(['admin']); // Allow only admin
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
   const navigate = useNavigate();

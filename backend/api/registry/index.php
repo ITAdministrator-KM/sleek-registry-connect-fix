@@ -1,4 +1,3 @@
-
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -15,7 +14,16 @@ try {
         exit;
     }
 
-    switch ($_SERVER['REQUEST_METHOD']) {
+    $method = $_SERVER['REQUEST_METHOD'];
+    $request_uri = $_SERVER['REQUEST_URI'];
+    
+    // Handle export requests
+    if (strpos($request_uri, '/export') !== false) {
+        handleExportRequest($db);
+        exit;
+    }
+
+    switch ($method) {
         case 'GET':
             getRegistryEntries($db);
             break;
@@ -52,10 +60,90 @@ function generateRegistryId($db) {
     return 'REG' . str_pad($newNumber, 5, '0', STR_PAD_LEFT);
 }
 
+function handleExportRequest($db) {
+    try {
+        $format = $_GET['export'] ?? 'csv';
+        $date = $_GET['date'] ?? null;
+        $department_id = $_GET['department_id'] ?? null;
+        
+        $query = "SELECT pr.*, pu.name as public_user_name, pu.public_user_id,
+                        d.name as department_name, `div`.name as division_name
+                 FROM public_registry pr 
+                 LEFT JOIN public_users pu ON pr.public_user_id = pu.id
+                 LEFT JOIN departments d ON pr.department_id = d.id 
+                 LEFT JOIN divisions `div` ON pr.division_id = `div`.id 
+                 WHERE pr.status = 'active'";
+        
+        $params = [];
+        
+        if ($date) {
+            $query .= " AND DATE(pr.entry_time) = ?";
+            $params[] = $date;
+        }
+        
+        if ($department_id) {
+            $query .= " AND pr.department_id = ?";
+            $params[] = $department_id;
+        }
+        
+        $query .= " ORDER BY pr.entry_time DESC";
+        
+        $stmt = $db->prepare($query);
+        $stmt->execute($params);
+        $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        if ($format === 'csv') {
+            header('Content-Type: text/csv');
+            header('Content-Disposition: attachment; filename="registry_export.csv"');
+            
+            $output = fopen('php://output', 'w');
+            
+            // CSV headers
+            fputcsv($output, [
+                'Registry ID', 'Entry Time', 'Visitor Name', 'NIC', 'Address', 
+                'Phone', 'Department', 'Division', 'Purpose', 'Remarks', 
+                'Visitor Type', 'Status'
+            ]);
+            
+            // CSV data
+            foreach ($entries as $entry) {
+                fputcsv($output, [
+                    $entry['registry_id'],
+                    $entry['entry_time'],
+                    $entry['visitor_name'],
+                    $entry['visitor_nic'],
+                    $entry['visitor_address'],
+                    $entry['visitor_phone'],
+                    $entry['department_name'],
+                    $entry['division_name'],
+                    $entry['purpose_of_visit'],
+                    $entry['remarks'],
+                    $entry['visitor_type'],
+                    $entry['status']
+                ]);
+            }
+            
+            fclose($output);
+        } else if ($format === 'pdf') {
+            // For PDF, return JSON that frontend can process
+            header('Content-Type: application/json');
+            sendResponse($entries, "Registry data for PDF export");
+        }
+        
+    } catch (Exception $e) {
+        error_log("Export error: " . $e->getMessage());
+        sendError(500, "Failed to export data: " . $e->getMessage());
+    }
+}
+
 function getRegistryEntries($db) {
     try {
         $date = $_GET['date'] ?? null;
         $id = $_GET['id'] ?? null;
+        $department_id = $_GET['department_id'] ?? null;
+        $division_id = $_GET['division_id'] ?? null;
+        $visitor_type = $_GET['visitor_type'] ?? null;
+        $status = $_GET['status'] ?? 'active';
         
         if ($id) {
             $query = "SELECT pr.*, pu.name as public_user_name, pu.public_user_id,
@@ -64,10 +152,10 @@ function getRegistryEntries($db) {
                      LEFT JOIN public_users pu ON pr.public_user_id = pu.id
                      LEFT JOIN departments d ON pr.department_id = d.id 
                      LEFT JOIN divisions `div` ON pr.division_id = `div`.id 
-                     WHERE pr.id = ? AND pr.status = 'active'";
+                     WHERE pr.id = ? AND pr.status = ?";
             
             $stmt = $db->prepare($query);
-            $stmt->execute([$id]);
+            $stmt->execute([$id, $status]);
             $entry = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$entry) {
@@ -83,13 +171,28 @@ function getRegistryEntries($db) {
                      LEFT JOIN public_users pu ON pr.public_user_id = pu.id
                      LEFT JOIN departments d ON pr.department_id = d.id 
                      LEFT JOIN divisions `div` ON pr.division_id = `div`.id 
-                     WHERE pr.status = 'active'";
+                     WHERE pr.status = ?";
+            
+            $params = [$status];
             
             if ($date) {
                 $query .= " AND DATE(pr.entry_time) = ?";
-                $params = [$date];
-            } else {
-                $params = [];
+                $params[] = $date;
+            }
+            
+            if ($department_id) {
+                $query .= " AND pr.department_id = ?";
+                $params[] = $department_id;
+            }
+            
+            if ($division_id) {
+                $query .= " AND pr.division_id = ?";
+                $params[] = $division_id;
+            }
+            
+            if ($visitor_type) {
+                $query .= " AND pr.visitor_type = ?";
+                $params[] = $visitor_type;
             }
             
             $query .= " ORDER BY pr.entry_time DESC";

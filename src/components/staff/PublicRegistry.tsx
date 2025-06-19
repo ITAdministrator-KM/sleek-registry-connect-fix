@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -137,8 +138,8 @@ const PublicRegistry = () => {
           ...prev,
           name: foundUser.name,
           nic: foundUser.nic,
-          address: foundUser.address,
-          phone: foundUser.mobile,
+          address: foundUser.address || '',
+          phone: foundUser.mobile || '',
           department_id: foundUser.department_id?.toString() || '',
           division_id: foundUser.division_id?.toString() || ''
         }));
@@ -187,7 +188,7 @@ const PublicRegistry = () => {
     if (!formData.name || !formData.nic || !formData.address) {
       toast({
         title: "Validation Error",
-        description: "Please fill in all required fields",
+        description: "Please fill in all required fields (Name, NIC, Address)",
         variant: "destructive",
       });
       return;
@@ -271,7 +272,7 @@ const PublicRegistry = () => {
       
       toast({
         title: "Entry Recorded",
-        description: `Registry ID: ${newEntry.registry_id}`,
+        description: `Registry ID: ${newEntry.registry_id || 'Generated'}`,
       });
 
       // Reset form

@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings, UserPlus, QrCode, CreditCard, Scan, Bell, Loader2 } from 'lucide-react';
+import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings, UserPlus, QrCode, CreditCard, Scan, Bell, Loader2, ClipboardList } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import TokenManagement from '@/components/TokenManagement';
 import { PublicAccountsManagement } from '@/components/PublicAccountsManagement';
@@ -12,10 +12,11 @@ import { PublicUserForm } from '@/components/public-accounts/PublicUserForm';
 import IDCardGenerator from '@/components/IDCardGenerator';
 import ResponsiveQRScanner from '@/components/ResponsiveQRScanner';
 import NotificationManagement from '@/components/NotificationManagement';
+import PublicRegistry from '@/components/staff/PublicRegistry';
 import { apiService } from '@/services/api';
 
 const StaffDashboard = () => {
-  const { user, loading, isAuthenticated, logout } = useAuth('staff');
+  const { user, loading, isAuthenticated, logout } = useAuth(['staff']); // Allow only staff
   const [activeTab, setActiveTab] = useState('overview');
   const [username, setUsername] = useState('');
   const [userDepartment, setUserDepartment] = useState('');
@@ -162,6 +163,7 @@ const StaffDashboard = () => {
     { id: 'overview', label: 'Dashboard', icon: Clock },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
     { id: 'public-accounts', label: 'Public Accounts', icon: Users },
+    { id: 'public-registry', label: 'Public Registry', icon: ClipboardList },
     { id: 'id-cards', label: 'ID Card Generator', icon: CreditCard },
     { id: 'qr-scanner', label: 'QR Scanner', icon: QrCode },
     { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -316,6 +318,8 @@ const StaffDashboard = () => {
         return <TokenManagement />;
       case 'public-accounts':
         return <PublicAccountsManagement />;
+      case 'public-registry':
+        return <PublicRegistry />;
       case 'id-cards':
         return <IDCardGenerator />;
       case 'qr-scanner':
