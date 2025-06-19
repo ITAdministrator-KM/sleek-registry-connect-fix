@@ -1,4 +1,3 @@
-
 import { apiService } from './api';
 
 export interface RegistryEntry {
@@ -97,6 +96,7 @@ class RegistryApiService {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
       });
@@ -155,6 +155,7 @@ class RegistryApiService {
       const response = await fetch(`${this.baseUrl}/export?${queryParams}`, {
         method: 'GET',
         headers: {
+          'Accept': 'application/json, application/octet-stream',
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
       });

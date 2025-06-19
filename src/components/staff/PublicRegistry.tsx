@@ -23,6 +23,15 @@ import { registryApiService, RegistryEntry, RegistryEntryCreateData } from '@/se
 import { useAuth } from '@/hooks/useAuth';
 import ResponsiveQRScanner from '@/components/ResponsiveQRScanner';
 
+interface FormErrors {
+  name?: string;
+  nic?: string;
+  address?: string;
+  phone?: string;
+  purpose_of_visit?: string;
+  department_id?: string;
+}
+
 const PublicRegistry = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -60,6 +69,7 @@ const PublicRegistry = () => {
 
   // Form validation
   const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
     fetchInitialData();
@@ -83,21 +93,89 @@ const PublicRegistry = () => {
     fetchTodayEntries();
   }, [filterDate]);
 
-  const validateForm = (type: 'new' | 'existing') => {
-    const errors: {[key: string]: string} = {};
-    
-    if (type === 'new') {
-      if (!formData.name.trim()) errors.name = 'Name is required';
-      if (!formData.nic.trim()) errors.nic = 'NIC is required';
-      if (!formData.address.trim()) errors.address = 'Address is required';
-      if (!formData.department_id) errors.department_id = 'Department is required';
-    } else {
-      if (!formData.purpose_of_visit.trim()) errors.purpose_of_visit = 'Purpose of visit is required';
-      if (!formData.department_id) errors.department_id = 'Department is required';
+  const validateField = (name: string, value: string): string => {
+    switch (name) {
+      case 'name':
+        if (!value.trim()) return 'Name is required';
+        if (value.length < 3) return 'Name must be at least 3 characters';
+        return '';
+      
+      case 'nic':
+        if (!value.trim()) return 'NIC is required';
+        if (!/^\d{9}[vVxX]$|^\d{12}$/.test(value.trim())) {
+          return 'Invalid NIC format. Use 9 digits + V/X or 12 digits';
+        }
+        return '';
+      
+      case 'phone':
+        if (value && !/^(?:\+94|0)[1-9]\d{8}$/.test(value.trim())) {
+          return 'Invalid phone number format';
+        }
+        return '';
+      
+      case 'address':
+        if (!value.trim()) return 'Address is required';
+        return '';
+      
+      case 'purpose_of_visit':
+        if (!value.trim()) return 'Purpose of visit is required';
+        return '';
+      
+      case 'department_id':
+        if (!value) return 'Please select a department';
+        return '';
+      
+      default:
+        return '';
     }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
     
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    const error = validateField(name, value);
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }));
+  };
+
+  const validateForm = (type: 'new' | 'existing' | 'registry'): boolean => {
+    const newErrors: FormErrors = {};
+    let isValid = true;
+
+    if (type === 'new') {
+      const fieldsToValidate = ['name', 'nic', 'address'];
+      fieldsToValidate.forEach(field => {
+        const error = validateField(field, formData[field as keyof typeof formData]?.toString() || '');
+        if (error) {
+          newErrors[field as keyof FormErrors] = error;
+          isValid = false;
+        }
+      });
+
+      // Validate phone if provided
+      if (formData.phone) {
+        const phoneError = validateField('phone', formData.phone);
+        if (phoneError) {
+          newErrors.phone = phoneError;
+          isValid = false;
+        }
+      }
+    } else if (type === 'registry') {
+      const fieldsToValidate = ['purpose_of_visit', 'department_id'];
+      fieldsToValidate.forEach(field => {
+        const error = validateField(field, formData[field as keyof typeof formData]?.toString() || '');
+        if (error) {
+          newErrors[field as keyof FormErrors] = error;
+          isValid = false;
+        }
+      });
+    }
+
+    setErrors(newErrors);
+    return isValid;
   };
 
   const fetchInitialData = async () => {
@@ -218,6 +296,31 @@ const PublicRegistry = () => {
     try {
       setIsSubmitting(true);
       
+      // First, check if user exists
+      const users = await apiService.getPublicUsers();
+      const existingUser = users.find(u => u.nic === formData.nic);
+      
+      if (existingUser) {
+        // If user exists, use their existing account instead of creating new
+        setScannedUser(existingUser);
+        setVisitorType('existing');
+        setFormData(prev => ({
+          ...prev,
+          name: existingUser.name,
+          address: existingUser.address || '',
+          phone: existingUser.mobile || '',
+          department_id: existingUser.department_id?.toString() || '',
+          division_id: existingUser.division_id?.toString() || ''
+        }));
+        
+        toast({
+          title: "User Found",
+          description: "An account with this NIC already exists. Loading existing user details.",
+        });
+        return;
+      }
+      
+      // If no existing user, create new one
       const userData = {
         name: formData.name,
         nic: formData.nic,
@@ -226,7 +329,8 @@ const PublicRegistry = () => {
         email: `${formData.nic}@dskalmunai.lk`,
         username: formData.nic,
         department_id: formData.department_id ? parseInt(formData.department_id) : undefined,
-        division_id: formData.division_id ? parseInt(formData.division_id) : undefined
+        division_id: formData.division_id ? parseInt(formData.division_id) : undefined,
+        password: formData.nic // Using NIC as default password, can be changed later
       };
 
       const newUser = await apiService.createPublicUser(userData);
@@ -241,9 +345,18 @@ const PublicRegistry = () => {
       
     } catch (error) {
       console.error('Error creating account:', error);
+      let description = "Failed to create account";
+      
+      // Check for specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('already exists')) {
+          description = "A user with this NIC or username already exists. Please try searching with your Public ID instead.";
+        }
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to create account",
+        description,
         variant: "destructive",
       });
     } finally {
@@ -423,42 +536,75 @@ const PublicRegistry = () => {
                   <Label htmlFor="name">Full Name *</Label>
                   <Input
                     id="name"
+                    name="name"
                     value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={handleInputChange}
                     placeholder="Enter full name"
-                    className={`mt-1 ${formErrors.name ? 'border-red-500' : ''}`}
+                    className={`mt-1 ${errors.name ? 'border-red-500' : ''}`}
+                    autoComplete="name"
+                    required
+                    aria-required="true"
+                    aria-invalid={!!errors.name}
+                    aria-describedby={errors.name ? 'name-error' : undefined}
                   />
-                  {formErrors.name && <p className="text-red-500 text-sm mt-1">{formErrors.name}</p>}
+                  {errors.name && (
+                    <p id="name-error" className="mt-1 text-sm text-red-500" role="alert">
+                      {errors.name}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="nic">NIC Number *</Label>
                   <Input
                     id="nic"
+                    name="nic"
                     value={formData.nic}
-                    onChange={(e) => setFormData(prev => ({ ...prev, nic: e.target.value }))}
+                    onChange={handleInputChange}
                     placeholder="Enter NIC number"
-                    className={`mt-1 ${formErrors.nic ? 'border-red-500' : ''}`}
+                    className={`mt-1 ${errors.nic ? 'border-red-500' : ''}`}
+                    autoComplete="off"
+                    required
+                    aria-required="true"
+                    aria-invalid={!!errors.nic}
+                    aria-describedby={errors.nic ? 'nic-error' : undefined}
                   />
-                  {formErrors.nic && <p className="text-red-500 text-sm mt-1">{formErrors.nic}</p>}
+                  {errors.nic && (
+                    <p id="nic-error" className="mt-1 text-sm text-red-500" role="alert">
+                      {errors.nic}
+                    </p>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <Label htmlFor="address">Address *</Label>
                   <Textarea
                     id="address"
+                    name="address"
                     value={formData.address}
-                    onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                    onChange={handleInputChange}
                     placeholder="Enter full address"
-                    className={`mt-1 ${formErrors.address ? 'border-red-500' : ''}`}
+                    className={`mt-1 ${errors.address ? 'border-red-500' : ''}`}
+                    required
+                    aria-required="true"
+                    aria-invalid={!!errors.address}
+                    aria-describedby={errors.address ? 'address-error' : undefined}
                   />
-                  {formErrors.address && <p className="text-red-500 text-sm mt-1">{formErrors.address}</p>}
+                  {errors.address && (
+                    <p id="address-error" className="mt-1 text-sm text-red-500" role="alert">
+                      {errors.address}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="department">Department *</Label>
                   <Select 
                     value={formData.department_id} 
                     onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value, division_id: '' }))}
+                    required
+                    aria-required="true"
+                    aria-invalid={!!errors.department_id}
+                    aria-describedby={errors.department_id ? 'department-error' : undefined}
                   >
-                    <SelectTrigger className={`mt-1 ${formErrors.department_id ? 'border-red-500' : ''}`}>
+                    <SelectTrigger className={`mt-1 ${errors.department_id ? 'border-red-500' : ''}`}>
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -469,18 +615,30 @@ const PublicRegistry = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  {formErrors.department_id && <p className="text-red-500 text-sm mt-1">{formErrors.department_id}</p>}
+                  {errors.department_id && (
+                    <p id="department-error" className="mt-1 text-sm text-red-500" role="alert">
+                      {errors.department_id}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="phone">Phone (optional)</Label>
                   <Input
                     id="phone"
+                    name="phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    onChange={handleInputChange}
                     placeholder="Enter phone number"
                     className="mt-1"
                     type="tel"
+                    aria-invalid={!!errors.phone}
+                    aria-describedby={errors.phone ? 'phone-error' : undefined}
                   />
+                  {errors.phone && (
+                    <p id="phone-error" className="mt-1 text-sm text-red-500" role="alert">
+                      {errors.phone}
+                    </p>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <Label htmlFor="remarks">Remarks</Label>
@@ -562,20 +720,33 @@ const PublicRegistry = () => {
                     <Label htmlFor="purpose">Purpose of Visit *</Label>
                     <Input
                       id="purpose"
+                      name="purpose_of_visit"
                       value={formData.purpose_of_visit}
-                      onChange={(e) => setFormData(prev => ({ ...prev, purpose_of_visit: e.target.value }))}
+                      onChange={handleInputChange}
                       placeholder="Enter purpose of visit"
-                      className={`mt-1 ${formErrors.purpose_of_visit ? 'border-red-500' : ''}`}
+                      className={`mt-1 ${errors.purpose_of_visit ? 'border-red-500' : ''}`}
+                      required
+                      aria-required="true"
+                      aria-invalid={!!errors.purpose_of_visit}
+                      aria-describedby={errors.purpose_of_visit ? 'purpose-error' : undefined}
                     />
-                    {formErrors.purpose_of_visit && <p className="text-red-500 text-sm mt-1">{formErrors.purpose_of_visit}</p>}
+                    {errors.purpose_of_visit && (
+                      <p id="purpose-error" className="mt-1 text-sm text-red-500" role="alert">
+                        {errors.purpose_of_visit}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="visit-department">Department *</Label>
                     <Select 
                       value={formData.department_id} 
                       onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value, division_id: '' }))}
+                      required
+                      aria-required="true"
+                      aria-invalid={!!errors.department_id}
+                      aria-describedby={errors.department_id ? 'department-error' : undefined}
                     >
-                      <SelectTrigger className={`mt-1 ${formErrors.department_id ? 'border-red-500' : ''}`}>
+                      <SelectTrigger className={`mt-1 ${errors.department_id ? 'border-red-500' : ''}`}>
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent>
@@ -586,7 +757,11 @@ const PublicRegistry = () => {
                         ))}
                       </SelectContent>
                     </Select>
-                    {formErrors.department_id && <p className="text-red-500 text-sm mt-1">{formErrors.department_id}</p>}
+                    {errors.department_id && (
+                      <p id="department-error" className="mt-1 text-sm text-red-500" role="alert">
+                        {errors.department_id}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="visit-remarks">Remarks (optional)</Label>
