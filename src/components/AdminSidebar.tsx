@@ -1,25 +1,20 @@
 
 import { useState } from 'react';
+import { Button } from "@/components/ui/button";
 import { 
+  Home, 
   Building, 
   Users, 
-  Settings, 
-  LogOut, 
-  Menu, 
-  X, 
-  Home,
-  Ticket,
-  Bell,
-  UserPlus,
-  FileText
+  Ticket, 
+  Shield,
+  Database,
+  Activity,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  ClipboardList
 } from 'lucide-react';
-import { Button } from "@/components/ui/button";
-
-interface MenuItem {
-  id: string;
-  label: string;
-  icon: any;
-}
 
 interface AdminSidebarProps {
   activeTab: string;
@@ -29,85 +24,105 @@ interface AdminSidebarProps {
 }
 
 const AdminSidebar = ({ activeTab, onTabChange, onLogout, username }: AdminSidebarProps) => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const menuItems: MenuItem[] = [
+  const menuItems = [
     { id: 'overview', label: 'Dashboard Overview', icon: Home },
     { id: 'departments', label: 'Departments', icon: Building },
-    { id: 'divisions', label: 'Divisions', icon: FileText },
+    { id: 'divisions', label: 'Divisions', icon: Database },
     { id: 'users', label: 'User Management', icon: Users },
-    { id: 'service-catalog', label: 'Service Catalog', icon: FileText },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
-    { id: 'public-users', label: 'Public Accounts', icon: UserPlus },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'public-users', label: 'Public Accounts', icon: Shield },
+    { id: 'public-registry', label: 'Public Registry', icon: ClipboardList },
+    { id: 'service-catalog', label: 'Service Catalog', icon: Activity },
+    { id: 'notifications', label: 'Notifications', icon: Activity },
     { id: 'settings', label: 'Account Settings', icon: Settings },
   ];
 
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
   return (
-    <div className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white shadow-xl transition-all duration-300 flex flex-col border-r border-gray-200`}>
-      <div className="p-4 border-b border-gray-100">
-        <div className="flex items-center space-x-3">
-          <img 
-            src="/lovable-uploads/6e847d33-bb31-4337-86e5-a709077e569d.png" 
-            alt="DSK Logo" 
-            className="h-10 w-10 rounded-full shadow-md"
-          />
-          {sidebarOpen && (
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">DSK Admin</h1>
-              <p className="text-sm text-gray-500">Administrative Panel</p>
-            </div>
-          )}
-        </div>
+    <>
+      {/* Mobile menu button */}
+      <div className="lg:hidden fixed top-4 left-4 z-50">
         <Button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          variant="ghost"
+          variant="outline"
           size="sm"
-          className="mt-3 w-full justify-center hover:bg-gray-50 transition-colors"
+          onClick={toggleMobileMenu}
+          className="bg-white shadow-lg"
         >
-          {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+          {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </Button>
       </div>
 
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          {menuItems.map((item) => {
-            const IconComponent = item.icon;
-            return (
-              <li key={item.id}>
-                <button
-                  onClick={() => onTabChange(item.id)}
-                  className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg transition-all duration-200 ${
-                    activeTab === item.id
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md transform scale-105'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-blue-600'
-                  }`}
-                >
-                  <IconComponent size={20} />
-                  {sidebarOpen && <span className="font-medium">{item.label}</span>}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      <div className="p-4 border-t border-gray-100">
-        {sidebarOpen && (
-          <div className="mb-3 p-3 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">Logged in as:</p>
-            <p className="font-medium text-gray-800">{username}</p>
+      {/* Sidebar */}
+      <div className={`
+        fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white shadow-2xl border-r transform transition-transform duration-300 ease-in-out
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        {/* Header */}
+        <div className="p-6 border-b bg-gradient-to-r from-blue-600 to-indigo-600">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+              <Shield className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-white font-bold text-lg">Admin Panel</h2>
+              <p className="text-blue-100 text-sm truncate">{username}</p>
+            </div>
           </div>
-        )}
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center space-x-3 px-3 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
-        >
-          <LogOut size={20} />
-          {sidebarOpen && <span className="font-medium">Logout</span>}
-        </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="p-4 flex-1 overflow-y-auto">
+          <ul className="space-y-2">
+            {menuItems.map((item) => {
+              const IconComponent = item.icon;
+              return (
+                <li key={item.id}>
+                  <button
+                    onClick={() => {
+                      onTabChange(item.id);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all text-left ${
+                      activeTab === item.id
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg transform scale-105'
+                        : 'text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-50 hover:text-blue-600'
+                    }`}
+                  >
+                    <IconComponent size={20} className="flex-shrink-0" />
+                    <span className="truncate font-medium">{item.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        {/* Footer */}
+        <div className="p-4 border-t">
+          <Button
+            onClick={onLogout}
+            variant="outline"
+            className="w-full justify-start text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+          >
+            <LogOut className="mr-3" size={20} />
+            Logout
+          </Button>
+        </div>
       </div>
-    </div>
+
+      {/* Mobile overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+    </>
   );
 };
 

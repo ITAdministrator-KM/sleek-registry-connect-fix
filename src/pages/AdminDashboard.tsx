@@ -1,8 +1,9 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building, Users, Ticket, Activity, Shield, Database } from 'lucide-react';
+import { Building, Users, Ticket, Activity, Shield, Database, ClipboardList } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import DepartmentManagement from '@/components/DepartmentManagement';
 import DivisionManagement from '@/components/DivisionManagement';
@@ -15,6 +16,7 @@ import DashboardStats from '@/components/DashboardStats';
 import AdminSidebar from '@/components/AdminSidebar';
 import AdminHeader from '@/components/AdminHeader';
 import ErrorBoundary from '@/components/ErrorBoundary';
+import PublicRegistry from '@/components/staff/PublicRegistry';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 import ServiceCatalogManagement from '@/components/ServiceCatalogManagement';
@@ -65,6 +67,7 @@ const AdminDashboard = () => {
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
     { id: 'public-users', label: 'Public Accounts', icon: Shield },
+    { id: 'public-registry', label: 'Public Registry', icon: ClipboardList },
     { id: 'service-catalog', label: 'Service Catalog', icon: Activity },
     { id: 'notifications', label: 'Notifications', icon: Activity },
     { id: 'settings', label: 'Account Settings', icon: Shield },
@@ -192,6 +195,8 @@ const AdminDashboard = () => {
         return <TokenManagement />;
       case 'public-users':
         return <PublicAccountCreation />;
+      case 'public-registry':
+        return <PublicRegistry />;
       case 'service-catalog':
         return <ServiceCatalogManagement />;
       case 'notifications':

@@ -20,45 +20,13 @@ import {
   Calendar,
   RefreshCw
 } from 'lucide-react';
-import { apiService, Department, Division } from '@/services/apiService';
+import { apiService, Department, Division, PublicUser } from '@/services/api';
+import { registryApiService, RegistryEntry, RegistryEntryCreateData } from '@/services/registryApi';
 import { useAuth } from '@/hooks/useAuth';
 import ResponsiveQRScanner from '@/components/ResponsiveQRScanner';
 
-interface RegistryEntry {
-  id: number;
-  registry_id: string;
-  public_user_id?: number;
-  visitor_name: string;
-  visitor_nic: string;
-  visitor_address?: string;
-  visitor_phone?: string;
-  department_id: number;
-  division_id?: number;
-  purpose_of_visit: string;
-  remarks?: string;
-  entry_time: string;
-  visitor_type: 'new' | 'existing';
-  status: 'active' | 'checked_out';
-  department_name?: string;
-  division_name?: string;
-}
-
-interface PublicUser {
-  id: number;
-  public_user_id: string;
-  name: string;
-  nic: string;
-  address: string;
-  mobile: string;
-  email: string;
-  department_id?: number;
-  division_id?: number;
-  department_name?: string;
-  division_name?: string;
-}
-
 const PublicRegistry = () => {
-  const { user } = useAuth('staff');
+  const { user } = useAuth();
   const { toast } = useToast();
   
   // Form state
@@ -66,6 +34,7 @@ const PublicRegistry = () => {
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [scannedUser, setScannedUser] = useState<PublicUser | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Registry data
   const [registryEntries, setRegistryEntries] = useState<RegistryEntry[]>([]);
@@ -111,6 +80,7 @@ const PublicRegistry = () => {
 
   const fetchInitialData = async () => {
     try {
+      setIsLoading(true);
       const [depts, divs] = await Promise.all([
         apiService.getDepartments(),
         apiService.getDivisions()
@@ -119,30 +89,30 @@ const PublicRegistry = () => {
       setDivisions(divs);
     } catch (error) {
       console.error('Error fetching initial data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load departments and divisions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const fetchTodayEntries = async () => {
     try {
-      // This would be a new API endpoint for registry entries
-      // For now, we'll use mock data
-      const mockEntries: RegistryEntry[] = [
-        {
-          id: 1,
-          registry_id: 'REG001',
-          visitor_name: 'Jane Perera',
-          visitor_nic: '********9V',
-          purpose_of_visit: 'License Renewal',
-          entry_time: new Date().toISOString(),
-          visitor_type: 'existing',
-          status: 'active',
-          department_id: 1,
-          department_name: 'Licensing'
-        }
-      ];
-      setRegistryEntries(mockEntries);
+      const entries = await registryApiService.getRegistryEntries({
+        date: filterDate,
+        status: 'active'
+      });
+      setRegistryEntries(entries);
     } catch (error) {
       console.error('Error fetching registry entries:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load registry entries",
+        variant: "destructive",
+      });
     }
   };
 
@@ -157,39 +127,25 @@ const PublicRegistry = () => {
     }
 
     try {
-      // This would call the API to get user by public_id
+      setIsLoading(true);
       const users = await apiService.getPublicUsers();
-      const user = users.find(u => u.public_user_id === formData.public_id);
+      const foundUser = users.find(u => u.public_id === formData.public_id);
       
-      if (user) {
-        const mappedUser: PublicUser = {
-          id: user.id,
-          public_user_id: user.public_user_id,
-          name: user.name,
-          nic: user.nic,
-          address: user.address,
-          mobile: user.mobile,
-          email: user.email,
-          department_id: user.department_id,
-          division_id: user.division_id,
-          department_name: user.department_name,
-          division_name: user.division_name
-        };
-        
-        setScannedUser(mappedUser);
+      if (foundUser) {
+        setScannedUser(foundUser);
         setFormData(prev => ({
           ...prev,
-          name: user.name,
-          nic: user.nic,
-          address: user.address,
-          phone: user.mobile,
-          department_id: user.department_id?.toString() || '',
-          division_id: user.division_id?.toString() || ''
+          name: foundUser.name,
+          nic: foundUser.nic,
+          address: foundUser.address,
+          phone: foundUser.mobile,
+          department_id: foundUser.department_id?.toString() || '',
+          division_id: foundUser.division_id?.toString() || ''
         }));
         
         toast({
           title: "User Found",
-          description: `Welcome back, ${user.name}!`,
+          description: `Welcome back, ${foundUser.name}!`,
         });
       } else {
         toast({
@@ -199,11 +155,14 @@ const PublicRegistry = () => {
         });
       }
     } catch (error) {
+      console.error('Error looking up user:', error);
       toast({
         title: "Error",
         description: "Failed to lookup user",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -242,10 +201,10 @@ const PublicRegistry = () => {
         nic: formData.nic,
         address: formData.address,
         mobile: formData.phone || '',
-        email: `${formData.nic}@temp.dsk.lk`, // Temporary email
+        email: `${formData.nic}@dskalmunai.lk`,
         username: formData.nic,
-        department_id: formData.department_id ? parseInt(formData.department_id) : null,
-        division_id: formData.division_id ? parseInt(formData.division_id) : null
+        department_id: formData.department_id ? parseInt(formData.department_id) : undefined,
+        division_id: formData.division_id ? parseInt(formData.division_id) : undefined
       };
 
       const newUser = await apiService.createPublicUser(userData);
@@ -255,16 +214,11 @@ const PublicRegistry = () => {
         description: `Public ID: ${newUser.public_id}`,
       });
 
-      // Auto-proceed to registry entry
-      setScannedUser({
-        ...userData,
-        id: newUser.id,
-        public_user_id: newUser.public_id,
-        email: userData.email
-      } as PublicUser);
-      
+      setScannedUser(newUser);
       setVisitorType('existing');
+      
     } catch (error) {
+      console.error('Error creating account:', error);
       toast({
         title: "Error",
         description: "Failed to create account",
@@ -285,35 +239,35 @@ const PublicRegistry = () => {
       return;
     }
 
+    if (!formData.department_id) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a department",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       
-      // This would call a new API endpoint to create registry entry
-      const registryData = {
+      const registryData: RegistryEntryCreateData = {
         public_user_id: scannedUser?.id,
         visitor_name: formData.name,
         visitor_nic: formData.nic,
         visitor_address: formData.address,
         visitor_phone: formData.phone,
         department_id: parseInt(formData.department_id),
-        division_id: formData.division_id ? parseInt(formData.division_id) : null,
+        division_id: formData.division_id ? parseInt(formData.division_id) : undefined,
         purpose_of_visit: formData.purpose_of_visit,
         remarks: formData.remarks,
-        visitor_type: visitorType,
-        staff_user_id: user?.id
+        visitor_type: visitorType
       };
 
-      // Mock successful submission
-      const newEntry: RegistryEntry = {
-        id: Date.now(),
-        registry_id: `REG${String(Date.now()).slice(-6)}`,
-        ...registryData,
-        entry_time: new Date().toISOString(),
-        status: 'active',
-        department_name: departments.find(d => d.id === registryData.department_id)?.name
-      };
-
-      setRegistryEntries(prev => [newEntry, ...prev]);
+      const newEntry = await registryApiService.createRegistryEntry(registryData);
+      
+      // Refresh the entries list
+      await fetchTodayEntries();
       
       toast({
         title: "Entry Recorded",
@@ -321,14 +275,10 @@ const PublicRegistry = () => {
       });
 
       // Reset form
-      setFormData({
-        name: '', nic: '', address: '', phone: '', 
-        department_id: '', division_id: '', purpose_of_visit: '', remarks: '', public_id: ''
-      });
-      setScannedUser(null);
-      setVisitorType('new');
+      resetForm();
       
     } catch (error) {
+      console.error('Error recording entry:', error);
       toast({
         title: "Error",
         description: "Failed to record entry",
@@ -339,33 +289,59 @@ const PublicRegistry = () => {
     }
   };
 
-  const exportToPDF = () => {
-    toast({
-      title: "Export Started",
-      description: "PDF export will be available soon",
+  const resetForm = () => {
+    setFormData({
+      name: '', nic: '', address: '', phone: '', 
+      department_id: '', division_id: '', purpose_of_visit: '', remarks: '', public_id: ''
     });
+    setScannedUser(null);
+    setVisitorType('new');
   };
 
-  const exportToCSV = () => {
-    const csvContent = [
-      ['Time', 'Name', 'NIC', 'Department', 'Purpose', 'Type'],
-      ...registryEntries.map(entry => [
-        new Date(entry.entry_time).toLocaleTimeString(),
-        entry.visitor_name,
-        entry.visitor_nic,
-        entry.department_name || '',
-        entry.purpose_of_visit,
-        entry.visitor_type
-      ])
-    ].map(row => row.join(',')).join('\n');
+  const exportToPDF = async () => {
+    try {
+      const blob = await registryApiService.exportRegistryData({
+        date: filterDate,
+        department_id: filterDepartment !== 'all' ? parseInt(filterDepartment) : undefined,
+        format: 'pdf'
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `registry_${filterDate}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "Export Error",
+        description: "Failed to export PDF",
+        variant: "destructive",
+      });
+    }
+  };
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `registry_${filterDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportToCSV = async () => {
+    try {
+      const blob = await registryApiService.exportRegistryData({
+        date: filterDate,
+        department_id: filterDepartment !== 'all' ? parseInt(filterDepartment) : undefined,
+        format: 'csv'
+      });
+      
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `registry_${filterDate}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: "Export Error",
+        description: "Failed to export CSV",
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredEntries = registryEntries.filter(entry => {
@@ -373,10 +349,17 @@ const PublicRegistry = () => {
                          entry.visitor_nic.includes(searchTerm);
     const matchesDepartment = filterDepartment === 'all' || 
                              entry.department_id === parseInt(filterDepartment);
-    const matchesDate = new Date(entry.entry_time).toDateString() === new Date(filterDate).toDateString();
     
-    return matchesSearch && matchesDepartment && matchesDate;
+    return matchesSearch && matchesDepartment;
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-4 max-w-7xl mx-auto">
@@ -399,8 +382,9 @@ const PublicRegistry = () => {
               variant="outline" 
               onClick={fetchTodayEntries}
               className="flex items-center gap-2"
+              disabled={isLoading}
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
@@ -413,11 +397,7 @@ const PublicRegistry = () => {
               value={visitorType} 
               onValueChange={(value: 'new' | 'existing') => {
                 setVisitorType(value);
-                setScannedUser(null);
-                setFormData({
-                  name: '', nic: '', address: '', phone: '', 
-                  department_id: '', division_id: '', purpose_of_visit: '', remarks: '', public_id: ''
-                });
+                resetForm();
               }}
               className="flex flex-row gap-8"
             >
@@ -667,7 +647,11 @@ const PublicRegistry = () => {
             <Input
               type="date"
               value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
+              onChange={(e) => {
+                setFilterDate(e.target.value);
+                // Fetch entries for the new date
+                setTimeout(() => fetchTodayEntries(), 100);
+              }}
               className="w-full md:w-48"
             />
           </div>
@@ -679,6 +663,7 @@ const PublicRegistry = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Time</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Registry ID</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Name</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">NIC</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Department</th>
@@ -693,6 +678,9 @@ const PublicRegistry = () => {
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {new Date(entry.entry_time).toLocaleTimeString()}
                       </td>
+                      <td className="px-4 py-3 text-sm font-medium text-blue-600">
+                        {entry.registry_id}
+                      </td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">
                         {entry.visitor_name}
                       </td>
@@ -702,7 +690,7 @@ const PublicRegistry = () => {
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {entry.department_name}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
+                      <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate" title={entry.purpose_of_visit}>
                         {entry.purpose_of_visit}
                       </td>
                       <td className="px-4 py-3">
