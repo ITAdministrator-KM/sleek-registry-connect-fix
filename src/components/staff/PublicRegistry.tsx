@@ -14,10 +14,8 @@ import {
   Camera, 
   UserPlus, 
   Search, 
-  Filter,
   Download,
   Clock,
-  Calendar,
   RefreshCw
 } from 'lucide-react';
 import { apiService, Department, Division, PublicUser } from '@/services/api';
@@ -60,6 +58,9 @@ const PublicRegistry = () => {
     public_id: ''
   });
 
+  // Form validation
+  const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
+
   useEffect(() => {
     fetchInitialData();
     fetchTodayEntries();
@@ -77,6 +78,27 @@ const PublicRegistry = () => {
       setFilteredDivisions([]);
     }
   }, [formData.department_id, divisions]);
+
+  useEffect(() => {
+    fetchTodayEntries();
+  }, [filterDate]);
+
+  const validateForm = (type: 'new' | 'existing') => {
+    const errors: {[key: string]: string} = {};
+    
+    if (type === 'new') {
+      if (!formData.name.trim()) errors.name = 'Name is required';
+      if (!formData.nic.trim()) errors.nic = 'NIC is required';
+      if (!formData.address.trim()) errors.address = 'Address is required';
+      if (!formData.department_id) errors.department_id = 'Department is required';
+    } else {
+      if (!formData.purpose_of_visit.trim()) errors.purpose_of_visit = 'Purpose of visit is required';
+      if (!formData.department_id) errors.department_id = 'Department is required';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const fetchInitialData = async () => {
     try {
@@ -184,10 +206,10 @@ const PublicRegistry = () => {
   };
 
   const handleCreateAccount = async () => {
-    if (!formData.name || !formData.nic || !formData.address) {
+    if (!validateForm('new')) {
       toast({
         title: "Validation Error",
-        description: "Please fill in all required fields (Name, NIC, Address)",
+        description: "Please fill in all required fields",
         variant: "destructive",
       });
       return;
@@ -230,19 +252,10 @@ const PublicRegistry = () => {
   };
 
   const handleRegistrySubmit = async () => {
-    if (!formData.purpose_of_visit.trim()) {
+    if (!validateForm('existing')) {
       toast({
         title: "Validation Error",
-        description: "Please enter the purpose of visit",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!formData.department_id) {
-      toast({
-        title: "Validation Error",
-        description: "Please select a department",
+        description: "Please fill in all required fields",
         variant: "destructive",
       });
       return;
@@ -296,29 +309,7 @@ const PublicRegistry = () => {
     });
     setScannedUser(null);
     setVisitorType('new');
-  };
-
-  const exportToPDF = async () => {
-    try {
-      const blob = await registryApiService.exportRegistryData({
-        date: filterDate,
-        department_id: filterDepartment !== 'all' ? parseInt(filterDepartment) : undefined,
-        format: 'pdf'
-      });
-      
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `registry_${filterDate}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      toast({
-        title: "Export Error",
-        description: "Failed to export PDF",
-        variant: "destructive",
-      });
-    }
+    setFormErrors({});
   };
 
   const exportToCSV = async () => {
@@ -392,27 +383,25 @@ const PublicRegistry = () => {
         <CardContent className="space-y-6">
           {/* Visitor Type Selection */}
           <div className="p-4 bg-gray-50 rounded-lg">
-            <Label htmlFor="visitor-type" className="text-base font-medium mb-4 block">Select Visitor Type:</Label>
+            <Label className="text-base font-medium mb-4 block">Select Visitor Type:</Label>
             <RadioGroup 
-              id="visitor-type"
               value={visitorType} 
               onValueChange={(value: 'new' | 'existing') => {
                 setVisitorType(value);
                 resetForm();
               }}
               className="flex flex-row gap-8"
-              aria-labelledby="visitor-type"
             >
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="new" id="visitor-type-new" />
-                <Label htmlFor="visitor-type-new" className="flex items-center gap-2">
+                <RadioGroupItem value="new" id="new-visitor" />
+                <Label htmlFor="new-visitor" className="flex items-center gap-2">
                   <UserPlus className="h-4 w-4" />
                   New Visitor
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="existing" id="visitor-type-existing" />
-                <Label htmlFor="visitor-type-existing" className="flex items-center gap-2">
+                <RadioGroupItem value="existing" id="existing-visitor" />
+                <Label htmlFor="existing-visitor" className="flex items-center gap-2">
                   <QrCode className="h-4 w-4" />
                   Existing ID
                 </Label>
@@ -431,54 +420,48 @@ const PublicRegistry = () => {
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="visitor-name">Full Name *</Label>
+                  <Label htmlFor="name">Full Name *</Label>
                   <Input
-                    id="visitor-name"
+                    id="name"
                     value={formData.name}
                     onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="Enter full name"
-                    className="mt-1"
-                    autoComplete="name"
-                    required
-                    aria-required="true"
+                    className={`mt-1 ${formErrors.name ? 'border-red-500' : ''}`}
                   />
+                  {formErrors.name && <p className="text-red-500 text-sm mt-1">{formErrors.name}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="visitor-nic">NIC Number *</Label>
+                  <Label htmlFor="nic">NIC Number *</Label>
                   <Input
-                    id="visitor-nic"
+                    id="nic"
                     value={formData.nic}
                     onChange={(e) => setFormData(prev => ({ ...prev, nic: e.target.value }))}
                     placeholder="Enter NIC number"
-                    className="mt-1"
-                    autoComplete="off"
-                    required
-                    aria-required="true"
+                    className={`mt-1 ${formErrors.nic ? 'border-red-500' : ''}`}
                   />
+                  {formErrors.nic && <p className="text-red-500 text-sm mt-1">{formErrors.nic}</p>}
                 </div>
                 <div className="md:col-span-2">
-                  <Label htmlFor="visitor-address">Address *</Label>
+                  <Label htmlFor="address">Address *</Label>
                   <Textarea
-                    id="visitor-address"
+                    id="address"
                     value={formData.address}
                     onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
                     placeholder="Enter full address"
-                    className="mt-1"
-                    autoComplete="street-address"
-                    required
-                    aria-required="true"
+                    className={`mt-1 ${formErrors.address ? 'border-red-500' : ''}`}
                   />
+                  {formErrors.address && <p className="text-red-500 text-sm mt-1">{formErrors.address}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="visitor-department">Department</Label>
+                  <Label htmlFor="department">Department *</Label>
                   <Select 
                     value={formData.department_id} 
                     onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value, division_id: '' }))}
                   >
-                    <SelectTrigger id="visitor-department" className="mt-1">
+                    <SelectTrigger className={`mt-1 ${formErrors.department_id ? 'border-red-500' : ''}`}>
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border shadow-lg z-50">
+                    <SelectContent>
                       {departments.map((dept) => (
                         <SelectItem key={dept.id} value={dept.id.toString()}>
                           {dept.name}
@@ -486,23 +469,23 @@ const PublicRegistry = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  {formErrors.department_id && <p className="text-red-500 text-sm mt-1">{formErrors.department_id}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="visitor-phone">Phone (optional)</Label>
+                  <Label htmlFor="phone">Phone (optional)</Label>
                   <Input
-                    id="visitor-phone"
+                    id="phone"
                     value={formData.phone}
                     onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                     placeholder="Enter phone number"
                     className="mt-1"
                     type="tel"
-                    autoComplete="tel"
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <Label htmlFor="visitor-remarks">Remarks</Label>
+                  <Label htmlFor="remarks">Remarks</Label>
                   <Textarea
-                    id="visitor-remarks"
+                    id="remarks"
                     value={formData.remarks}
                     onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
                     placeholder="Any additional notes"
@@ -537,26 +520,18 @@ const PublicRegistry = () => {
                     onClick={() => setShowQRScanner(true)}
                     variant="outline"
                     className="flex items-center gap-2 flex-1"
-                    aria-label="Open QR Code Scanner"
                   >
                     <Camera className="h-4 w-4" />
                     Scan QR Code
                   </Button>
                   <div className="flex gap-2 flex-2">
                     <Input
-                      id="visitor-public-id"
                       value={formData.public_id}
                       onChange={(e) => setFormData(prev => ({ ...prev, public_id: e.target.value }))}
                       placeholder="Enter Public ID (e.g., PUB00001)"
                       className="flex-1"
-                      autoComplete="off"
-                      aria-label="Public ID"
                     />
-                    <Button 
-                      onClick={handlePublicIdLookup} 
-                      variant="outline"
-                      aria-label="Search for Public ID"
-                    >
+                    <Button onClick={handlePublicIdLookup} variant="outline">
                       <Search className="h-4 w-4" />
                     </Button>
                   </div>
@@ -582,59 +557,57 @@ const PublicRegistry = () => {
                   </div>
                 )}
 
-                {(scannedUser || visitorType === 'existing') && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                      <Label htmlFor="visitor-purpose">Purpose of Visit *</Label>
-                      <Input
-                        id="visitor-purpose"
-                        value={formData.purpose_of_visit}
-                        onChange={(e) => setFormData(prev => ({ ...prev, purpose_of_visit: e.target.value }))}
-                        placeholder="Enter purpose of visit"
-                        className="mt-1"
-                        required
-                        aria-required="true"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="visitor-department-select">Department *</Label>
-                      <Select 
-                        value={formData.department_id} 
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value, division_id: '' }))}
-                      >
-                        <SelectTrigger id="visitor-department-select" className="mt-1">
-                          <SelectValue placeholder="Select department" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border shadow-lg z-50">
-                          {departments.map((dept) => (
-                            <SelectItem key={dept.id} value={dept.id.toString()}>
-                              {dept.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="visitor-visit-remarks">Remarks (optional)</Label>
-                      <Textarea
-                        id="visitor-visit-remarks"
-                        value={formData.remarks}
-                        onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
-                        placeholder="Any additional notes"
-                        className="mt-1"
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Button 
-                        onClick={handleRegistrySubmit}
-                        disabled={isSubmitting || !formData.purpose_of_visit.trim()}
-                        className="w-full bg-blue-600 hover:bg-blue-700"
-                      >
-                        {isSubmitting ? 'Submitting...' : 'Submit Entry'}
-                      </Button>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <Label htmlFor="purpose">Purpose of Visit *</Label>
+                    <Input
+                      id="purpose"
+                      value={formData.purpose_of_visit}
+                      onChange={(e) => setFormData(prev => ({ ...prev, purpose_of_visit: e.target.value }))}
+                      placeholder="Enter purpose of visit"
+                      className={`mt-1 ${formErrors.purpose_of_visit ? 'border-red-500' : ''}`}
+                    />
+                    {formErrors.purpose_of_visit && <p className="text-red-500 text-sm mt-1">{formErrors.purpose_of_visit}</p>}
                   </div>
-                )}
+                  <div>
+                    <Label htmlFor="visit-department">Department *</Label>
+                    <Select 
+                      value={formData.department_id} 
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value, division_id: '' }))}
+                    >
+                      <SelectTrigger className={`mt-1 ${formErrors.department_id ? 'border-red-500' : ''}`}>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id.toString()}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {formErrors.department_id && <p className="text-red-500 text-sm mt-1">{formErrors.department_id}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="visit-remarks">Remarks (optional)</Label>
+                    <Textarea
+                      id="visit-remarks"
+                      value={formData.remarks}
+                      onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
+                      placeholder="Any additional notes"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Button 
+                      onClick={handleRegistrySubmit}
+                      disabled={isSubmitting}
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                    >
+                      {isSubmitting ? 'Submitting...' : 'Submit Entry'}
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -650,13 +623,9 @@ const PublicRegistry = () => {
               Entry Log - {new Date(filterDate).toLocaleDateString()}
             </CardTitle>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={exportToPDF} variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                PDF
-              </Button>
               <Button onClick={exportToCSV} variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
-                CSV
+                Export CSV
               </Button>
             </div>
           </div>
@@ -666,24 +635,20 @@ const PublicRegistry = () => {
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <Input
-                id="search-registry"
                 placeholder="Search by name or NIC..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                aria-label="Search entries"
               />
             </div>
             <div className="flex flex-wrap gap-4">
               <Input
-                id="filter-date"
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
                 className="w-40"
-                aria-label="Filter by date"
               />
               <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-                <SelectTrigger id="filter-department" className="w-48">
+                <SelectTrigger className="w-48">
                   <SelectValue placeholder="All Departments" />
                 </SelectTrigger>
                 <SelectContent>
@@ -700,17 +665,17 @@ const PublicRegistry = () => {
 
           {/* Entries Table */}
           <div className="overflow-x-auto">
-            <table className="w-full" aria-label="Registry entries">
+            <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-medium text-gray-900">Time</th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-medium text-gray-900">Registry ID</th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-medium text-gray-900">Name</th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-medium text-gray-900">NIC</th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-medium text-gray-900">Department</th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-medium text-gray-900">Purpose</th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-medium text-gray-900">Type</th>
-                  <th scope="col" className="px-4 py-3 text-left text-sm font-medium text-gray-900">Status</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Time</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Registry ID</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Name</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">NIC</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Department</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Purpose</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Type</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -739,7 +704,8 @@ const PublicRegistry = () => {
                         {entry.visitor_type}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">                      <Badge variant={
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <Badge variant={
                         entry.status === 'active' ? 'default' :
                           entry.status === 'checked_out' ? 'secondary' : 'destructive'
                       }>
@@ -751,12 +717,18 @@ const PublicRegistry = () => {
               </tbody>
             </table>
           </div>
+
+          {filteredEntries.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              No entries found for the selected date and filters.
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* QR Scanner Modal */}
       {showQRScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <ResponsiveQRScanner
               onScanSuccess={handleQRScan}

@@ -1,3 +1,4 @@
+
 import { apiService } from './api';
 
 export interface RegistryEntry {
@@ -40,11 +41,10 @@ class RegistryApiService {
   private baseUrl = 'https://dskalmunai.lk/backend/api/registry';
 
   private async handleResponse(response: Response) {
-    const contentType = response.headers.get('content-type');
-    
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
       try {
+        const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json();
           errorMessage = errorData.message || errorData.error || errorMessage;
@@ -53,15 +53,25 @@ class RegistryApiService {
           errorMessage = textError || errorMessage;
         }
       } catch (e) {
-        // Use default error message if parsing fails
+        console.error('Error parsing response:', e);
       }
       throw new Error(errorMessage);
     }
 
+    const contentType = response.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
-      const textResponse = await response.text();
-      console.error('Non-JSON response:', textResponse);
-      throw new Error('Invalid response format. Expected JSON.');
+      try {
+        const textResponse = await response.text();
+        console.warn('Non-JSON response received:', textResponse);
+        // If it's HTML error page, throw error
+        if (textResponse.includes('<html>') || textResponse.includes('<!DOCTYPE')) {
+          throw new Error('Server returned HTML error page instead of JSON');
+        }
+        // Try to parse as JSON anyway
+        return JSON.parse(textResponse);
+      } catch (e) {
+        throw new Error('Invalid response format. Expected JSON.');
+      }
     }
 
     return await response.json();
@@ -92,7 +102,19 @@ class RegistryApiService {
       });
 
       const data = await this.handleResponse(response);
-      return Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+      
+      // Handle different response formats
+      if (data && typeof data === 'object') {
+        if (Array.isArray(data.data)) {
+          return data.data;
+        } else if (Array.isArray(data)) {
+          return data;
+        } else if (data.success && Array.isArray(data.entries)) {
+          return data.entries;
+        }
+      }
+      
+      return [];
     } catch (error) {
       console.error('Error fetching registry entries:', error);
       return [];

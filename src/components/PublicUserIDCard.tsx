@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Download, Printer } from 'lucide-react';
@@ -69,11 +70,20 @@ export const PublicUserIDCard = ({
         .id-card-print {
           width: 85.6mm !important;
           height: 54mm !important;
-          border: 3px solid #000 !important;
+          border: 4px solid #000 !important;
           background: white !important;
           color: black !important;
           font-family: 'Arial Black', Arial, sans-serif !important;
           font-weight: 900 !important;
+        }
+        .qr-code-container {
+          background: white !important;
+          border: 3px solid black !important;
+        }
+        .logo-container {
+          background: white !important;
+          border: 3px solid black !important;
+          filter: contrast(3) brightness(0.5) !important;
         }
       }
     `
@@ -123,9 +133,20 @@ export const PublicUserIDCard = ({
         }}
       >
         {/* Header with Logos and Title */}
-        <div className="flex justify-between items-center mb-2" style={{ borderBottom: '2px solid black', paddingBottom: '2mm' }}>
+        <div className="flex justify-between items-center mb-2" style={{ borderBottom: '3px solid black', paddingBottom: '2mm' }}>
           {/* Left Logo */}
-          <div className="flex-shrink-0" style={{ width: '12mm', height: '12mm', border: '2px solid black', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div 
+            className="logo-container flex-shrink-0" 
+            style={{ 
+              width: '15mm', 
+              height: '15mm', 
+              border: '3px solid black', 
+              backgroundColor: 'white', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center' 
+            }}
+          >
             <img 
               src="/lovable-uploads/46b85adb-92bd-446b-80a8-15b57ff39dcf.png" 
               alt="Government Emblem"
@@ -135,29 +156,32 @@ export const PublicUserIDCard = ({
                 objectFit: 'contain',
                 WebkitPrintColorAdjust: 'exact',
                 printColorAdjust: 'exact',
-                filter: 'contrast(2) brightness(0.8)'
-              }}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                const parent = target.parentElement;
-                if (parent) {
-                  parent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:8px;font-weight:900;">LOGO1</div>';
-                }
+                filter: 'contrast(3) brightness(0.5)'
               }}
             />
           </div>
           
           {/* Center Title */}
           <div className="text-center px-2 flex-1">
-            <div style={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.5px', lineHeight: '1.1' }}>
+            <div style={{ fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.8px', lineHeight: '1.1' }}>
               DIVISIONAL SECRETARIAT
             </div>
-            <div style={{ fontSize: '12px', fontWeight: '900', letterSpacing: '1px' }}>KALMUNAI</div>
+            <div style={{ fontSize: '14px', fontWeight: '900', letterSpacing: '1.5px', marginTop: '1mm' }}>KALMUNAI</div>
           </div>
           
           {/* Right Logo */}
-          <div className="flex-shrink-0" style={{ width: '12mm', height: '12mm', border: '2px solid black', backgroundColor: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div 
+            className="logo-container flex-shrink-0" 
+            style={{ 
+              width: '15mm', 
+              height: '15mm', 
+              border: '3px solid black', 
+              backgroundColor: 'white', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center' 
+            }}
+          >
             <img 
               src="/lovable-uploads/6e847d33-bb31-4337-86e5-a709077e569d.png" 
               alt="DS Logo"
@@ -167,15 +191,7 @@ export const PublicUserIDCard = ({
                 objectFit: 'contain',
                 WebkitPrintColorAdjust: 'exact',
                 printColorAdjust: 'exact',
-                filter: 'contrast(2) brightness(0.8)'
-              }}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                const parent = target.parentElement;
-                if (parent) {
-                  parent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:8px;font-weight:900;">LOGO2</div>';
-                }
+                filter: 'contrast(3) brightness(0.5)'
               }}
             />
           </div>
@@ -183,42 +199,59 @@ export const PublicUserIDCard = ({
         
         {/* Main Content Area */}
         <div className="flex h-full">
-          {/* Left Side - User Information (60%) */}
-          <div style={{ width: '60%', paddingRight: '2mm', display: 'flex', flexDirection: 'column', justifyContent: 'space-around' }}>
-            <div style={{ marginBottom: '1mm' }}>
-              <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>Name:</span>
-              <span style={{ fontSize: '10px', fontWeight: '900', lineHeight: '1.1', display: 'block' }}>{user.name}</span>
+          {/* Left Side - User Information (50%) */}
+          <div style={{ width: '50%', paddingRight: '2mm', display: 'flex', flexDirection: 'column', justifyContent: 'space-around' }}>
+            <div style={{ marginBottom: '1.5mm' }}>
+              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>Name:</span>
+              <span style={{ fontSize: '11px', fontWeight: '900', lineHeight: '1.1', display: 'block' }}>{user.name}</span>
             </div>
             
-            <div style={{ marginBottom: '1mm' }}>
-              <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>NIC:</span>
-              <span style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: '900', display: 'block' }}>{user.nic}</span>
+            <div style={{ marginBottom: '1.5mm' }}>
+              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>NIC:</span>
+              <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: '900', display: 'block' }}>{user.nic}</span>
             </div>
             
-            <div style={{ marginBottom: '1mm' }}>
-              <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>Mobile:</span>
+            <div style={{ marginBottom: '1.5mm' }}>
+              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>DOB:</span>
+              <span style={{ fontSize: '10px', fontWeight: '900', display: 'block' }}>
+                {user.date_of_birth || user.dateOfBirth || 'N/A'}
+              </span>
+            </div>
+            
+            <div style={{ marginBottom: '1.5mm' }}>
+              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>Mobile:</span>
               <span style={{ fontSize: '10px', fontWeight: '900', display: 'block' }}>{user.mobile || 'N/A'}</span>
             </div>
             
-            <div style={{ marginBottom: '1mm' }}>
-              <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>Address:</span>
+            <div style={{ marginBottom: '1.5mm' }}>
+              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>Address:</span>
               <span style={{ fontSize: '9px', lineHeight: '1.1', display: 'block', wordBreak: 'break-word', fontWeight: '800' }}>
-                {user.address.length > 40 ? user.address.substring(0, 40) + '...' : user.address}
+                {user.address.length > 35 ? user.address.substring(0, 35) + '...' : user.address}
               </span>
             </div>
             
             <div>
-              <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>Public ID:</span>
-              <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: '900', display: 'block' }}>{publicUserId}</span>
+              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', color: 'black', display: 'block' }}>Public ID:</span>
+              <span style={{ fontSize: '12px', fontFamily: 'monospace', fontWeight: '900', display: 'block' }}>{publicUserId}</span>
             </div>
           </div>
           
-          {/* Right Side - QR Code (40%) */}
-          <div style={{ width: '40%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '2px solid black', paddingLeft: '2mm' }}>
-            <div style={{ backgroundColor: 'white', padding: '1mm', border: '2px solid black' }}>
+          {/* Right Side - QR Code (50%) */}
+          <div style={{ width: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '3px solid black', paddingLeft: '2mm' }}>
+            <div 
+              className="qr-code-container"
+              style={{ 
+                backgroundColor: 'white', 
+                padding: '2mm', 
+                border: '3px solid black',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
               <QRCodeSVG 
                 value={qrCodeData}
-                size={60}
+                size={80}
                 level="H"
                 includeMargin={false}
                 style={{
@@ -229,19 +262,19 @@ export const PublicUserIDCard = ({
                 }}
               />
             </div>
-            <div style={{ fontSize: '8px', textAlign: 'center', marginTop: '1mm', fontWeight: '900', textTransform: 'uppercase' }}>
-              QR CODE
+            <div style={{ fontSize: '9px', textAlign: 'center', marginTop: '2mm', fontWeight: '900', textTransform: 'uppercase' }}>
+              SCAN FOR VERIFICATION
             </div>
           </div>
         </div>
         
         {/* Footer */}
-        <div style={{ marginTop: '2mm', paddingTop: '1mm', borderTop: '1px solid black' }}>
+        <div style={{ marginTop: '2mm', paddingTop: '1mm', borderTop: '2px solid black' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '8px', fontWeight: '900' }}>
+            <span style={{ fontSize: '9px', fontWeight: '900' }}>
               Issued: {new Date().toLocaleDateString()}
             </span>
-            <span style={{ fontSize: '8px', fontWeight: '900' }}>
+            <span style={{ fontSize: '9px', fontWeight: '900' }}>
               OFFICIAL DOCUMENT
             </span>
           </div>
