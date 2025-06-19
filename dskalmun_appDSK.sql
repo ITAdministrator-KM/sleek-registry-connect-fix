@@ -3,8 +3,8 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jun 16, 2025 at 09:30 AM
--- Server version: 8.0.41-cll-lve
+-- Generation Time: Jun 19, 2025 at 11:49 AM
+-- Server version: 8.0.42-cll-lve
 -- PHP Version: 8.3.22
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -326,6 +326,31 @@ INSERT INTO `public_id_counter` (`id`, `sequence_value`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `public_registry`
+--
+
+CREATE TABLE `public_registry` (
+  `id` int NOT NULL,
+  `registry_id` varchar(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
+  `public_user_id` int DEFAULT NULL,
+  `visitor_name` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
+  `visitor_nic` varchar(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
+  `visitor_address` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci,
+  `visitor_phone` varchar(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL,
+  `department_id` int NOT NULL,
+  `division_id` int DEFAULT NULL,
+  `purpose_of_visit` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
+  `remarks` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci,
+  `entry_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `visitor_type` enum('new','existing') CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL DEFAULT 'new',
+  `status` enum('active','checked_out','deleted') CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `public_users`
 --
 
@@ -439,30 +464,6 @@ CREATE TABLE `request_documents` (
   `file_path` varchar(500) COLLATE utf8mb3_unicode_ci NOT NULL,
   `file_size` int DEFAULT NULL,
   `uploaded_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `service_catalog`
---
-
-CREATE TABLE `service_catalog` (
-  `id` int NOT NULL,
-  `service_name` varchar(200) COLLATE utf8mb3_unicode_ci NOT NULL,
-  `service_code` varchar(50) COLLATE utf8mb3_unicode_ci NOT NULL,
-  `description` text COLLATE utf8mb3_unicode_ci,
-  `department_id` int NOT NULL,
-  `division_id` int DEFAULT NULL,
-  `icon` varchar(100) COLLATE utf8mb3_unicode_ci DEFAULT NULL,
-  `fee_amount` decimal(10,2) DEFAULT '0.00',
-  `required_documents` json DEFAULT NULL,
-  `processing_time_days` int DEFAULT '7',
-  `eligibility_criteria` text COLLATE utf8mb3_unicode_ci,
-  `form_template_url` varchar(500) COLLATE utf8mb3_unicode_ci DEFAULT NULL,
-  `is_active` tinyint(1) DEFAULT '1',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
 
 -- --------------------------------------------------------
@@ -703,7 +704,34 @@ INSERT INTO `user_sessions` (`id`, `user_id`, `token`, `is_valid`, `expires_at`,
 (76, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc0OTg4MjQyOX0.AZdIYDhSlHUeNWrl2m9-B6mCMcuJA7DD96Yu5xu7a6o', 1, '2025-06-14 06:27:09', '2025-06-13 06:27:09', '2025-06-13 06:27:09'),
 (77, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzQ5ODgyNDQyfQ.PO_ubVqT50qvP5Sat58IDvAY_tTlef0BXcSzNTPNY8s', 1, '2025-06-14 06:27:22', '2025-06-13 06:27:22', '2025-06-13 06:27:22'),
 (78, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMTMxNDY3fQ.l3zUeseIjDy9N6GSldA-YtfetvsgX37UkoLUz_JhLKE', 1, '2025-06-17 03:37:47', '2025-06-16 03:37:47', '2025-06-16 03:37:47'),
-(79, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwMTMxNjY4fQ.hO0qBGT8xVXU9ln1z0-aqJRI1W4OG30rq5Rdr3AfTLQ', 1, '2025-06-17 03:41:08', '2025-06-16 03:41:08', '2025-06-16 03:41:08');
+(79, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwMTMxNjY4fQ.hO0qBGT8xVXU9ln1z0-aqJRI1W4OG30rq5Rdr3AfTLQ', 1, '2025-06-17 03:41:08', '2025-06-16 03:41:08', '2025-06-16 03:41:08'),
+(80, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc1MDEzMzgxN30.pu6c_kEM5jRXG5HzI9dVU6R4KQEtvL8i6erOW8mtD2M', 1, '2025-06-17 04:16:57', '2025-06-16 04:16:57', '2025-06-16 04:16:57'),
+(81, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMTMzODk2fQ.6OQvofVWv2lP8snYVNNTlTynNCoQ1SVpBU9yx0XNfa8', 1, '2025-06-17 04:18:16', '2025-06-16 04:18:16', '2025-06-16 04:18:16'),
+(82, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMTM4MTE0fQ.6zKEZDX6Nsc7gwQri5V0mIk7czm6c8DUpBloMbOSjoY', 1, '2025-06-17 05:28:34', '2025-06-16 05:28:34', '2025-06-16 05:28:34'),
+(83, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMTQwNjU0fQ.dzneoCkRL6dXrgCbbOUtXXmdGmw2pqUYuO8WBP11lv4', 1, '2025-06-17 06:10:54', '2025-06-16 06:10:54', '2025-06-16 06:10:54'),
+(84, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwMTQwNjY1fQ.i4DsGDZuvVfK3_LSR-H_hfJC6Jr3gsOsOtqU1x1tpXU', 1, '2025-06-17 06:11:05', '2025-06-16 06:11:05', '2025-06-16 06:11:05'),
+(85, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMTQxNzc0fQ.iRVvDkL8mP7HXxITSU94e2dcuQsL8MMQbV92KCJ60-A', 1, '2025-06-17 06:29:34', '2025-06-16 06:29:34', '2025-06-16 06:29:34'),
+(86, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMTQyMTE3fQ.jLun4tWoFm4zspml0nkTqqzifYNff302kPIY6sXO3gY', 1, '2025-06-17 06:35:17', '2025-06-16 06:35:17', '2025-06-16 06:35:17'),
+(87, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwMTUwMjc4fQ.YDR4ftceUCeBo3sapwPED-LXu5rnJJj5kNhCBMTXNDQ', 1, '2025-06-17 08:51:18', '2025-06-16 08:51:18', '2025-06-16 08:51:18'),
+(88, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwMTU1OTg2fQ.RKH9U8HzRZIDg1Rl8QvtZU2BL12rbF-GQ-94VAwGIoE', 1, '2025-06-17 10:26:26', '2025-06-16 10:26:26', '2025-06-16 10:26:26'),
+(89, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwMjE3NDQ0fQ._XB9sMQKN_suukP6_CWIXVALzCrchCXzE014cT0Ih7w', 1, '2025-06-18 03:30:44', '2025-06-17 03:30:44', '2025-06-17 03:30:44'),
+(90, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMjE5MDMxfQ.X5YuOrOYfZyjoAmS7ah1QmtKQT5QeCjHFNaB7Y9m_rc', 1, '2025-06-18 03:57:11', '2025-06-17 03:57:11', '2025-06-17 03:57:11'),
+(91, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMjI1NDgyfQ.on8l2Q8ciI_YZg6sB_NUllEk1Z0S2-u7rxkXw8zaxvw', 1, '2025-06-18 05:44:42', '2025-06-17 05:44:42', '2025-06-17 05:44:42'),
+(92, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMjI1NzEwfQ.0qg3crVoIlHu_nkqWrGrstBV_NzrJ0opCRhnt-9qgF0', 1, '2025-06-18 05:48:30', '2025-06-17 05:48:30', '2025-06-17 05:48:30'),
+(93, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwMjI4MzU3fQ.UCIYv_Mh4nbH-DGgaJoHQWjtnHr2UBDJqzB7k39m9iM', 1, '2025-06-18 06:32:37', '2025-06-17 06:32:37', '2025-06-17 06:32:37'),
+(94, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc1MDIyODM3N30.KGl71_l8zRNd2pNyDDfFu0wR1QkeM6iWNAqesXRRuoQ', 1, '2025-06-18 06:32:57', '2025-06-17 06:32:57', '2025-06-17 06:32:57'),
+(95, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMjM5NDEwfQ.Lx5ocatE76Oi2VnHZu53SnKenGuiJkOWiyvdBBHEL7U', 1, '2025-06-18 09:36:50', '2025-06-17 09:36:50', '2025-06-17 09:36:50'),
+(96, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc1MDMwNTE5Nn0.3G29KxvzM3VBPCX7SYzdEADmfk4Ri62McX3nY2K8-qI', 1, '2025-06-19 03:53:16', '2025-06-18 03:53:16', '2025-06-18 03:53:16'),
+(97, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc1MDMwNTc1NH0.btWxHKwK51rZ38xSR1D1Lkgknqn27NmMwXD8IcLgvMs', 1, '2025-06-19 04:02:34', '2025-06-18 04:02:34', '2025-06-18 04:02:34'),
+(98, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc1MDMwNjk3N30.wuSh9fDyDIK4qBni1cc9vscUUCK3tm8-zSMA0mg3qVQ', 1, '2025-06-19 04:22:57', '2025-06-18 04:22:57', '2025-06-18 04:22:57'),
+(99, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMzA2OTk2fQ.VhtiO1CKTzW49Dz1os0kDCPw0IatV7kGESam9S2YNmE', 1, '2025-06-19 04:23:16', '2025-06-18 04:23:16', '2025-06-18 04:23:16'),
+(100, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc1MDMwNzU3NH0.6cmfHYf0dET7ePnCPuvZA1WYpVWGxgHa454UQ3Z8GvA', 1, '2025-06-19 04:32:54', '2025-06-18 04:32:54', '2025-06-18 04:32:54'),
+(101, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMzA4MDcwfQ.3azbPoZkV8V18ZrXfCS6o0mCcdpJ7NiVKtYQQp--LKk', 1, '2025-06-19 04:41:10', '2025-06-18 04:41:10', '2025-06-18 04:41:10'),
+(102, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMzExNTQ1fQ.vHo5r1fQ7nrMR670x7IXrFumZ8Dm29wwzrL4OqfmU0M', 1, '2025-06-19 05:39:05', '2025-06-18 05:39:05', '2025-06-18 05:39:05'),
+(103, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwMzExNTUxfQ.uGBXpawxW65SkaBHhSRmEFvsAtAPPT4PKpz2yXH9j40', 1, '2025-06-19 05:39:11', '2025-06-18 05:39:11', '2025-06-18 05:39:11'),
+(104, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc1MDMxMTU2Mn0.iKBqjL3Dsy-kmzbkNyS0FLhWUD3aUMJtLIjIFpA8wQo', 1, '2025-06-19 05:39:22', '2025-06-18 05:39:22', '2025-06-18 05:39:22'),
+(105, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMzk4MTI1fQ.kgLi4Orjhj4nr_Wqj86QKZjG4pPVbjyyfOH8uJExJSo', 1, '2025-06-20 05:42:05', '2025-06-19 05:42:05', '2025-06-19 05:42:05'),
+(106, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNDAwMjA4fQ.Y_Su038di49bbJ8_e1uA61IWKnTt-SJXATBR2ktnXkI', 1, '2025-06-20 06:16:48', '2025-06-19 06:16:48', '2025-06-19 06:16:48');
 
 --
 -- Indexes for dumped tables
@@ -834,6 +862,19 @@ ALTER TABLE `public_id_counter`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `public_registry`
+--
+ALTER TABLE `public_registry`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `registry_id` (`registry_id`),
+  ADD KEY `idx_visitor_nic` (`visitor_nic`),
+  ADD KEY `idx_entry_time` (`entry_time`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `fk_registry_public_user` (`public_user_id`),
+  ADD KEY `fk_registry_department` (`department_id`),
+  ADD KEY `fk_registry_division` (`division_id`);
+
+--
 -- Indexes for table `public_users`
 --
 ALTER TABLE `public_users`
@@ -880,16 +921,6 @@ ALTER TABLE `qr_scan_logs`
 ALTER TABLE `request_documents`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_doc_request` (`service_request_id`);
-
---
--- Indexes for table `service_catalog`
---
-ALTER TABLE `service_catalog`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `service_code` (`service_code`),
-  ADD KEY `division_id` (`division_id`),
-  ADD KEY `idx_service_department` (`department_id`,`is_active`),
-  ADD KEY `idx_service_code` (`service_code`);
 
 --
 -- Indexes for table `service_history`
@@ -1031,6 +1062,12 @@ ALTER TABLE `public_id_counter`
   MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
+-- AUTO_INCREMENT for table `public_registry`
+--
+ALTER TABLE `public_registry`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `public_users`
 --
 ALTER TABLE `public_users`
@@ -1061,12 +1098,6 @@ ALTER TABLE `request_documents`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `service_catalog`
---
-ALTER TABLE `service_catalog`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT for table `service_history`
 --
 ALTER TABLE `service_history`
@@ -1094,7 +1125,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=80;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=107;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

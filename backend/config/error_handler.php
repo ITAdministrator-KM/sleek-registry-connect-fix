@@ -1,6 +1,7 @@
 
 <?php
 function handleError($errno, $errstr, $errfile, $errline) {
+    header('Content-Type: application/json');
     http_response_code(500);
     echo json_encode(array(
         "status" => "error",
@@ -12,6 +13,7 @@ function handleError($errno, $errstr, $errfile, $errline) {
 }
 
 function handleException($e) {
+    header('Content-Type: application/json');
     http_response_code(500);
     echo json_encode(array(
         "status" => "error",

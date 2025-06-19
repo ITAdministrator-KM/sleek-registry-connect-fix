@@ -2,6 +2,12 @@
 <?php
 include_once __DIR__ . '/error_handler.php';
 
+// Set error handler to ensure JSON responses
+set_error_handler(function($severity, $message, $file, $line) {
+    header('Content-Type: application/json');
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
 // Handle CORS
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");

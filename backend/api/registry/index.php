@@ -3,7 +3,12 @@ include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
 
+// Set headers for JSON response
 header('Content-Type: application/json');
+
+// Set error handlers
+set_error_handler('handleError');
+set_exception_handler('handleException');
 
 try {
     $database = new Database();

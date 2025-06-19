@@ -1,4 +1,3 @@
-
 import { apiService } from './api';
 
 export interface RegistryEntry {
@@ -40,6 +39,22 @@ export interface RegistryEntryCreateData {
 class RegistryApiService {
   private baseUrl = '/api/registry';
 
+  private async handleResponse<T>(response: Response): Promise<T> {
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      const errorMessage = errorData?.message || `HTTP error! status: ${response.status}`;
+      throw new Error(errorMessage);
+    }
+    
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      throw new Error("Invalid response format. Expected JSON.");
+    }
+    
+    const data = await response.json();
+    return data.data;
+  }
+
   async getRegistryEntries(params?: {
     date?: string;
     department_id?: number;
@@ -64,12 +79,8 @@ class RegistryApiService {
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return Array.isArray(data.data) ? data.data : [];
+      const data = await this.handleResponse<RegistryEntry[]>(response);
+      return Array.isArray(data) ? data : [];
     } catch (error) {
       console.error('Error fetching registry entries:', error);
       throw error;
@@ -86,12 +97,8 @@ class RegistryApiService {
         },
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data.data;
+      const data = await this.handleResponse<RegistryEntry>(response);
+      return data;
     } catch (error) {
       console.error('Error fetching registry entry:', error);
       throw error;
@@ -109,12 +116,8 @@ class RegistryApiService {
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result.data;
+      const result = await this.handleResponse<RegistryEntry>(response);
+      return result;
     } catch (error) {
       console.error('Error creating registry entry:', error);
       throw error;
@@ -132,12 +135,8 @@ class RegistryApiService {
         body: JSON.stringify({ id, ...data }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result.data;
+      const result = await this.handleResponse<RegistryEntry>(response);
+      return result;
     } catch (error) {
       console.error('Error updating registry entry:', error);
       throw error;
@@ -155,9 +154,7 @@ class RegistryApiService {
         body: JSON.stringify({ id }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      await this.handleResponse<void>(response);
     } catch (error) {
       console.error('Error deleting registry entry:', error);
       throw error;
