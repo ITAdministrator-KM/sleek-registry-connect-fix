@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Camera, FileText, Plus, Search, Download, Refresh, User, UserPlus } from 'lucide-react';
+import { Camera, FileText, Plus, Search, Download, RefreshCw, User, UserPlus } from 'lucide-react';
 import { registryApiService, type RegistryEntry, type RegistryEntryCreateData } from '@/services/registryApi';
 
 interface Department {
@@ -312,7 +311,7 @@ const PublicRegistry: React.FC = () => {
             Export CSV
           </Button>
           <Button onClick={fetchRegistryEntries} variant="outline" size="sm">
-            <Refresh className="w-4 h-4 mr-2" />
+            <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
         </div>
