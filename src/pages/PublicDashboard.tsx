@@ -65,7 +65,7 @@ const PublicDashboard = () => {
         <h2 className="text-3xl font-bold mb-3">Welcome back, {user?.name}!</h2>
         <p className="text-blue-100 text-lg">Access government services digitally</p>
         <div className="mt-4 text-blue-100 text-sm">
-          Public ID: {user?.public_id || user?.public_user_id}
+          Public ID: {user?.public_id || 'Not assigned'}
         </div>
       </div>
 
@@ -216,7 +216,24 @@ const PublicDashboard = () => {
       case 'documents':
         return <ServiceHistory />;
       case 'id-card':
-        return user ? <PublicUserIDCard user={user} /> : null;
+        return user && user.nic && user.mobile && user.address ? (
+          <PublicUserIDCard user={{
+            ...user,
+            nic: user.nic,
+            mobile: user.mobile,
+            address: user.address,
+            public_id: user.public_id || 'Not assigned'
+          }} />
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>Digital ID Card</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-500">Complete your profile to view your digital ID card</p>
+            </CardContent>
+          </Card>
+        );
       case 'notifications':
         return (
           <Card>

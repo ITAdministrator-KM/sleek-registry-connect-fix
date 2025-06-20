@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Users, Ticket, Clock, CheckCircle, AlertCircle, Settings, UserPlus, QrCode, CreditCard, Scan, Bell, Loader2, ClipboardList } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import TokenManagement from '@/components/TokenManagement';
