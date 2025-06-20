@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public_registry (
   FOREIGN KEY (division_id) REFERENCES divisions(id),
   FOREIGN KEY (staff_id) REFERENCES users(id),
   
-  INDEX idx_registry_date (DATE(entry_time)),
+  INDEX idx_registry_entry_time (entry_time),
   INDEX idx_registry_department (department_id),
   INDEX idx_registry_visitor_type (visitor_type),
   INDEX idx_registry_status (status)

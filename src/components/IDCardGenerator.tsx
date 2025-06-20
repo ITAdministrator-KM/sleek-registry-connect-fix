@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,9 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/apiService';
 import type { PublicUser } from '@/services/apiService';
 import { Search, Printer, AlertCircle, Download } from 'lucide-react';
-import StandardIDCard from './id-card/StandardIDCard';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { StandardBlackWhiteIDCard } from './id-card/StandardBlackWhiteIDCard';
 
 const IDCardGenerator = () => {
   const [users, setUsers] = useState<PublicUser[]>([]);
@@ -57,144 +54,249 @@ const IDCardGenerator = () => {
     }
   };
 
-  const generatePDF = async (usersToPrint: PublicUser[]) => {
-    try {
-      const pdf = new jsPDF('portrait', 'mm', 'a4');
-      const pageWidth = 210;
-      const pageHeight = 297;
-      const cardWidth = 85.6;
-      const cardHeight = 54;
-      const margin = 10;
-      
-      // Two cards per page layout
-      const cardsPerPage = 2;
-      let currentPage = 0;
-      
-      for (let i = 0; i < usersToPrint.length; i++) {
-        const user = usersToPrint[i];
-        const cardIndex = i % cardsPerPage;
-        
-        if (cardIndex === 0 && i > 0) {
-          pdf.addPage();
-          currentPage++;
-        }
-        
-        // Create a temporary div for the ID card
-        const tempDiv = document.createElement('div');
-        tempDiv.style.position = 'absolute';
-        tempDiv.style.left = '-9999px';
-        tempDiv.style.top = '-9999px';
-        document.body.appendChild(tempDiv);
-        
-        // Render the ID card component
-        const cardElement = document.createElement('div');
-        cardElement.innerHTML = `
-          <div style="width: 85.6mm; height: 54mm; background: white; border: 2px solid black; font-family: Arial; font-size: 8px; color: black; padding: 3mm; box-sizing: border-box;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2mm; border-bottom: 1px solid black; padding-bottom: 1mm;">
-              <div style="width: 12mm; height: 12mm; border: 1px solid black; display: flex; align-items: center; justify-content: center; font-size: 6px;">LOGO1</div>
-              <div style="text-align: center; font-weight: bold; font-size: 9px; flex: 1; margin: 0 2mm;">
-                <div>DIVISIONAL SECRETARIAT</div>
-                <div>KALMUNAI</div>
-              </div>
-              <div style="width: 12mm; height: 12mm; border: 1px solid black; display: flex; align-items: center; justify-content: center; font-size: 6px;">LOGO2</div>
-            </div>
-            <div style="display: flex; height: calc(100% - 15mm);">
-              <div style="flex: 1; padding-right: 2mm;">
-                <div style="margin-bottom: 1.5mm; display: flex; font-size: 7px;">
-                  <span style="font-weight: bold; width: 25mm;">Name:</span>
-                  <span>${user.name}</span>
-                </div>
-                <div style="margin-bottom: 1.5mm; display: flex; font-size: 7px;">
-                  <span style="font-weight: bold; width: 25mm;">NIC:</span>
-                  <span>${user.nic}</span>
-                </div>
-                <div style="margin-bottom: 1.5mm; display: flex; font-size: 7px;">
-                  <span style="font-weight: bold; width: 25mm;">Mobile:</span>
-                  <span>${user.mobile || 'N/A'}</span>
-                </div>
-                <div style="margin-bottom: 1.5mm; display: flex; font-size: 7px;">
-                  <span style="font-weight: bold; width: 25mm;">Address:</span>
-                  <span>${user.address.length > 45 ? user.address.substring(0, 45) + '...' : user.address}</span>
-                </div>
-                <div style="margin-bottom: 1.5mm; display: flex; font-size: 7px;">
-                  <span style="font-weight: bold; width: 25mm;">Public ID:</span>
-                  <span>${user.public_id}</span>
-                </div>
-              </div>
-              <div style="width: 50%; display: flex; align-items: center; justify-content: center;">
-                <div style="width: 35mm; height: 35mm; border: 1px solid black; display: flex; align-items: center; justify-content: center; font-size: 10px;">QR CODE</div>
-              </div>
-            </div>
-          </div>
-        `;
-        
-        tempDiv.appendChild(cardElement);
-        
-        // Convert to canvas and add to PDF
-        const canvas = await html2canvas(cardElement, {
-          scale: 3,
-          backgroundColor: 'white',
-          width: 324, // 85.6mm at 96 DPI
-          height: 204  // 54mm at 96 DPI
-        });
-        
-        const imgData = canvas.toDataURL('image/png');
-        
-        // Position calculation
-        const x = margin + (cardIndex === 1 ? cardWidth + 20 : 0);
-        const y = margin + Math.floor(i / 2) * (cardHeight + 20);
-        
-        pdf.addImage(imgData, 'PNG', x, y, cardWidth, cardHeight);
-        
-        // Clean up
-        document.body.removeChild(tempDiv);
-      }
-      
-      return pdf;
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      throw error;
-    }
-  };
-
-  const handlePrint = async () => {
-    try {
-      const usersToPrint = filteredUsers.filter(user => 
-        selectedUsers.includes(user.id)
-      );
-
-      if (usersToPrint.length === 0) {
-        toast({
-          title: "Warning",
-          description: "Please select users to print",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setIsLoading(true);
-      const pdf = await generatePDF(usersToPrint);
-      
-      if (autoPrint) {
-        pdf.autoPrint();
-      }
-      
-      pdf.save(`id-cards-batch-${new Date().toISOString().split('T')[0]}.pdf`);
-      
-      toast({
-        title: "Success",
-        description: `Generated ID cards for ${usersToPrint.length} users`,
-      });
-    } catch (error) {
-      console.error('Error generating ID cards:', error);
+  const handlePrintSingle = (user: PublicUser) => {
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) {
       toast({
         title: "Error",
-        description: "Failed to generate ID cards",
+        description: "Unable to open print window. Please check popup settings.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+      return;
     }
+
+    const cardHTML = generateSingleCardHTML(user);
+    printWindow.document.write(cardHTML);
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      setTimeout(() => {
+        if (autoPrint) {
+          printWindow.print();
+          printWindow.onafterprint = () => {
+            setTimeout(() => printWindow.close(), 1000);
+          };
+        }
+      }, 1000);
+    };
+  };
+
+  const generateSingleCardHTML = (user: PublicUser) => {
+    const qrData = JSON.stringify({
+      public_id: user.public_id,
+      name: user.name,
+      nic: user.nic,
+      mobile: user.mobile,
+      address: user.address,
+      issued: new Date().toISOString().split('T')[0],
+      authority: 'Divisional Secretariat Kalmunai'
+    });
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>ID Card - ${user.name}</title>
+        <style>
+          @page { 
+            size: 85.6mm 54mm;
+            margin: 0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          body { 
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .id-card {
+            width: 85.6mm;
+            height: 54mm;
+            border: 4px solid #000;
+            background: white;
+            color: black;
+            font-size: 10px;
+            line-height: 1.2;
+            font-weight: bold;
+            padding: 3mm;
+            box-sizing: border-box;
+            position: relative;
+          }
+          .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2mm;
+            border-bottom: 2px solid black;
+            padding-bottom: 2mm;
+          }
+          .logo {
+            width: 12mm;
+            height: 12mm;
+            border: 2px solid black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+          }
+          .logo img {
+            width: 10mm;
+            height: 10mm;
+            object-fit: contain;
+            filter: contrast(1) brightness(0);
+          }
+          .title {
+            text-align: center;
+            flex: 1;
+            margin: 0 2mm;
+          }
+          .title-main {
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .title-sub {
+            font-size: 12px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            margin-top: 1mm;
+          }
+          .card-body {
+            display: flex;
+            height: calc(100% - 20mm);
+          }
+          .user-info {
+            width: 50%;
+            padding-right: 2mm;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+          }
+          .info-item {
+            margin-bottom: 1.5mm;
+          }
+          .info-label {
+            font-size: 8px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 0.5mm;
+          }
+          .info-value {
+            font-size: 9px;
+            font-weight: bold;
+            line-height: 1.1;
+          }
+          .qr-section {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-left: 2px solid black;
+            padding-left: 2mm;
+          }
+          .qr-container {
+            background: white;
+            padding: 2mm;
+            border: 2px solid black;
+          }
+          .qr-label {
+            font-size: 7px;
+            text-align: center;
+            margin-top: 2mm;
+            font-weight: bold;
+            text-transform: uppercase;
+          }
+          .card-footer {
+            position: absolute;
+            bottom: 2mm;
+            left: 3mm;
+            right: 3mm;
+            padding-top: 1mm;
+            border-top: 1px solid black;
+            display: flex;
+            justify-content: space-between;
+            font-size: 7px;
+            font-weight: bold;
+          }
+        </style>
+        <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+      </head>
+      <body>
+        <div class="id-card">
+          <div class="card-header">
+            <div class="logo">
+              <img src="/emblem.svg" alt="Government Emblem" />
+            </div>
+            <div class="title">
+              <div class="title-main">DIVISIONAL SECRETARIAT</div>
+              <div class="title-sub">KALMUNAI</div>
+            </div>
+            <div class="logo">
+              <img src="/logo.svg" alt="DS Logo" />
+            </div>
+          </div>
+          
+          <div class="card-body">
+            <div class="user-info">
+              <div class="info-item">
+                <div class="info-label">Name:</div>
+                <div class="info-value">${user.name}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">NIC:</div>
+                <div class="info-value">${user.nic}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Date of Birth:</div>
+                <div class="info-value">${user.date_of_birth || 'N/A'}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Mobile Number:</div>
+                <div class="info-value">${user.mobile}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Address:</div>
+                <div class="info-value">${user.address.length > 30 ? user.address.substring(0, 30) + '...' : user.address}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Public ID:</div>
+                <div class="info-value">${user.public_id}</div>
+              </div>
+            </div>
+            
+            <div class="qr-section">
+              <div class="qr-container">
+                <canvas id="qr-canvas" width="70" height="70"></canvas>
+              </div>
+              <div class="qr-label">SCAN TO VERIFY</div>
+            </div>
+          </div>
+          
+          <div class="card-footer">
+            <span>Issued: ${new Date().toLocaleDateString()}</span>
+            <span>OFFICIAL DOCUMENT</span>
+          </div>
+        </div>
+        
+        <script>
+          QRCode.toCanvas(document.getElementById('qr-canvas'), '${qrData}', {
+            width: 70,
+            height: 70,
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF'
+            },
+            errorCorrectionLevel: 'H'
+          });
+        </script>
+      </body>
+      </html>
+    `;
   };
 
   const handleSelectUser = (userId: number) => {
@@ -227,7 +329,7 @@ const IDCardGenerator = () => {
             <div>
               <CardTitle>📇 ID Card Generator</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Generate and print professional ID cards with sequential numbering
+                Generate black & white government ID cards with official format
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -239,14 +341,6 @@ const IDCardGenerator = () => {
                 />
                 <label htmlFor="auto-print" className="text-sm">Auto Print</label>
               </div>
-              <Button
-                onClick={handlePrint}
-                disabled={isLoading || selectedUsers.length === 0}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                Print Selected ({selectedUsers.length})
-              </Button>
             </div>
           </div>
         </CardHeader>
@@ -302,7 +396,7 @@ const IDCardGenerator = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handlePrint()}
+                            onClick={() => handlePrintSingle(user)}
                           >
                             <Printer className="h-4 w-4" />
                           </Button>
@@ -322,14 +416,14 @@ const IDCardGenerator = () => {
             )}
 
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-700 mb-2">💡 Enhanced Features:</h4>
+              <h4 className="text-sm font-medium text-blue-700 mb-2">🖨️ Black & White ID Card Features:</h4>
               <ul className="text-xs text-blue-600 space-y-1">
-                <li>• ✅ Sequential ID numbering: PUB00001, PUB00002, etc.</li>
-                <li>• 📐 Government standard format with dual logos</li>
-                <li>• 🖨️ Optimized for black & white printing</li>
-                <li>• 📱 Responsive design for all devices</li>
-                <li>• 📄 A4 format: 2 cards per page (wallet size)</li>
-                <li>• 🎯 Standard card size: 85.6mm x 54mm</li>
+                <li>• ⚫ High contrast black and white design</li>
+                <li>• 🏛️ Official government format with dual logos</li>
+                <li>• 📏 Wallet size: 85.6mm x 54mm</li>
+                <li>• 🔍 Large QR code for easy scanning</li>
+                <li>• 🖨️ Optimized for monochrome printing</li>
+                <li>• 📄 Professional typography and layout</li>
               </ul>
             </div>
           </div>
