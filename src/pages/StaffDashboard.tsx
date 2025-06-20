@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -13,13 +14,12 @@ import IDCardGenerator from '@/components/IDCardGenerator';
 import ResponsiveQRScanner from '@/components/ResponsiveQRScanner';
 import NotificationManagement from '@/components/NotificationManagement';
 import PublicRegistry from '@/components/staff/PublicRegistry';
+import StaffDashboardLayout from '@/components/staff/StaffDashboardLayout';
 import { apiService } from '@/services/api';
 
 const StaffDashboard = () => {
-  const { user, loading, isAuthenticated, logout } = useAuth(['staff']); // Allow only staff
+  const { user, loading, isAuthenticated, logout } = useAuth(['staff']);
   const [activeTab, setActiveTab] = useState('overview');
-  const [username, setUsername] = useState('');
-  const [userDepartment, setUserDepartment] = useState('');
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [stats, setStats] = useState({
     activeTokens: 0,
@@ -37,14 +37,6 @@ const StaffDashboard = () => {
       return;
     }
   }, [loading, isAuthenticated, navigate]);
-
-  // Set user info when authenticated
-  useEffect(() => {
-    if (user) {
-      setUsername(user.name || user.username || '');
-      setUserDepartment(user.department_name || 'General Services');
-    }
-  }, [user]);
 
   // Fetch stats when component mounts and user is authenticated
   useEffect(() => {
@@ -99,14 +91,6 @@ const StaffDashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
-    logout();
-  };
-
   const handleCreateUser = async (userData: any) => {
     try {
       const result = await apiService.createPublicUser(userData);
@@ -133,7 +117,6 @@ const StaffDashboard = () => {
           title: "QR Code Scanned",
           description: `Public ID: ${qrData.public_id}`,
         });
-        // Handle the scanned data as needed
       } else {
         toast({
           title: "Invalid QR Code",
@@ -159,150 +142,86 @@ const StaffDashboard = () => {
     });
   };
 
-  const menuItems = [
-    { id: 'overview', label: 'Dashboard', icon: Clock },
-    { id: 'tokens', label: 'Token Management', icon: Ticket },
-    { id: 'public-accounts', label: 'Public Accounts', icon: Users },
-    { id: 'public-registry', label: 'Public Registry', icon: ClipboardList },
-    { id: 'id-cards', label: 'ID Card Generator', icon: CreditCard },
-    { id: 'qr-scanner', label: 'QR Scanner', icon: QrCode },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'settings', label: 'Account Settings', icon: Settings },
-  ];
-
   const renderOverviewContent = () => (
-    <div className="space-y-8">
-      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl p-8 text-white shadow-2xl">
-        <h2 className="text-4xl font-bold mb-3">Staff Dashboard</h2>
-        <p className="text-emerald-100 text-lg">Welcome back, {username}!</p>
-        <p className="text-emerald-200 text-sm">{userDepartment}</p>
-        <div className="mt-4 text-emerald-100 text-sm">
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-8 text-white shadow-xl">
+        <h2 className="text-3xl font-bold mb-3">Staff Dashboard</h2>
+        <p className="text-blue-100 text-lg">Manage public services efficiently</p>
+        <div className="mt-4 text-blue-100 text-sm">
           Last updated: {new Date().toLocaleTimeString()}
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-blue-50 to-blue-100 border-l-4 border-l-blue-500">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-blue-800">{stats.activeTokens}</p>
-                <p className="text-blue-600 text-sm font-medium">Active Tokens</p>
-              </div>
-              <Ticket className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-green-50 to-green-100 border-l-4 border-l-green-500">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-green-800">{stats.servedToday}</p>
-                <p className="text-green-600 text-sm font-medium">Served Today</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-yellow-50 to-yellow-100 border-l-4 border-l-yellow-500">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-yellow-800">{stats.waitingTokens}</p>
-                <p className="text-yellow-600 text-sm font-medium">Waiting</p>
-              </div>
-              <Clock className="h-8 w-8 text-yellow-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-purple-50 to-purple-100 border-l-4 border-l-purple-500">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-purple-800">{stats.publicUsers}</p>
-                <p className="text-purple-600 text-sm font-medium">Public Users</p>
-              </div>
-              <Users className="h-8 w-8 text-purple-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-indigo-50 to-indigo-100">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-indigo-800 flex items-center gap-3">
+            <CardTitle className="flex items-center gap-3">
               <Settings className="h-6 w-6" />
               Quick Actions
             </CardTitle>
-            <CardDescription className="text-indigo-600">Staff management tools</CardDescription>
+            <CardDescription>Frequently used staff tools</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <Button 
               onClick={() => setShowCreateUserModal(true)} 
-              className="w-full justify-start bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
+              className="w-full justify-start bg-green-600 hover:bg-green-700"
             >
               <UserPlus className="mr-3" size={20} />
-              👤 Create Public Account
+              Create Public Account
             </Button>
             <Button 
               onClick={() => setActiveTab('tokens')} 
-              className="w-full justify-start bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
+              className="w-full justify-start bg-blue-600 hover:bg-blue-700"
             >
               <Ticket className="mr-3" size={20} />
-              🎫 Manage Tokens
+              Manage Tokens
             </Button>
             <Button 
-              onClick={() => setActiveTab('id-cards')} 
-              className="w-full justify-start bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
+              onClick={() => setActiveTab('public-registry')} 
+              className="w-full justify-start bg-purple-600 hover:bg-purple-700"
             >
-              <CreditCard className="mr-3" size={20} />
-              📇 Generate ID Cards
+              <ClipboardList className="mr-3" size={20} />
+              Visitor Registry
             </Button>
             <Button 
-              onClick={() => setActiveTab('qr-scanner')} 
-              className="w-full justify-start bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg transition-all duration-200 rounded-xl h-12"
+              onClick={() => window.open('/display', '_blank')} 
+              className="w-full justify-start bg-indigo-600 hover:bg-indigo-700"
             >
-              <Scan className="mr-3" size={20} />
-              📱 Responsive QR Scanner
+              <QrCode className="mr-3" size={20} />
+              Open Token Display
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-slate-50 to-slate-100">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-slate-800 flex items-center gap-3">
+            <CardTitle className="flex items-center gap-3">
               <AlertCircle className="h-6 w-6" />
-              Today's Activity
+              Today's Summary
             </CardTitle>
-            <CardDescription className="text-slate-600">Current operations summary</CardDescription>
+            <CardDescription>Current operations overview</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-xl border-l-4 border-blue-400">
-                <div>
-                  <p className="font-semibold text-gray-800">Active Queue</p>
-                  <p className="text-sm text-gray-600">{stats.activeTokens} tokens in progress</p>
-                </div>
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">Live</span>
+            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+              <div>
+                <p className="font-semibold">Active Tokens</p>
+                <p className="text-sm text-gray-600">{stats.activeTokens} in progress</p>
               </div>
-              <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-xl border-l-4 border-yellow-400">
-                <div>
-                  <p className="font-semibold text-gray-800">Waiting</p>
-                  <p className="text-sm text-gray-600">{stats.waitingTokens} tokens waiting</p>
-                </div>
-                <span className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-semibold">Queue</span>
+              <Badge variant="secondary">{stats.activeTokens}</Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <div>
+                <p className="font-semibold">Completed</p>
+                <p className="text-sm text-gray-600">{stats.servedToday} served today</p>
               </div>
-              <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl border-l-4 border-green-400">
-                <div>
-                  <p className="font-semibold text-gray-800">Completed</p>
-                  <p className="text-sm text-gray-600">{stats.servedToday} services completed today</p>
-                </div>
-                <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">Done</span>
+              <Badge variant="secondary">{stats.servedToday}</Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
+              <div>
+                <p className="font-semibold">Waiting</p>
+                <p className="text-sm text-gray-600">{stats.waitingTokens} in queue</p>
               </div>
+              <Badge variant="secondary">{stats.waitingTokens}</Badge>
             </div>
           </CardContent>
         </Card>
@@ -322,8 +241,9 @@ const StaffDashboard = () => {
         return <PublicRegistry />;
       case 'id-cards':
         return <IDCardGenerator />;
-      case 'qr-scanner':
-        return <ResponsiveQRScanner onScanSuccess={handleQRScanSuccess} onError={handleQRScanError} />;
+      case 'display':
+        window.open('/display', '_blank');
+        return renderOverviewContent();
       case 'notifications':
         return <NotificationManagement />;
       case 'settings':
@@ -334,56 +254,13 @@ const StaffDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-emerald-50 to-teal-100">
-      <nav className="bg-white/80 backdrop-blur-sm shadow-lg border-b border-emerald-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-              📱 DSK Staff Portal
-            </h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-700 font-medium">Welcome, {username}</span>
-              <Button 
-                onClick={handleLogout}
-                variant="outline" 
-                className="border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-              >
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <div className="flex">
-        <aside className="w-64 bg-white/80 backdrop-blur-sm shadow-lg min-h-screen border-r border-emerald-200">
-          <div className="p-6">
-            <nav className="space-y-2">
-              {menuItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                    activeTab === item.id
-                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg'
-                      : 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700'
-                  }`}
-                >
-                  <item.icon size={20} />
-                  <span className="font-medium">{item.label}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
-        </aside>
-
-        <main className="flex-1 p-8">
-          <div className="max-w-6xl mx-auto">
-            {renderContent()}
-          </div>
-        </main>
-      </div>
-
+    <StaffDashboardLayout 
+      activeTab={activeTab} 
+      onTabChange={setActiveTab}
+      stats={stats}
+    >
+      {renderContent()}
+      
       {showCreateUserModal && (
         <PublicUserForm
           user={null}
@@ -392,7 +269,7 @@ const StaffDashboard = () => {
           isLoading={false}
         />
       )}
-    </div>
+    </StaffDashboardLayout>
   );
 };
 
