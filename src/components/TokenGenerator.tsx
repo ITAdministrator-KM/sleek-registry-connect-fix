@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -441,9 +440,21 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
         <CardTitle className="flex items-center text-purple-800">
           <Ticket className="mr-2" size={20} />
           Token Generator - XP-58 Thermal Printer
+          <div className="ml-auto">
+            <a 
+              href="/display" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md transition-colors"
+            >
+              🖥️ Open Display
+            </a>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
+        
+        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div className="space-y-2">
             <Label htmlFor="token-department-select" className="text-sm font-medium text-gray-700">Department</Label>
@@ -493,6 +504,8 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
           </div>
         </div>
 
+        
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-3 bg-gray-50 rounded-lg">
             <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
@@ -519,6 +532,16 @@ const TokenGenerator = ({ onTokenGenerated }: TokenGeneratorProps) => {
               <li>• Size: Standard thermal receipt</li>
             </ul>
           </div>
+        </div>
+        
+        <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+          <h4 className="text-sm font-medium text-green-700 mb-2">🖥️ Public Display Instructions:</h4>
+          <ul className="text-xs text-green-600 space-y-1">
+            <li>• Access the display at: <code className="bg-white px-1 rounded">/display</code></li>
+            <li>• Press F11 for fullscreen mode on LED TV</li>
+            <li>• Display auto-refreshes every 10 seconds</li>
+            <li>• Suitable for reception area public viewing</li>
+          </ul>
         </div>
       </CardContent>
     </Card>
