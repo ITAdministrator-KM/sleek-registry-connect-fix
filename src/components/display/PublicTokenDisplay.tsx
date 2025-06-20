@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Tv, Users } from 'lucide-react';
+import { Clock, Tv, Users, AlertCircle } from 'lucide-react';
 
 interface TokenDisplayData {
   id: number;
@@ -57,7 +58,6 @@ const PublicTokenDisplay: React.FC = () => {
           const organizedData = organizeTokensByDepartment(responseData.tokens);
           setDepartments(organizedData);
           
-          // Update last updated time from server response or current time
           if (responseData.last_updated) {
             setLastUpdated(new Date(responseData.last_updated));
           } else {
@@ -111,7 +111,6 @@ const PublicTokenDisplay: React.FC = () => {
       }
     });
 
-    // Calculate total waiting for each division
     departmentMap.forEach(dept => {
       dept.divisions.forEach(div => {
         div.totalWaiting = div.waitingTokens.length;
@@ -124,18 +123,9 @@ const PublicTokenDisplay: React.FC = () => {
 
   useEffect(() => {
     fetchCurrentTokens();
-    const interval = setInterval(fetchCurrentTokens, 10000); // Refresh every 10 seconds
+    const interval = setInterval(fetchCurrentTokens, 10000);
     return () => clearInterval(interval);
   }, []);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'serving': return 'bg-green-500 text-white animate-pulse';
-      case 'called': return 'bg-blue-500 text-white';
-      case 'active': return 'bg-yellow-500 text-black';
-      default: return 'bg-gray-500 text-white';
-    }
-  };
 
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString('en-US', {
@@ -147,8 +137,8 @@ const PublicTokenDisplay: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center">
-        <div className="text-white text-6xl font-bold animate-pulse">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-4xl font-bold animate-pulse">
           Loading Token Display...
         </div>
       </div>
@@ -156,26 +146,20 @@ const PublicTokenDisplay: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 p-4 md:p-8">
+    <div className="min-h-screen bg-slate-900 text-white p-4">
       {/* Header */}
-      <div className="mb-8 text-center">
-        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6">
-          <h1 className="text-5xl md:text-7xl font-black text-white mb-4 tracking-wide">
-            DIVISIONAL SECRETARIAT
-          </h1>
-          <h2 className="text-3xl md:text-5xl font-bold text-blue-200 tracking-wider">
-            KALMUNAI
-          </h2>
-          <div className="flex items-center justify-center mt-4 text-xl md:text-2xl text-blue-100">
-            <Tv className="mr-3" size={32} />
-            <span className="font-semibold">TOKEN DISPLAY SYSTEM</span>
-          </div>
-        </div>
-
-        {/* Last Updated - Enhanced visibility */}
-        <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 mb-4">
-          <div className="flex items-center justify-center text-white text-lg md:text-xl font-semibold">
-            <Clock className="mr-3" size={28} />
+      <div className="text-center mb-8">
+        <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
+          DIVISIONAL SECRETARIAT KALMUNAI
+        </h1>
+        <h2 className="text-2xl md:text-3xl font-semibold text-blue-300 mb-4">
+          TOKEN DISPLAY SYSTEM
+        </h2>
+        
+        {/* Last Updated */}
+        <div className="bg-slate-800 rounded-lg p-4 inline-block">
+          <div className="flex items-center justify-center text-white text-lg font-semibold">
+            <Clock className="mr-3" size={24} />
             <span>Last Updated: {lastUpdated.toLocaleString('en-US', {
               hour: '2-digit',
               minute: '2-digit',
@@ -185,14 +169,15 @@ const PublicTokenDisplay: React.FC = () => {
               day: 'numeric'
             })}</span>
           </div>
-          <div className="text-blue-100 text-sm mt-1">
+          <div className="text-blue-300 text-sm mt-1">
             Auto-refresh every 10 seconds
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="mb-6 bg-red-500/20 border border-red-500 rounded-lg p-4 text-center">
+        <div className="mb-6 bg-red-900/50 border border-red-600 rounded-lg p-4 text-center">
+          <AlertCircle className="mx-auto mb-2" size={32} />
           <p className="text-red-200 text-xl font-semibold">{error}</p>
           <p className="text-red-300 text-sm mt-2">
             System will retry automatically. Last successful update: {lastUpdated.toLocaleTimeString()}
@@ -200,91 +185,90 @@ const PublicTokenDisplay: React.FC = () => {
         </div>
       )}
 
-      {/* Departments Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+      {/* Token Display Grid */}
+      <div className="space-y-8">
         {departments.length === 0 ? (
-          <div className="col-span-full text-center">
-            <Card className="bg-white/95 backdrop-blur-sm border-2 border-white/20 shadow-2xl">
-              <CardContent className="p-12">
-                <h3 className="text-2xl font-bold text-gray-600 mb-4">No Active Tokens</h3>
-                <p className="text-gray-500">No tokens are currently being served.</p>
-                <p className="text-sm text-gray-400 mt-2">Display updates automatically every 10 seconds</p>
-              </CardContent>
-            </Card>
+          <div className="text-center">
+            <div className="bg-slate-800 rounded-lg p-12">
+              <h3 className="text-3xl font-bold text-gray-300 mb-4">No Active Tokens</h3>
+              <p className="text-gray-400 text-lg">No tokens are currently being served.</p>
+              <p className="text-sm text-gray-500 mt-2">Display updates automatically every 10 seconds</p>
+            </div>
           </div>
         ) : (
           departments.map(department => (
-            <Card key={department.id} className="bg-white/95 backdrop-blur-sm border-2 border-white/20 shadow-2xl">
-              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
-                <CardTitle className="text-2xl md:text-3xl font-black text-center tracking-wide">
-                  {department.name.toUpperCase()}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
+            <div key={department.id} className="bg-slate-800 rounded-lg p-6">
+              <h2 className="text-3xl font-bold text-center text-blue-300 mb-6 border-b border-slate-600 pb-4">
+                {department.name.toUpperCase()}
+              </h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {department.divisions.map(division => (
-                  <div key={division.id} className="mb-6 last:mb-0">
-                    <div className="bg-gray-100 rounded-lg p-4 mb-3">
-                      <h3 className="text-xl md:text-2xl font-bold text-gray-800 mb-2 text-center">
-                        {division.name}
-                      </h3>
-                      
-                      {/* Current Serving Token */}
+                  <div key={division.id} className="bg-slate-700 rounded-lg p-6">
+                    <h3 className="text-xl font-bold text-center text-white mb-4 bg-slate-600 rounded p-2">
+                      {division.name}
+                    </h3>
+                    
+                    {/* Current Serving Token */}
+                    <div className="mb-4">
+                      <div className="text-center text-sm font-semibold text-gray-300 mb-2">NOW SERVING</div>
                       {division.currentToken ? (
-                        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 mb-3 text-center animate-pulse">
-                          <div className="text-white text-lg font-semibold mb-1">NOW SERVING</div>
-                          <div className="text-white text-4xl md:text-6xl font-black mb-2">
+                        <div className="bg-green-600 text-white rounded-lg p-4 text-center animate-pulse">
+                          <div className="text-5xl font-bold mb-2">
                             #{division.currentToken.token_number.toString().padStart(3, '0')}
                           </div>
+                          <div className="text-sm">
+                            Started: {formatTime(division.currentToken.created_at)}
+                          </div>
                           {division.currentToken.called_at && (
-                            <div className="text-green-100 text-sm">
-                              Called at: {formatTime(division.currentToken.called_at)}
+                            <div className="text-xs mt-1">
+                              Called: {formatTime(division.currentToken.called_at)}
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="bg-gray-300 rounded-lg p-4 mb-3 text-center">
-                          <div className="text-gray-600 text-lg font-semibold">NO ACTIVE TOKEN</div>
-                          <div className="text-gray-500 text-sm">Waiting for next customer</div>
+                        <div className="bg-gray-600 text-gray-300 rounded-lg p-4 text-center">
+                          <div className="text-2xl font-bold">---</div>
+                          <div className="text-sm">Waiting for next customer</div>
                         </div>
                       )}
+                    </div>
 
-                      {/* Waiting Queue */}
-                      {division.totalWaiting > 0 && (
-                        <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-3">
-                          <div className="flex items-center justify-center mb-2">
-                            <Users className="mr-2 text-yellow-600" size={20} />
-                            <span className="text-yellow-800 font-bold text-lg">
-                              {division.totalWaiting} Waiting
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap justify-center gap-2">
-                            {division.waitingTokens.slice(0, 5).map(token => (
-                              <Badge key={token.id} className="bg-yellow-500 text-black font-bold text-sm px-3 py-1">
-                                #{token.token_number.toString().padStart(3, '0')}
-                              </Badge>
-                            ))}
-                            {division.totalWaiting > 5 && (
-                              <Badge className="bg-yellow-600 text-white font-bold text-sm px-3 py-1">
-                                +{division.totalWaiting - 5} more
-                              </Badge>
-                            )}
-                          </div>
+                    {/* Waiting Queue */}
+                    <div className="text-center">
+                      <div className="text-sm font-semibold text-gray-300 mb-2">
+                        WAITING: {division.totalWaiting}
+                      </div>
+                      {division.totalWaiting > 0 ? (
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {division.waitingTokens.slice(0, 6).map(token => (
+                            <div key={token.id} className="bg-yellow-600 text-black font-bold text-sm px-3 py-1 rounded">
+                              #{token.token_number.toString().padStart(3, '0')}
+                            </div>
+                          ))}
+                          {division.totalWaiting > 6 && (
+                            <div className="bg-orange-600 text-white font-bold text-sm px-3 py-1 rounded">
+                              +{division.totalWaiting - 6}
+                            </div>
+                          )}
                         </div>
+                      ) : (
+                        <div className="text-gray-400 text-sm">No tokens waiting</div>
                       )}
                     </div>
                   </div>
                 ))}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))
         )}
       </div>
 
       {/* Footer */}
-      <div className="mt-8 text-center text-white/60 text-lg">
-        <p>Please wait for your token number to be called</p>
-        <p className="text-sm mt-2">Display refreshes automatically every 10 seconds</p>
-        <p className="text-xs mt-1 text-white/40">
+      <div className="mt-8 text-center text-gray-400 text-sm">
+        <p className="text-base mb-2">Please wait for your token number to be called</p>
+        <p>Display refreshes automatically every 10 seconds</p>
+        <p className="text-xs mt-2">
           System Time: {new Date().toLocaleString()}
         </p>
       </div>

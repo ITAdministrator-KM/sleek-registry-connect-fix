@@ -16,6 +16,7 @@ import ResponsiveQRScanner from '@/components/ResponsiveQRScanner';
 import NotificationManagement from '@/components/NotificationManagement';
 import PublicRegistry from '@/components/staff/PublicRegistry';
 import StaffDashboardLayout from '@/components/staff/StaffDashboardLayout';
+import TokenDisplayLauncher from '@/components/display/TokenDisplayLauncher';
 import { apiService } from '@/services/api';
 
 const StaffDashboard = () => {
@@ -243,8 +244,7 @@ const StaffDashboard = () => {
       case 'id-cards':
         return <IDCardGenerator />;
       case 'display':
-        window.open('/display', '_blank');
-        return renderOverviewContent();
+        return <TokenDisplayLauncher />;
       case 'notifications':
         return <NotificationManagement />;
       case 'settings':
