@@ -21,15 +21,31 @@ try {
         throw new Exception("Database connection failed");
     }
 
-    // Get all current tokens using the view we created
+    // Check if required columns exist, add them if missing
+    $addColumnsSQL = "
+        ALTER TABLE tokens 
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS called_at TIMESTAMP NULL
+    ";
+    
+    try {
+        $db->exec($addColumnsSQL);
+        
+        // Update existing records that don't have updated_at
+        $db->exec("UPDATE tokens SET updated_at = created_at WHERE updated_at IS NULL");
+    } catch (Exception $e) {
+        error_log("Column addition warning: " . $e->getMessage());
+    }
+
+    // Get all current tokens
     $query = "
         SELECT 
             t.id,
             t.token_number,
             t.status,
             t.created_at,
-            t.called_at,
-            t.updated_at,
+            COALESCE(t.called_at, t.updated_at) as called_at,
+            COALESCE(t.updated_at, t.created_at) as updated_at,
             d.name as department_name,
             div.name as division_name,
             d.id as department_id,
@@ -89,15 +105,42 @@ try {
     $deptStmt->execute();
     $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    ResponseHandler::success([
-        'tokens' => $tokens,
-        'statistics' => $stats,
-        'departments' => $departments,
-        'last_updated' => date('Y-m-d H:i:s')
-    ], 'Current tokens retrieved successfully');
+    // Response with proper structure
+    $response = [
+        'success' => true,
+        'data' => [
+            'tokens' => $tokens,
+            'statistics' => $stats,
+            'departments' => $departments,
+            'last_updated' => date('Y-m-d H:i:s')
+        ],
+        'message' => 'Current tokens retrieved successfully'
+    ];
+
+    http_response_code(200);
+    echo json_encode($response);
 
 } catch (Exception $e) {
     error_log("Current tokens API error: " . $e->getMessage());
-    ResponseHandler::error('Failed to retrieve current tokens: ' . $e->getMessage(), 500);
+    
+    $errorResponse = [
+        'success' => false,
+        'message' => 'Failed to retrieve current tokens',
+        'error' => $e->getMessage(),
+        'data' => [
+            'tokens' => [],
+            'statistics' => [
+                'total_tokens_today' => 0,
+                'waiting_tokens' => 0,
+                'serving_tokens' => 0,
+                'completed_tokens' => 0
+            ],
+            'departments' => [],
+            'last_updated' => date('Y-m-d H:i:s')
+        ]
+    ];
+    
+    http_response_code(500);
+    echo json_encode($errorResponse);
 }
 ?>

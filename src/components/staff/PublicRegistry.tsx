@@ -1,208 +1,74 @@
-import { useState, useEffect } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Users, 
-  QrCode, 
-  Camera, 
-  UserPlus, 
-  Search, 
-  Download,
-  Clock,
-  RefreshCw
-} from 'lucide-react';
-import { apiService, Department, Division, PublicUser } from '@/services/api';
-import { registryApiService, RegistryEntry, RegistryEntryCreateData } from '@/services/registryApi';
-import { useAuth } from '@/hooks/useAuth';
-import ResponsiveQRScanner from '@/components/ResponsiveQRScanner';
+import { Camera, FileText, Plus, Search, Download, Refresh, User, UserPlus } from 'lucide-react';
+import { registryApiService, type RegistryEntry, type RegistryEntryCreateData } from '@/services/registryApi';
 
-interface FormErrors {
-  name?: string;
-  nic?: string;
-  address?: string;
-  phone?: string;
-  purpose_of_visit?: string;
-  department_id?: string;
+interface Department {
+  id: number;
+  name: string;
 }
 
-const PublicRegistry = () => {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  
-  // Form state
-  const [visitorType, setVisitorType] = useState<'new' | 'existing'>('new');
-  const [showQRScanner, setShowQRScanner] = useState(false);
-  const [scannedUser, setScannedUser] = useState<PublicUser | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // Registry data
+interface Division {
+  id: number;
+  name: string;
+  department_id: number;
+}
+
+const PublicRegistry: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('new-visitor');
   const [registryEntries, setRegistryEntries] = useState<RegistryEntry[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
-  const [filteredDivisions, setFilteredDivisions] = useState<Division[]>([]);
-  
-  // Filters
-  const [filterDepartment, setFilterDepartment] = useState('all');
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // Form data
-  const [formData, setFormData] = useState({
-    name: '',
-    nic: '',
-    address: '',
-    phone: '',
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  // Form state for new visitor
+  const [newVisitorForm, setNewVisitorForm] = useState({
+    visitor_name: '',
+    visitor_nic: '',
+    visitor_address: '',
+    visitor_phone: '',
     department_id: '',
     division_id: '',
     purpose_of_visit: '',
-    remarks: '',
-    public_id: ''
+    remarks: ''
   });
 
-  // Form validation
-  const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
-  const [errors, setErrors] = useState<FormErrors>({});
+  // Form state for existing visitor
+  const [existingVisitorForm, setExistingVisitorForm] = useState({
+    public_user_id: null as number | null,
+    visitor_name: '',
+    visitor_nic: '',
+    visitor_address: '',
+    visitor_phone: '',
+    department_id: '',
+    division_id: '',
+    purpose_of_visit: '',
+    remarks: ''
+  });
+
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchInitialData();
-    fetchTodayEntries();
-    
-    // Auto-refresh entries every 30 seconds
-    const interval = setInterval(fetchTodayEntries, 30000);
-    return () => clearInterval(interval);
+    fetchRegistryEntries();
+    fetchDepartments();
   }, []);
 
-  useEffect(() => {
-    if (formData.department_id) {
-      const deptDivisions = divisions.filter(d => d.department_id === parseInt(formData.department_id));
-      setFilteredDivisions(deptDivisions);
-    } else {
-      setFilteredDivisions([]);
-    }
-  }, [formData.department_id, divisions]);
-
-  useEffect(() => {
-    fetchTodayEntries();
-  }, [filterDate]);
-
-  const validateField = (name: string, value: string): string => {
-    switch (name) {
-      case 'name':
-        if (!value.trim()) return 'Name is required';
-        if (value.length < 3) return 'Name must be at least 3 characters';
-        return '';
-      
-      case 'nic':
-        if (!value.trim()) return 'NIC is required';
-        if (!/^\d{9}[vVxX]$|^\d{12}$/.test(value.trim())) {
-          return 'Invalid NIC format. Use 9 digits + V/X or 12 digits';
-        }
-        return '';
-      
-      case 'phone':
-        if (value && !/^(?:\+94|0)[1-9]\d{8}$/.test(value.trim())) {
-          return 'Invalid phone number format';
-        }
-        return '';
-      
-      case 'address':
-        if (!value.trim()) return 'Address is required';
-        return '';
-      
-      case 'purpose_of_visit':
-        if (!value.trim()) return 'Purpose of visit is required';
-        return '';
-      
-      case 'department_id':
-        if (!value) return 'Please select a department';
-        return '';
-      
-      default:
-        return '';
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    const error = validateField(name, value);
-    setErrors(prev => ({
-      ...prev,
-      [name]: error
-    }));
-  };
-
-  const validateForm = (type: 'new' | 'existing' | 'registry'): boolean => {
-    const newErrors: FormErrors = {};
-    let isValid = true;
-
-    if (type === 'new') {
-      const fieldsToValidate = ['name', 'nic', 'address'];
-      fieldsToValidate.forEach(field => {
-        const error = validateField(field, formData[field as keyof typeof formData]?.toString() || '');
-        if (error) {
-          newErrors[field as keyof FormErrors] = error;
-          isValid = false;
-        }
-      });
-
-      // Validate phone if provided
-      if (formData.phone) {
-        const phoneError = validateField('phone', formData.phone);
-        if (phoneError) {
-          newErrors.phone = phoneError;
-          isValid = false;
-        }
-      }
-    } else if (type === 'registry') {
-      const fieldsToValidate = ['purpose_of_visit', 'department_id'];
-      fieldsToValidate.forEach(field => {
-        const error = validateField(field, formData[field as keyof typeof formData]?.toString() || '');
-        if (error) {
-          newErrors[field as keyof FormErrors] = error;
-          isValid = false;
-        }
-      });
-    }
-
-    setErrors(newErrors);
-    return isValid;
-  };
-
-  const fetchInitialData = async () => {
+  const fetchRegistryEntries = async () => {
     try {
-      setIsLoading(true);
-      const [depts, divs] = await Promise.all([
-        apiService.getDepartments(),
-        apiService.getDivisions()
-      ]);
-      setDepartments(depts);
-      setDivisions(divs);
-    } catch (error) {
-      console.error('Error fetching initial data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load departments and divisions",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchTodayEntries = async () => {
-    try {
+      setLoading(true);
       const entries = await registryApiService.getRegistryEntries({
-        date: filterDate,
+        date: new Date().toISOString().split('T')[0],
         status: 'active'
       });
       setRegistryEntries(entries);
@@ -210,162 +76,72 @@ const PublicRegistry = () => {
       console.error('Error fetching registry entries:', error);
       toast({
         title: "Error",
-        description: "Failed to load registry entries",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handlePublicIdLookup = async () => {
-    if (!formData.public_id.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a Public ID",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const users = await apiService.getPublicUsers();
-      const foundUser = users.find(u => u.public_id === formData.public_id);
-      
-      if (foundUser) {
-        setScannedUser(foundUser);
-        setFormData(prev => ({
-          ...prev,
-          name: foundUser.name,
-          nic: foundUser.nic,
-          address: foundUser.address || '',
-          phone: foundUser.mobile || '',
-          department_id: foundUser.department_id?.toString() || '',
-          division_id: foundUser.division_id?.toString() || ''
-        }));
-        
-        toast({
-          title: "User Found",
-          description: `Welcome back, ${foundUser.name}!`,
-        });
-      } else {
-        toast({
-          title: "User Not Found",
-          description: "No user found with this ID",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Error looking up user:', error);
-      toast({
-        title: "Error",
-        description: "Failed to lookup user",
+        description: "Failed to fetch registry entries",
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleQRScan = (result: string) => {
+  const fetchDepartments = async () => {
     try {
-      const qrData = JSON.parse(result);
-      if (qrData.public_id) {
-        setFormData(prev => ({ ...prev, public_id: qrData.public_id }));
-        handlePublicIdLookup();
-        setShowQRScanner(false);
-      }
-    } catch (error) {
-      toast({
-        title: "Invalid QR Code",
-        description: "Please scan a valid Public ID QR code",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleCreateAccount = async () => {
-    if (!validateForm('new')) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      
-      // First, check if user exists
-      const users = await apiService.getPublicUsers();
-      const existingUser = users.find(u => u.nic === formData.nic);
-      
-      if (existingUser) {
-        // If user exists, use their existing account instead of creating new
-        setScannedUser(existingUser);
-        setVisitorType('existing');
-        setFormData(prev => ({
-          ...prev,
-          name: existingUser.name,
-          address: existingUser.address || '',
-          phone: existingUser.mobile || '',
-          department_id: existingUser.department_id?.toString() || '',
-          division_id: existingUser.division_id?.toString() || ''
-        }));
-        
-        toast({
-          title: "User Found",
-          description: "An account with this NIC already exists. Loading existing user details.",
-        });
-        return;
-      }
-      
-      // If no existing user, create new one
-      const userData = {
-        name: formData.name,
-        nic: formData.nic,
-        address: formData.address,
-        mobile: formData.phone || '',
-        email: `${formData.nic}@dskalmunai.lk`,
-        username: formData.nic,
-        department_id: formData.department_id ? parseInt(formData.department_id) : undefined,
-        division_id: formData.division_id ? parseInt(formData.division_id) : undefined,
-        password: formData.nic // Using NIC as default password, can be changed later
-      };
-
-      const newUser = await apiService.createPublicUser(userData);
-      
-      toast({
-        title: "Account Created",
-        description: `Public ID: ${newUser.public_id}`,
-      });
-
-      setScannedUser(newUser);
-      setVisitorType('existing');
-      
-    } catch (error) {
-      console.error('Error creating account:', error);
-      let description = "Failed to create account";
-      
-      // Check for specific error messages
-      if (error instanceof Error) {
-        if (error.message.includes('already exists')) {
-          description = "A user with this NIC or username already exists. Please try searching with your Public ID instead.";
+      const response = await fetch('https://dskalmunai.lk/backend/api/departments/', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
-      }
-      
-      toast({
-        title: "Error",
-        description,
-        variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDepartments(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
     }
   };
 
-  const handleRegistrySubmit = async () => {
-    if (!validateForm('existing')) {
+  const fetchDivisions = async (departmentId: number) => {
+    try {
+      const response = await fetch(`https://dskalmunai.lk/backend/api/divisions/?department_id=${departmentId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDivisions(data.data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching divisions:', error);
+    }
+  };
+
+  const handleDepartmentChange = (departmentId: string, isNewVisitor: boolean = true) => {
+    const deptId = parseInt(departmentId);
+    
+    if (isNewVisitor) {
+      setNewVisitorForm(prev => ({
+        ...prev,
+        department_id: departmentId,
+        division_id: ''
+      }));
+    } else {
+      setExistingVisitorForm(prev => ({
+        ...prev,
+        department_id: departmentId,
+        division_id: ''
+      }));
+    }
+    
+    fetchDivisions(deptId);
+  };
+
+  const handleNewVisitorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!newVisitorForm.visitor_name || !newVisitorForm.visitor_nic || !newVisitorForm.department_id) {
       toast({
         title: "Validation Error",
         description: "Please fill in all required fields",
@@ -375,551 +151,459 @@ const PublicRegistry = () => {
     }
 
     try {
-      setIsSubmitting(true);
+      setSubmitting(true);
       
-      const registryData: RegistryEntryCreateData = {
-        public_user_id: scannedUser?.id,
-        visitor_name: formData.name,
-        visitor_nic: formData.nic,
-        visitor_address: formData.address,
-        visitor_phone: formData.phone,
-        department_id: parseInt(formData.department_id),
-        division_id: formData.division_id ? parseInt(formData.division_id) : undefined,
-        purpose_of_visit: formData.purpose_of_visit,
-        remarks: formData.remarks,
-        visitor_type: visitorType
+      const entryData: RegistryEntryCreateData = {
+        visitor_name: newVisitorForm.visitor_name,
+        visitor_nic: newVisitorForm.visitor_nic,
+        visitor_address: newVisitorForm.visitor_address,
+        visitor_phone: newVisitorForm.visitor_phone,
+        department_id: parseInt(newVisitorForm.department_id),
+        division_id: newVisitorForm.division_id ? parseInt(newVisitorForm.division_id) : undefined,
+        purpose_of_visit: newVisitorForm.purpose_of_visit,
+        remarks: newVisitorForm.remarks,
+        visitor_type: 'new'
       };
 
-      const newEntry = await registryApiService.createRegistryEntry(registryData);
-      
-      // Refresh the entries list
-      await fetchTodayEntries();
+      await registryApiService.createRegistryEntry(entryData);
       
       toast({
-        title: "Entry Recorded",
-        description: `Registry ID: ${newEntry.registry_id || 'Generated'}`,
+        title: "Success",
+        description: "New visitor registered successfully",
       });
-
+      
       // Reset form
-      resetForm();
+      setNewVisitorForm({
+        visitor_name: '',
+        visitor_nic: '',
+        visitor_address: '',
+        visitor_phone: '',
+        department_id: '',
+        division_id: '',
+        purpose_of_visit: '',
+        remarks: ''
+      });
+      
+      // Refresh entries
+      fetchRegistryEntries();
       
     } catch (error) {
-      console.error('Error recording entry:', error);
+      console.error('Error creating registry entry:', error);
       toast({
         title: "Error",
-        description: "Failed to record entry",
+        description: "Failed to register visitor",
         variant: "destructive",
       });
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '', nic: '', address: '', phone: '', 
-      department_id: '', division_id: '', purpose_of_visit: '', remarks: '', public_id: ''
-    });
-    setScannedUser(null);
-    setVisitorType('new');
-    setFormErrors({});
+  const handleExistingVisitorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!existingVisitorForm.visitor_name || !existingVisitorForm.department_id) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      const entryData: RegistryEntryCreateData = {
+        public_user_id: existingVisitorForm.public_user_id,
+        visitor_name: existingVisitorForm.visitor_name,
+        visitor_nic: existingVisitorForm.visitor_nic,
+        visitor_address: existingVisitorForm.visitor_address,
+        visitor_phone: existingVisitorForm.visitor_phone,
+        department_id: parseInt(existingVisitorForm.department_id),
+        division_id: existingVisitorForm.division_id ? parseInt(existingVisitorForm.division_id) : undefined,
+        purpose_of_visit: existingVisitorForm.purpose_of_visit,
+        remarks: existingVisitorForm.remarks,
+        visitor_type: 'existing'
+      };
+
+      await registryApiService.createRegistryEntry(entryData);
+      
+      toast({
+        title: "Success",
+        description: "Existing visitor registered successfully",
+      });
+      
+      // Reset form
+      setExistingVisitorForm({
+        public_user_id: null,
+        visitor_name: '',
+        visitor_nic: '',
+        visitor_address: '',
+        visitor_phone: '',
+        department_id: '',
+        division_id: '',
+        purpose_of_visit: '',
+        remarks: ''
+      });
+      
+      // Refresh entries
+      fetchRegistryEntries();
+      
+    } catch (error) {
+      console.error('Error creating registry entry:', error);
+      toast({
+        title: "Error",
+        description: "Failed to register visitor",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const exportToCSV = async () => {
+  const exportData = async (format: 'csv' | 'pdf') => {
     try {
       const blob = await registryApiService.exportRegistryData({
-        date: filterDate,
-        department_id: filterDepartment !== 'all' ? parseInt(filterDepartment) : undefined,
-        format: 'csv'
+        date: new Date().toISOString().split('T')[0],
+        format
       });
       
-      const url = URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `registry_${filterDate}.csv`;
+      a.download = `registry_${new Date().toISOString().split('T')[0]}.${format}`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
       toast({
-        title: "Export Error",
-        description: "Failed to export CSV",
+        title: "Success",
+        description: `Registry data exported as ${format.toUpperCase()}`,
+      });
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to export data",
         variant: "destructive",
       });
     }
   };
 
-  const filteredEntries = registryEntries.filter(entry => {
-    const matchesSearch = entry.visitor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         entry.visitor_nic.includes(searchTerm);
-    const matchesDepartment = filterDepartment === 'all' || 
-                             entry.department_id === parseInt(filterDepartment);
-    
-    return matchesSearch && matchesDepartment;
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const filteredEntries = registryEntries.filter(entry =>
+    entry.visitor_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    entry.visitor_nic.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    entry.department_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="space-y-6 p-4 max-w-7xl mx-auto">
-      {/* Header Card */}
-      <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-indigo-50">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-blue-800 flex items-center gap-3">
-            <Users className="h-8 w-8" />
-            Public Visitor Registry
-          </CardTitle>
-        </CardHeader>
-      </Card>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900">Public Visitor Registry</h1>
+        <div className="flex gap-2">
+          <Button onClick={() => exportData('pdf')} variant="outline" size="sm">
+            <Download className="w-4 h-4 mr-2" />
+            Export PDF
+          </Button>
+          <Button onClick={() => exportData('csv')} variant="outline" size="sm">
+            <Download className="w-4 h-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button onClick={fetchRegistryEntries} variant="outline" size="sm">
+            <Refresh className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </div>
 
-      {/* Main Registry Form */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <h3 className="text-lg font-semibold">Register New Entry</h3>
-            <Button 
-              variant="outline" 
-              onClick={fetchTodayEntries}
-              className="flex items-center gap-2"
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Visitor Type Selection */}
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <Label className="text-base font-medium mb-4 block">Select Visitor Type:</Label>
-            <RadioGroup 
-              value={visitorType} 
-              onValueChange={(value: 'new' | 'existing') => {
-                setVisitorType(value);
-                resetForm();
-              }}
-              className="flex flex-row gap-8"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="new" id="new-visitor" />
-                <Label htmlFor="new-visitor" className="flex items-center gap-2">
-                  <UserPlus className="h-4 w-4" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Registration Form */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Register New Entry
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="new-visitor" className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
                   New Visitor
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="existing" id="existing-visitor" />
-                <Label htmlFor="existing-visitor" className="flex items-center gap-2">
-                  <QrCode className="h-4 w-4" />
+                </TabsTrigger>
+                <TabsTrigger value="existing-id" className="flex items-center gap-2">
+                  <Search className="w-4 h-4" />
                   Existing ID
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
+                </TabsTrigger>
+              </TabsList>
 
-          {/* New Visitor Form */}
-          {visitorType === 'new' && (
-            <Card className="bg-green-50 border-green-200">
-              <CardHeader>
-                <CardTitle className="text-green-800 flex items-center gap-2">
-                  <UserPlus className="h-5 w-5" />
-                  Create New Public Account
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Full Name *</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Enter full name"
-                    className={`mt-1 ${errors.name ? 'border-red-500' : ''}`}
-                    autoComplete="name"
-                    required
-                    aria-required="true"
-                    aria-invalid={!!errors.name}
-                    aria-describedby={errors.name ? 'name-error' : undefined}
-                  />
-                  {errors.name && (
-                    <p id="name-error" className="mt-1 text-sm text-red-500" role="alert">
-                      {errors.name}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="nic">NIC Number *</Label>
-                  <Input
-                    id="nic"
-                    name="nic"
-                    value={formData.nic}
-                    onChange={handleInputChange}
-                    placeholder="Enter NIC number"
-                    className={`mt-1 ${errors.nic ? 'border-red-500' : ''}`}
-                    autoComplete="off"
-                    required
-                    aria-required="true"
-                    aria-invalid={!!errors.nic}
-                    aria-describedby={errors.nic ? 'nic-error' : undefined}
-                  />
-                  {errors.nic && (
-                    <p id="nic-error" className="mt-1 text-sm text-red-500" role="alert">
-                      {errors.nic}
-                    </p>
-                  )}
-                </div>
-                <div className="md:col-span-2">
-                  <Label htmlFor="address">Address *</Label>
-                  <Textarea
-                    id="address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    placeholder="Enter full address"
-                    className={`mt-1 ${errors.address ? 'border-red-500' : ''}`}
-                    required
-                    aria-required="true"
-                    aria-invalid={!!errors.address}
-                    aria-describedby={errors.address ? 'address-error' : undefined}
-                  />
-                  {errors.address && (
-                    <p id="address-error" className="mt-1 text-sm text-red-500" role="alert">
-                      {errors.address}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="department">Department *</Label>
-                  <Select 
-                    value={formData.department_id} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value, division_id: '' }))}
-                    required
-                    aria-required="true"
-                    aria-invalid={!!errors.department_id}
-                    aria-describedby={errors.department_id ? 'department-error' : undefined}
-                  >
-                    <SelectTrigger className={`mt-1 ${errors.department_id ? 'border-red-500' : ''}`}>
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id.toString()}>
-                          {dept.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.department_id && (
-                    <p id="department-error" className="mt-1 text-sm text-red-500" role="alert">
-                      {errors.department_id}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone (optional)</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    placeholder="Enter phone number"
-                    className="mt-1"
-                    type="tel"
-                    aria-invalid={!!errors.phone}
-                    aria-describedby={errors.phone ? 'phone-error' : undefined}
-                  />
-                  {errors.phone && (
-                    <p id="phone-error" className="mt-1 text-sm text-red-500" role="alert">
-                      {errors.phone}
-                    </p>
-                  )}
-                </div>
-                <div className="md:col-span-2">
-                  <Label htmlFor="remarks">Remarks</Label>
-                  <Textarea
-                    id="remarks"
-                    value={formData.remarks}
-                    onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
-                    placeholder="Any additional notes"
-                    className="mt-1"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <Button 
-                    onClick={handleCreateAccount}
-                    disabled={isSubmitting}
-                    className="w-full bg-green-600 hover:bg-green-700"
-                  >
-                    {isSubmitting ? 'Creating...' : 'Save Account & Proceed to Registry Entry'}
+              <TabsContent value="new-visitor" className="space-y-4">
+                <form onSubmit={handleNewVisitorSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-visitor-name">Full Name *</Label>
+                      <Input
+                        id="new-visitor-name"
+                        type="text"
+                        placeholder="Enter full name"
+                        value={newVisitorForm.visitor_name}
+                        onChange={(e) => setNewVisitorForm(prev => ({ ...prev, visitor_name: e.target.value }))}
+                        required
+                        autoComplete="name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-visitor-nic">NIC Number *</Label>
+                      <Input
+                        id="new-visitor-nic"
+                        type="text"
+                        placeholder="Enter NIC number"
+                        value={newVisitorForm.visitor_nic}
+                        onChange={(e) => setNewVisitorForm(prev => ({ ...prev, visitor_nic: e.target.value }))}
+                        required
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="new-visitor-address">Address</Label>
+                    <Textarea
+                      id="new-visitor-address"
+                      placeholder="Enter full address"
+                      value={newVisitorForm.visitor_address}
+                      onChange={(e) => setNewVisitorForm(prev => ({ ...prev, visitor_address: e.target.value }))}
+                      autoComplete="street-address"
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-visitor-department">Department *</Label>
+                      <Select 
+                        value={newVisitorForm.department_id} 
+                        onValueChange={(value) => handleDepartmentChange(value, true)}
+                        required
+                      >
+                        <SelectTrigger id="new-visitor-department">
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {departments.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.id.toString()}>
+                              {dept.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-visitor-phone">Phone (optional)</Label>
+                      <Input
+                        id="new-visitor-phone"
+                        type="tel"
+                        placeholder="Enter phone number"
+                        value={newVisitorForm.visitor_phone}
+                        onChange={(e) => setNewVisitorForm(prev => ({ ...prev, visitor_phone: e.target.value }))}
+                        autoComplete="tel"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="new-visitor-purpose">Purpose of Visit *</Label>
+                    <Input
+                      id="new-visitor-purpose"
+                      type="text"
+                      placeholder="Enter purpose of visit"
+                      value={newVisitorForm.purpose_of_visit}
+                      onChange={(e) => setNewVisitorForm(prev => ({ ...prev, purpose_of_visit: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="new-visitor-remarks">Remarks</Label>
+                    <Textarea
+                      id="new-visitor-remarks"
+                      placeholder="Enter any additional remarks"
+                      value={newVisitorForm.remarks}
+                      onChange={(e) => setNewVisitorForm(prev => ({ ...prev, remarks: e.target.value }))}
+                    />
+                  </div>
+                  
+                  <Button type="submit" className="w-full" disabled={submitting}>
+                    {submitting ? 'Registering...' : 'Save Account & Proceed to Registry Entry'}
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                </form>
+              </TabsContent>
 
-          {/* Existing Visitor Form */}
-          {visitorType === 'existing' && (
-            <Card className="bg-blue-50 border-blue-200">
-              <CardHeader>
-                <CardTitle className="text-blue-800 flex items-center gap-2">
-                  <Search className="h-5 w-5" />
-                  Scan or Enter Public ID
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <Button
-                    onClick={() => setShowQRScanner(true)}
-                    variant="outline"
-                    className="flex items-center gap-2 flex-1"
-                  >
-                    <Camera className="h-4 w-4" />
+              <TabsContent value="existing-id" className="space-y-4">
+                <div className="flex gap-2 mb-4">
+                  <Button type="button" variant="outline" className="flex-1">
+                    <Camera className="w-4 h-4 mr-2" />
                     Scan QR Code
                   </Button>
-                  <div className="flex gap-2 flex-2">
-                    <Input
-                      value={formData.public_id}
-                      onChange={(e) => setFormData(prev => ({ ...prev, public_id: e.target.value }))}
-                      placeholder="Enter Public ID (e.g., PUB00001)"
-                      className="flex-1"
-                    />
-                    <Button onClick={handlePublicIdLookup} variant="outline">
-                      <Search className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input
+                    placeholder="Or enter Public ID"
+                    className="flex-1"
+                  />
                 </div>
-
-                {scannedUser && (
-                  <div className="p-4 bg-white rounded-lg border border-blue-200">
-                    <h4 className="font-medium text-blue-800 mb-3">Auto-filled Information:</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                
+                <form onSubmit={handleExistingVisitorSubmit} className="space-y-4">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2">Auto-filled fields:</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <span className="font-medium">Name:</span> {scannedUser.name}
+                        <Label htmlFor="existing-visitor-name">Name:</Label>
+                        <Input
+                          id="existing-visitor-name"
+                          type="text"
+                          value={existingVisitorForm.visitor_name}
+                          onChange={(e) => setExistingVisitorForm(prev => ({ ...prev, visitor_name: e.target.value }))}
+                          placeholder="Auto-filled from scan"
+                          autoComplete="name"
+                        />
                       </div>
                       <div>
-                        <span className="font-medium">NIC:</span> {scannedUser.nic.replace(/\d(?=\d{3})/g, '*')}
+                        <Label htmlFor="existing-visitor-nic-display">NIC:</Label>
+                        <Input
+                          id="existing-visitor-nic-display"
+                          type="text"
+                          value={existingVisitorForm.visitor_nic}
+                          readOnly
+                          placeholder="**********"
+                        />
                       </div>
                       <div>
-                        <span className="font-medium">Department:</span> {scannedUser.department_name || 'Not assigned'}
+                        <Label htmlFor="existing-visitor-department-display">Department:</Label>
+                        <Select 
+                          value={existingVisitorForm.department_id} 
+                          onValueChange={(value) => handleDepartmentChange(value, false)}
+                        >
+                          <SelectTrigger id="existing-visitor-department-display">
+                            <SelectValue placeholder="Select department" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments.map((dept) => (
+                              <SelectItem key={dept.id} value={dept.id.toString()}>
+                                {dept.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="md:col-span-2">
-                        <span className="font-medium">Address:</span> {scannedUser.address}
+                      <div>
+                        <Label htmlFor="existing-visitor-address-display">Address:</Label>
+                        <Input
+                          id="existing-visitor-address-display"
+                          type="text"
+                          value={existingVisitorForm.visitor_address}
+                          readOnly
+                          placeholder="Auto-filled address"
+                        />
                       </div>
                     </div>
                   </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <Label htmlFor="purpose">Purpose of Visit *</Label>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="existing-visitor-purpose">Purpose of Visit *</Label>
                     <Input
-                      id="purpose"
-                      name="purpose_of_visit"
-                      value={formData.purpose_of_visit}
-                      onChange={handleInputChange}
+                      id="existing-visitor-purpose"
+                      type="text"
                       placeholder="Enter purpose of visit"
-                      className={`mt-1 ${errors.purpose_of_visit ? 'border-red-500' : ''}`}
+                      value={existingVisitorForm.purpose_of_visit}
+                      onChange={(e) => setExistingVisitorForm(prev => ({ ...prev, purpose_of_visit: e.target.value }))}
                       required
-                      aria-required="true"
-                      aria-invalid={!!errors.purpose_of_visit}
-                      aria-describedby={errors.purpose_of_visit ? 'purpose-error' : undefined}
                     />
-                    {errors.purpose_of_visit && (
-                      <p id="purpose-error" className="mt-1 text-sm text-red-500" role="alert">
-                        {errors.purpose_of_visit}
-                      </p>
-                    )}
                   </div>
-                  <div>
-                    <Label htmlFor="visit-department">Department *</Label>
-                    <Select 
-                      value={formData.department_id} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value, division_id: '' }))}
-                      required
-                      aria-required="true"
-                      aria-invalid={!!errors.department_id}
-                      aria-describedby={errors.department_id ? 'department-error' : undefined}
-                    >
-                      <SelectTrigger className={`mt-1 ${errors.department_id ? 'border-red-500' : ''}`}>
-                        <SelectValue placeholder="Select department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id.toString()}>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {errors.department_id && (
-                      <p id="department-error" className="mt-1 text-sm text-red-500" role="alert">
-                        {errors.department_id}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <Label htmlFor="visit-remarks">Remarks (optional)</Label>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="existing-visitor-remarks">Remarks (optional)</Label>
                     <Textarea
-                      id="visit-remarks"
-                      value={formData.remarks}
-                      onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
-                      placeholder="Any additional notes"
-                      className="mt-1"
+                      id="existing-visitor-remarks"
+                      placeholder="Enter any additional remarks"
+                      value={existingVisitorForm.remarks}
+                      onChange={(e) => setExistingVisitorForm(prev => ({ ...prev, remarks: e.target.value }))}
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <Button 
-                      onClick={handleRegistrySubmit}
-                      disabled={isSubmitting}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                    >
-                      {isSubmitting ? 'Submitting...' : 'Submit Entry'}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </CardContent>
-      </Card>
+                  
+                  <Button type="submit" className="w-full" disabled={submitting}>
+                    {submitting ? 'Submitting...' : 'Submit Entry'}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
 
-      {/* Entry Log Panel */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Entry Log - {new Date(filterDate).toLocaleDateString()}
+        {/* Entry Log Panel */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Entry Log Panel (Today)
+              </span>
+              <Badge variant="secondary">{filteredEntries.length} entries</Badge>
             </CardTitle>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={exportToCSV} variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
               <Input
-                placeholder="Search by name or NIC..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name, NIC, or department..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full"
               />
+              
+              <div className="max-h-96 overflow-y-auto">
+                {loading ? (
+                  <div className="text-center py-4">Loading entries...</div>
+                ) : filteredEntries.length === 0 ? (
+                  <div className="text-center py-4 text-gray-500">No entries found for today</div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredEntries.map((entry) => (
+                      <div key={entry.id} className="p-3 border rounded-lg bg-gray-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-semibold">{entry.visitor_name}</div>
+                            <div className="text-sm text-gray-600">
+                              NIC: {entry.visitor_nic.replace(/(.{3})(.*)(.{3})/, '$1***$3')}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {entry.department_name} {entry.division_name && `- ${entry.division_name}`}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Purpose: {entry.purpose_of_visit}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-semibold">
+                              {new Date(entry.entry_time).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </div>
+                            <Badge variant={entry.visitor_type === 'new' ? 'default' : 'secondary'}>
+                              {entry.visitor_type === 'new' ? 'New' : 'Existing'}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-4">
-              <Input
-                type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="w-40"
-              />
-              <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="All Departments" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Departments</SelectItem>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id.toString()}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Entries Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Time</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Registry ID</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Name</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">NIC</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Department</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Purpose</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Type</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredEntries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      {new Date(entry.entry_time).toLocaleTimeString()}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-medium text-blue-600">
-                      {entry.registry_id}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                      {entry.visitor_name}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {entry.visitor_nic.replace(/\d(?=\d{3})/g, '*')}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      {entry.department_name}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      {entry.purpose_of_visit}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      <Badge variant={entry.visitor_type === 'new' ? 'default' : 'secondary'}>
-                        {entry.visitor_type}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      <Badge variant={
-                        entry.status === 'active' ? 'default' :
-                          entry.status === 'checked_out' ? 'secondary' : 'destructive'
-                      }>
-                        {entry.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {filteredEntries.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No entries found for the selected date and filters.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* QR Scanner Modal */}
-      {showQRScanner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <ResponsiveQRScanner
-              onScanSuccess={handleQRScan}
-              onError={(error) => {
-                console.error('QR Scan error:', error);
-                toast({
-                  title: "Scan Error",
-                  description: "Failed to scan QR code",
-                  variant: "destructive",
-                });
-              }}
-              onClose={() => setShowQRScanner(false)}
-            />
-          </div>
-        </div>
-      )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

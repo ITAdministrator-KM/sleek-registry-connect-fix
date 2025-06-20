@@ -1,16 +1,43 @@
-
 <?php
-include_once '../../config/cors.php';
-include_once '../../config/database.php';
-include_once '../../config/error_handler.php';
-include_once '../../config/response_handler.php';
-
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Max-Age: 3600');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
 
 // Enhanced error logging
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
+
+require_once '../../config/database.php';
+require_once '../../config/response_handler.php';
+
+function sendResponse($data, $message = "Success", $status = 200) {
+    http_response_code($status);
+    echo json_encode([
+        'success' => true,
+        'data' => $data,
+        'message' => $message
+    ]);
+    exit;
+}
+
+function sendError($status, $message, $details = null) {
+    http_response_code($status);
+    echo json_encode([
+        'success' => false,
+        'message' => $message,
+        'error' => $details,
+        'status' => $status
+    ]);
+    exit;
+}
 
 try {
     $database = new Database();
@@ -42,7 +69,7 @@ try {
 } catch (Exception $e) {
     error_log("Service Catalog API Error: " . $e->getMessage());
     error_log("Service Catalog API Trace: " . $e->getTraceAsString());
-    sendError(500, "Internal server error");
+    sendError(500, "Internal server error: " . $e->getMessage());
 }
 
 function getServices($db) {
@@ -84,7 +111,35 @@ function getServices($db) {
             
             sendResponse($service, "Service retrieved successfully");
         } else {
-            // Get all services
+            // Get all services - Check if service_catalog table exists
+            $tableCheck = $db->query("SHOW TABLES LIKE 'service_catalog'");
+            if ($tableCheck->rowCount() == 0) {
+                // Create service_catalog table if it doesn't exist
+                $createTable = "
+                CREATE TABLE service_catalog (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    service_name VARCHAR(255) NOT NULL,
+                    service_code VARCHAR(50) UNIQUE NOT NULL,
+                    description TEXT,
+                    department_id INT,
+                    division_id INT,
+                    icon VARCHAR(100) DEFAULT '📄',
+                    fee_amount DECIMAL(10,2) DEFAULT 0.00,
+                    required_documents TEXT,
+                    processing_time_days INT DEFAULT 7,
+                    eligibility_criteria TEXT,
+                    form_template_url VARCHAR(500),
+                    status ENUM('active', 'inactive') DEFAULT 'active',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    FOREIGN KEY (department_id) REFERENCES departments(id),
+                    FOREIGN KEY (division_id) REFERENCES divisions(id)
+                )";
+                
+                $db->exec($createTable);
+                error_log("Service catalog table created successfully");
+            }
+            
             $whereClause = $public_view ? "WHERE sc.status = 'active'" : "";
             
             $query = "SELECT sc.*, d.name as department_name, dv.name as division_name
@@ -116,7 +171,7 @@ function getServices($db) {
         }
     } catch (Exception $e) {
         error_log("Get services error: " . $e->getMessage());
-        sendError(500, "Failed to fetch services");
+        sendError(500, "Failed to fetch services: " . $e->getMessage());
     }
 }
 
@@ -157,11 +212,6 @@ function createService($db) {
             return;
         }
         
-        // Start transaction
-        if (!$db->beginTransaction()) {
-            throw new Exception("Failed to start transaction");
-        }
-        
         $query = "INSERT INTO service_catalog (
                     service_name, service_code, description, department_id, division_id, 
                     icon, fee_amount, required_documents, processing_time_days, 
@@ -170,7 +220,6 @@ function createService($db) {
         
         $stmt = $db->prepare($query);
         if (!$stmt) {
-            $db->rollBack();
             throw new Exception("Failed to prepare insert statement: " . $db->error);
         }
         
@@ -200,15 +249,10 @@ function createService($db) {
         ];
         
         if (!$stmt->execute($params)) {
-            $db->rollBack();
             throw new Exception("Failed to execute insert: " . implode(', ', $stmt->errorInfo()));
         }
         
         $serviceId = $db->lastInsertId();
-        
-        if (!$db->commit()) {
-            throw new Exception("Failed to commit transaction");
-        }
         
         sendResponse([
             "id" => intval($serviceId),
@@ -216,11 +260,8 @@ function createService($db) {
         ], "Service created successfully");
         
     } catch (Exception $e) {
-        if ($db && $db->inTransaction()) {
-            $db->rollBack();
-        }
         error_log("Create service error: " . $e->getMessage());
-        sendError(500, "Failed to create service");
+        sendError(500, "Failed to create service: " . $e->getMessage());
     }
 }
 
@@ -235,22 +276,15 @@ function updateService($db) {
             return;
         }
         
-        // Start transaction
-        if (!$db->beginTransaction()) {
-            throw new Exception("Failed to start transaction");
-        }
-        
         // Check if service exists
         $stmt = $db->prepare("SELECT id FROM service_catalog WHERE id = ?");
         if (!$stmt) {
-            $db->rollBack();
             throw new Exception("Failed to prepare statement: " . $db->error);
         }
         
         $stmt->execute([intval($id)]);
         
         if ($stmt->rowCount() === 0) {
-            $db->rollBack();
             sendError(404, "Service not found");
             return;
         }
@@ -285,7 +319,6 @@ function updateService($db) {
         }
         
         if (empty($updateFields)) {
-            $db->rollBack();
             sendError(400, "No fields to update");
             return;
         }
@@ -295,27 +328,18 @@ function updateService($db) {
         
         $stmt = $db->prepare($query);
         if (!$stmt) {
-            $db->rollBack();
             throw new Exception("Failed to prepare update statement: " . $db->error);
         }
         
         if (!$stmt->execute($params)) {
-            $db->rollBack();
             throw new Exception("Failed to execute update: " . implode(', ', $stmt->errorInfo()));
-        }
-        
-        if (!$db->commit()) {
-            throw new Exception("Failed to commit transaction");
         }
         
         sendResponse(["id" => intval($id)], "Service updated successfully");
         
     } catch (Exception $e) {
-        if ($db && $db->inTransaction()) {
-            $db->rollBack();
-        }
         error_log("Update service error: " . $e->getMessage());
-        sendError(500, "Failed to update service");
+        sendError(500, "Failed to update service: " . $e->getMessage());
     }
 }
 
@@ -328,22 +352,15 @@ function deleteService($db) {
             return;
         }
         
-        // Start transaction
-        if (!$db->beginTransaction()) {
-            throw new Exception("Failed to start transaction");
-        }
-        
         // Check if service exists
         $stmt = $db->prepare("SELECT id FROM service_catalog WHERE id = ?");
         if (!$stmt) {
-            $db->rollBack();
             throw new Exception("Failed to prepare statement: " . $db->error);
         }
         
         $stmt->execute([intval($id)]);
         
         if ($stmt->rowCount() === 0) {
-            $db->rollBack();
             sendError(404, "Service not found");
             return;
         }
@@ -352,27 +369,18 @@ function deleteService($db) {
         $query = "UPDATE service_catalog SET status = 'inactive', updated_at = NOW() WHERE id = ?";
         $stmt = $db->prepare($query);
         if (!$stmt) {
-            $db->rollBack();
             throw new Exception("Failed to prepare delete statement: " . $db->error);
         }
         
         if (!$stmt->execute([intval($id)])) {
-            $db->rollBack();
             throw new Exception("Failed to execute delete: " . implode(', ', $stmt->errorInfo()));
-        }
-        
-        if (!$db->commit()) {
-            throw new Exception("Failed to commit transaction");
         }
         
         sendResponse(["id" => intval($id)], "Service deleted successfully");
         
     } catch (Exception $e) {
-        if ($db && $db->inTransaction()) {
-            $db->rollBack();
-        }
         error_log("Delete service error: " . $e->getMessage());
-        sendError(500, "Failed to delete service");
+        sendError(500, "Failed to delete service: " . $e->getMessage());
     }
 }
 ?>
