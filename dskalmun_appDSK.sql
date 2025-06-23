@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jun 19, 2025 at 11:49 AM
+-- Generation Time: Jun 23, 2025 at 02:04 PM
 -- Server version: 8.0.42-cll-lve
 -- PHP Version: 8.3.22
 
@@ -192,6 +192,21 @@ CREATE TABLE `enhanced_tokens` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `excel_edits`
+--
+
+CREATE TABLE `excel_edits` (
+  `id` int NOT NULL,
+  `document_id` int NOT NULL,
+  `edited_by_user_id` int NOT NULL,
+  `edit_data` longtext COLLATE utf8mb4_unicode_ci NOT NULL,
+  `version_number` int DEFAULT '1',
+  `edit_timestamp` timestamp NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `forms`
 --
 
@@ -321,7 +336,7 @@ CREATE TABLE `public_id_counter` (
 --
 
 INSERT INTO `public_id_counter` (`id`, `sequence_value`) VALUES
-(1, 7497499);
+(1, 7497500);
 
 -- --------------------------------------------------------
 
@@ -383,7 +398,8 @@ CREATE TABLE `public_users` (
 
 INSERT INTO `public_users` (`id`, `public_user_id`, `public_id`, `name`, `nic`, `address`, `mobile`, `qr_code_data`, `qr_code_url`, `email`, `photo_url`, `department_id`, `division_id`, `status`, `created_at`, `updated_at`, `username`, `password_hash`, `qr_code`, `last_login`) VALUES
 (1, 'PUB00001', 'PUB001', 'T.M.Mohemed Anzar', '853421669V', '167A, Gafoor Lane, F.C Road, Kattankudy 02', '+94777930531', NULL, NULL, 'anzar@example.com', NULL, 1, 0, 'active', '2025-05-27 10:55:59', '2025-06-12 09:53:24', 'anzar', '$2y$12$xqSvYG5zxTOcUn90f13rEuDSAQeRHf6Z.IduIITFH9smz17wTvYDq', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAsQAAALECAIAAACAN7HUAAAACXBIWXMAAA7EAAAOxAGVKw4bAAATaUlEQVR4nO3dS3IlOZIAweFI3v/KOftelEDaMF6OoOoBGN8XNMEC/vP379//AQD4b/3vv30CAMDbxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACD5M3mwn5+fycOt8vfv3yt/59Y9PDmfbce6dQ9PbLv2yWNN3ucTk+f81W/U5Lux7R376jM9MXmfrUwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJKOzOU5smwtw4sW93yf34X/x/kzO1Lhl22yFbffnFnNAum3zO/zf6axMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACTrZnOcmNyTfNue7dvmAmyb9TD5d05M3ucT2347k+fz4syRbc/9xXt4y4vPfZKVCQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIDkydkc7PHiHvuTJvfYf3Heyi2T5zM5L2PbbJcTL87QobMyAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCYzfFBt/bz3zbr4cSL+/lvm2+y7VlsO59bJq/9lsnz2fY75Z9ZmQAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBInpzN8dU92ydnYZzYNstg0ovzILY9r5Pz+er8l0nmicz46rfuFisTAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAMm62Rxf3df9llt742+b0TB5XV/9O7dMns9XZz28+P785vfwxXdsGysTAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAMnobI7Jfd1f5P502+YUbJt3cGLb/IVbf2fbfZ60bd7KpG3n81VWJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAACS0dkck/vDT85WOLHtWLf+zm+eYXFi27XfescmvTgrZNJXv5knfH/2sDIBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkPy8uO/9i3uk/+Zrn7RttsKL8022zWh48Z2ffA9/8+yJF9/Vbe/GLVYmAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAAJLR2RyTXtyz/cTkHvu/eT//E9vm2rz4LG7ZNlth27yMbfdnmxf/F2xjZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgGZ3NsW2+wLbzuWXb3vjb5hTc8tW9+r86M2Kbyd/pizNHXpwnsu3+TP4urEwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJKOzOU5s22/8hHPuts1o2LZX/61j3bLt/TmxbWbEiW3PdNJXr33b7+IWKxMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAyZ9/+wT+G9vmJrw4D+Kr+97fcuvdeHEexDYvzgGZ/CZs+45N+upcmxPbnpeVCQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIDkZ9ue5C/Oufjq/IVte79v29P+q89r23Wd2DYLY/JY274/274bt2y7P9vmrViZAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEj+/Nsn8J8m5wJs2/f+xf3zX7yuyT3tX5yX8dV348WZI9vu4bZ345Zt78a28zlhZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAg+Znc//yrJveZ37Znu7kk3eS1n/jNz+LEV+dTnNh2n1/8Hn6VlQkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAZHQ2x7YZFr95rsQt2/bqP7FtJsJXZ3zcsu13uu093PY+3/LiN3Pb72vy2q1MAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACR/Jg/21X3mf/N+/p7FzLEm/862eSvb5uO8+I06sW0WxrZ3lX9mZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgGZ3N8eKe9pPnMzk74JYXZ4V8dS7JLZOzS7a59f5sm29y6+989dpPTM4uefF/pZUJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgGR0NseLXtxnftu8jMl95l8851u2zcK4dZ9vmTyfyWO5hzN/55avfqOsTAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkP9vmC5zYtif5iRf3qz/x4j7zk89i0lefxbbZCtue+wn3p9v2+9r2f9DKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEDy598+gf8v5gt02/Z+nzT5vCaPte0du/X+vDgTYfL3te18tr2Ht/zmGShWJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAACSdbM5Xpx3sG3uxrbzuWXynLfdn8l9+Ldd+zaT8zJueXGeyC1fnSey7VlYmQAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIfrbto35icp/5bbbt53/ixXds0ovv4S3bfqfbfl/b7s8tv/m6vsrKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAyOpvj1l70t451Ytv9OTG57/2Lx9r2TLfdw1u2nfNXZ3ycePF3cWLbOU++q9veMSsTAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAMmff/sE/tPk/vm3bNtH3R7y3a3r+s3XfmLy/rw42+XEb57/cmLbM711n7ddl5UJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgGTdbI4XvThfYHIGyrZZD9tml2yzbU7B5DPd9txvnfOL7+Et22aFbDufW6xMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACQ/2/YJ/817yJ/46j782+ZB3LJt1sM2274/k7bNJZn01ff5xLZncYuVCQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIDkydkck/vVT/6dW7bNudh2f26ZvK4Xj/Wb/84t234XL/6/ODE5Q+fFY52wMgEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQ/Pm3T+A/3dpLfHKWwbY90k9M7vm/bX7H5LN48bpefJ9vefEeTp7zb343Tkw+i22sTAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAk62ZznPjqvvfb5ji8eKxJ22ZqnJj87Uw+023v863z2XZdk/OMbtn2LLb9b7rFygQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBA8uRsjm17kk/ux37Csf7Zree1bYbFV8958nmdHGvbfJMXj7VtzsUtX50DcsLKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEDyM7l39639/E9s29t827VP+upe9CcmZ1i86MVnestv/v5MfhNuefF/pdkcAMAzxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAZnc1xYtsch8m9309s26v/xfPZ9o5NMg9ixovvz7bz2Wbb+7ONlQkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCA5LOzOW4d68Tk+WybPXHCnIKZY704R+bFeQcv3ucTL/4GJ217n09MPi8rEwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAADJutkcJ16cZbBtT/tt53PixbkkzPjq/JcT22aObLuHXz2fbdduZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAg+TN5sBdnNEzads7bnte2Y92yba/+bfNNtv1OT3z1t3zLb55hceLFc7YyAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCMzua4tZ//rX3mJ/erP7n2bXv1b9v7/ZZt93ny70x6cU7KiRdnoGybZzT5d279T5n8bmx7XiesTAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAko7M5tnlxRsO2Pe23nc+tY03aNp9i2/25Zduci1u2fcdunc+L93Dy2rf9Tq1MAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACSjszm27bVuJsI/2zbL4KszCLaZnIHy4jPd9t24dV3bnsWJF5/XLdu+UVYmAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAAJLR2RwnJvda/+rMiMm/s20+xYv78E++85Pv84vv2Iv3Z/JYt679q9/5F78/t1iZAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEh+tu17f+LFPdK3zQHZ9iy2vYcv3ucTv/m5n5ic0fDitZ948bpefKbbzsfKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAyOpvjhP3h9xzrxTkOkzNZts3LuGXbdb34u9g262HbHIcTv/mcX7x2KxMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAybrZHLd8dd/7bcc68eJMjW3zMn4z36g9f+eWbeezzYvzO6xMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACSfnc3xom1745/YNr/jxT3tX3zuJ7a9G7e8+M3cdn8m341bts0K2fYeWpkAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASP5MHmzb3uaTTvZR3zaf4sTk/vAvzt04sW1Oyov38MSt92fbd2zbt+XE5Dfqq9e1jZUJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgGR0NseJF/f837aH/Lb5HS/Oeth2zpP7+W+bt3Lr72ybRzP5+9rmq+/zb2ZlAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACBZN5vjxFf3dZ+cLzBp2974X52BcuLF92dyTsq2d/XEi7NCbv0uXnyfJ5/X5PtsZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgeXI2x1fd2md+cj/2bfvDT87CMMdh5lhfnZNyYts7tu33fsu2d+PF+2xlAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAxm2ORW/vD39rX/TfP+Jic37Ftj/1t8ylOfHX+y7Y5Mi/Odjkx+bxe/CacsDIBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkDw5m+PFfcsn3Zod8OI+/NvmSmw7nxe9eA8n53dsm2Hx4uyJ3/zNvMXKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAECybjbHi/vw33JrP/Ztf+eWyXdj22yFF4+1bY7DttkKJyZ/X9t+y9ueBf/MygQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBA8jO5HzsA8D1WJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAACS/wNniv2gvNJqDgAAAABJRU5ErkJggg==', NULL),
-(6, 'PUB00002', 'PUB74974', 'Farhana Sulaima Lebbe', '937080590V', '212A,Cassim Road, Kalmunai Kudy 11', '0775560909', NULL, NULL, 'itdskalmunai@gmail.com', NULL, 1, 0, 'active', '2025-06-12 10:05:36', '2025-06-12 10:06:11', 'Farhana', '$2y$12$cheM6qwkUeQQh21zgrq7zuoTfggcwL2YM3KawgYUe6vb12Fa3x8ai', '', NULL);
+(6, 'PUB00002', 'PUB74974', 'Farhana Sulaima Lebbe', '937080590V', '212A,Cassim Road, Kalmunai Kudy 11', '0775560909', NULL, NULL, 'itdskalmunai@gmail.com', NULL, 1, 0, 'active', '2025-06-12 10:05:36', '2025-06-12 10:06:11', 'Farhana', '$2y$12$cheM6qwkUeQQh21zgrq7zuoTfggcwL2YM3KawgYUe6vb12Fa3x8ai', '', NULL),
+(7, 'PUB00003', 'PUB74975', 'Front desk', '200080789v', 'Divisional Secretariat, Kalmunai', '0112223852', NULL, NULL, 'desk@gmail.com', NULL, NULL, NULL, 'active', '2025-06-19 08:59:58', '2025-06-19 08:59:58', 'Front Desk', '$2y$12$c0l20MBGpaTKSQhsBZYZ7.MQotPTdw.hQAHjwflTXy0VXKqu613ci', '', NULL);
 
 --
 -- Triggers `public_users`
@@ -418,7 +434,8 @@ CREATE TABLE `qr_codes` (
 --
 
 INSERT INTO `qr_codes` (`id`, `public_user_id`, `qr_code_data`, `qr_code_url`, `created_at`, `updated_at`) VALUES
-(1, 6, '{\"public_id\":\"PUB00002\",\"name\":\"Farhana Sulaima Lebbe\",\"nic\":\"937080590V\",\"created_at\":\"2025-06-12 10:05:36\"}', 'https://dskalmunai.lk/qr-scan/PUB00002', '2025-06-12 10:05:36', '2025-06-12 10:05:36');
+(1, 6, '{\"public_id\":\"PUB00002\",\"name\":\"Farhana Sulaima Lebbe\",\"nic\":\"937080590V\",\"created_at\":\"2025-06-12 10:05:36\"}', 'https://dskalmunai.lk/qr-scan/PUB00002', '2025-06-12 10:05:36', '2025-06-12 10:05:36'),
+(2, 7, '{\"public_id\":\"PUB00003\",\"name\":\"Front desk\",\"nic\":\"200080789v\",\"created_at\":\"2025-06-19 08:59:58\"}', 'https://dskalmunai.lk/qr-scan/PUB00003', '2025-06-19 08:59:58', '2025-06-19 08:59:58');
 
 -- --------------------------------------------------------
 
@@ -525,6 +542,23 @@ CREATE TABLE `service_requests` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `subject_staff`
+--
+
+CREATE TABLE `subject_staff` (
+  `id` int NOT NULL,
+  `user_id` int NOT NULL,
+  `post` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `assigned_department_id` int NOT NULL,
+  `assigned_division_id` int NOT NULL,
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `tokens`
 --
 
@@ -536,43 +570,50 @@ CREATE TABLE `tokens` (
   `public_user_id` int DEFAULT NULL,
   `status` enum('active','called','completed','cancelled') COLLATE utf8mb3_unicode_ci DEFAULT 'active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `called_at` timestamp NULL DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
 
 --
 -- Dumping data for table `tokens`
 --
 
-INSERT INTO `tokens` (`id`, `token_number`, `department_id`, `division_id`, `public_user_id`, `status`, `created_at`, `updated_at`) VALUES
-(1, 1, 1, 1, NULL, 'active', '2025-05-29 07:32:35', '2025-05-29 07:32:35'),
-(2, 1, 1, 2, NULL, 'active', '2025-05-29 08:15:37', '2025-05-29 08:15:37'),
-(3, 2, 1, 1, NULL, 'active', '2025-05-29 09:12:17', '2025-05-29 09:12:17'),
-(4, 3, 1, 1, NULL, 'active', '2025-05-29 09:28:09', '2025-05-29 09:28:09'),
-(5, 1, 1, 2, NULL, 'active', '2025-05-30 03:23:46', '2025-05-30 03:23:46'),
-(6, 2, 1, 2, NULL, 'active', '2025-05-30 03:25:25', '2025-05-30 03:25:25'),
-(7, 1, 1, 1, NULL, 'active', '2025-05-30 03:52:14', '2025-05-30 03:52:14'),
-(8, 2, 1, 1, NULL, 'active', '2025-05-30 03:53:01', '2025-05-30 03:53:01'),
-(9, 1, 3, 6, NULL, 'active', '2025-05-30 05:28:46', '2025-05-30 05:28:46'),
-(10, 1, 1, 2, NULL, 'active', '2025-06-03 07:50:58', '2025-06-03 07:50:58'),
-(11, 1, 7, 9, NULL, 'active', '2025-06-03 07:51:30', '2025-06-03 07:51:30'),
-(12, 1, 7, 9, NULL, 'active', '2025-06-04 09:16:12', '2025-06-04 09:16:12'),
-(13, 2, 7, 9, NULL, 'active', '2025-06-04 09:28:11', '2025-06-04 09:28:11'),
-(14, 1, 1, 1, NULL, 'active', '2025-06-04 09:29:27', '2025-06-04 09:29:27'),
-(15, 2, 1, 1, NULL, 'active', '2025-06-04 09:30:54', '2025-06-04 09:30:54'),
-(16, 3, 7, 9, NULL, 'active', '2025-06-04 10:01:22', '2025-06-04 10:01:22'),
-(17, 4, 7, 9, NULL, 'active', '2025-06-04 10:02:19', '2025-06-04 10:02:19'),
-(18, 1, 1, 2, NULL, 'active', '2025-06-05 03:56:33', '2025-06-05 03:56:33'),
-(19, 2, 1, 2, NULL, 'active', '2025-06-05 03:57:31', '2025-06-05 03:57:31'),
-(20, 3, 1, 2, NULL, 'active', '2025-06-05 04:00:18', '2025-06-05 04:00:18'),
-(21, 1, 2, 3, NULL, 'active', '2025-06-05 04:20:19', '2025-06-05 04:20:19'),
-(22, 2, 2, 3, NULL, 'active', '2025-06-05 04:20:34', '2025-06-05 04:20:34'),
-(23, 1, 1, 1, NULL, 'active', '2025-06-06 04:47:01', '2025-06-06 04:47:01'),
-(24, 1, 1, 1, NULL, 'active', '2025-06-11 05:06:54', '2025-06-11 05:06:54'),
-(25, 2, 1, 1, NULL, 'active', '2025-06-11 05:07:07', '2025-06-11 05:07:07'),
-(26, 3, 1, 1, NULL, 'active', '2025-06-11 05:07:11', '2025-06-11 05:07:11'),
-(27, 1, 10, 10, NULL, 'active', '2025-06-12 05:41:22', '2025-06-12 05:41:22'),
-(28, 1, 12, 21, NULL, 'active', '2025-06-12 08:59:21', '2025-06-12 08:59:21'),
-(29, 1, 11, 19, NULL, 'active', '2025-06-12 09:00:03', '2025-06-12 09:00:03');
+INSERT INTO `tokens` (`id`, `token_number`, `department_id`, `division_id`, `public_user_id`, `status`, `created_at`, `updated_at`, `called_at`) VALUES
+(1, 1, 1, 1, NULL, 'active', '2025-05-29 07:32:35', '2025-05-29 07:32:35', NULL),
+(2, 1, 1, 2, NULL, 'active', '2025-05-29 08:15:37', '2025-05-29 08:15:37', NULL),
+(3, 2, 1, 1, NULL, 'active', '2025-05-29 09:12:17', '2025-05-29 09:12:17', NULL),
+(4, 3, 1, 1, NULL, 'active', '2025-05-29 09:28:09', '2025-05-29 09:28:09', NULL),
+(5, 1, 1, 2, NULL, 'active', '2025-05-30 03:23:46', '2025-05-30 03:23:46', NULL),
+(6, 2, 1, 2, NULL, 'active', '2025-05-30 03:25:25', '2025-05-30 03:25:25', NULL),
+(7, 1, 1, 1, NULL, 'active', '2025-05-30 03:52:14', '2025-05-30 03:52:14', NULL),
+(8, 2, 1, 1, NULL, 'active', '2025-05-30 03:53:01', '2025-05-30 03:53:01', NULL),
+(9, 1, 3, 6, NULL, 'active', '2025-05-30 05:28:46', '2025-05-30 05:28:46', NULL),
+(10, 1, 1, 2, NULL, 'active', '2025-06-03 07:50:58', '2025-06-03 07:50:58', NULL),
+(11, 1, 7, 9, NULL, 'active', '2025-06-03 07:51:30', '2025-06-03 07:51:30', NULL),
+(12, 1, 7, 9, NULL, 'active', '2025-06-04 09:16:12', '2025-06-04 09:16:12', NULL),
+(13, 2, 7, 9, NULL, 'active', '2025-06-04 09:28:11', '2025-06-04 09:28:11', NULL),
+(14, 1, 1, 1, NULL, 'active', '2025-06-04 09:29:27', '2025-06-04 09:29:27', NULL),
+(15, 2, 1, 1, NULL, 'active', '2025-06-04 09:30:54', '2025-06-04 09:30:54', NULL),
+(16, 3, 7, 9, NULL, 'active', '2025-06-04 10:01:22', '2025-06-04 10:01:22', NULL),
+(17, 4, 7, 9, NULL, 'active', '2025-06-04 10:02:19', '2025-06-04 10:02:19', NULL),
+(18, 1, 1, 2, NULL, 'active', '2025-06-05 03:56:33', '2025-06-05 03:56:33', NULL),
+(19, 2, 1, 2, NULL, 'active', '2025-06-05 03:57:31', '2025-06-05 03:57:31', NULL),
+(20, 3, 1, 2, NULL, 'active', '2025-06-05 04:00:18', '2025-06-05 04:00:18', NULL),
+(21, 1, 2, 3, NULL, 'active', '2025-06-05 04:20:19', '2025-06-05 04:20:19', NULL),
+(22, 2, 2, 3, NULL, 'active', '2025-06-05 04:20:34', '2025-06-05 04:20:34', NULL),
+(23, 1, 1, 1, NULL, 'active', '2025-06-06 04:47:01', '2025-06-06 04:47:01', NULL),
+(24, 1, 1, 1, NULL, 'active', '2025-06-11 05:06:54', '2025-06-11 05:06:54', NULL),
+(25, 2, 1, 1, NULL, 'active', '2025-06-11 05:07:07', '2025-06-11 05:07:07', NULL),
+(26, 3, 1, 1, NULL, 'active', '2025-06-11 05:07:11', '2025-06-11 05:07:11', NULL),
+(27, 1, 10, 10, NULL, 'active', '2025-06-12 05:41:22', '2025-06-12 05:41:22', NULL),
+(28, 1, 12, 21, NULL, 'active', '2025-06-12 08:59:21', '2025-06-12 08:59:21', NULL),
+(29, 1, 11, 19, NULL, 'active', '2025-06-12 09:00:03', '2025-06-12 09:00:03', NULL),
+(30, 1, 12, 21, NULL, 'active', '2025-06-19 09:14:44', '2025-06-19 09:14:44', NULL),
+(31, 2, 12, 21, NULL, 'active', '2025-06-19 09:34:18', '2025-06-19 09:34:18', NULL),
+(32, 1, 12, 21, NULL, 'active', '2025-06-20 06:58:47', '2025-06-20 06:58:47', NULL),
+(33, 1, 13, 24, NULL, 'active', '2025-06-20 06:59:09', '2025-06-20 06:59:09', NULL),
+(34, 1, 1, 14, NULL, 'active', '2025-06-20 07:21:00', '2025-06-20 07:21:00', NULL),
+(35, 1, 11, 19, NULL, 'active', '2025-06-20 07:21:13', '2025-06-20 07:21:13', NULL);
 
 -- --------------------------------------------------------
 
@@ -588,7 +629,7 @@ CREATE TABLE `users` (
   `email` varchar(100) COLLATE utf8mb3_unicode_ci NOT NULL,
   `username` varchar(50) COLLATE utf8mb3_unicode_ci NOT NULL,
   `password` varchar(255) COLLATE utf8mb3_unicode_ci NOT NULL,
-  `role` enum('admin','staff','public') COLLATE utf8mb3_unicode_ci NOT NULL DEFAULT 'public',
+  `role` enum('admin','staff','public','subject_staff') COLLATE utf8mb3_unicode_ci NOT NULL DEFAULT 'public',
   `department_id` int DEFAULT NULL,
   `division_id` int DEFAULT NULL,
   `status` enum('active','inactive') COLLATE utf8mb3_unicode_ci DEFAULT 'active',
@@ -731,7 +772,21 @@ INSERT INTO `user_sessions` (`id`, `user_id`, `token`, `is_valid`, `expires_at`,
 (103, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwMzExNTUxfQ.uGBXpawxW65SkaBHhSRmEFvsAtAPPT4PKpz2yXH9j40', 1, '2025-06-19 05:39:11', '2025-06-18 05:39:11', '2025-06-18 05:39:11'),
 (104, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc1MDMxMTU2Mn0.iKBqjL3Dsy-kmzbkNyS0FLhWUD3aUMJtLIjIFpA8wQo', 1, '2025-06-19 05:39:22', '2025-06-18 05:39:22', '2025-06-18 05:39:22'),
 (105, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwMzk4MTI1fQ.kgLi4Orjhj4nr_Wqj86QKZjG4pPVbjyyfOH8uJExJSo', 1, '2025-06-20 05:42:05', '2025-06-19 05:42:05', '2025-06-19 05:42:05'),
-(106, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNDAwMjA4fQ.Y_Su038di49bbJ8_e1uA61IWKnTt-SJXATBR2ktnXkI', 1, '2025-06-20 06:16:48', '2025-06-19 06:16:48', '2025-06-19 06:16:48');
+(106, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNDAwMjA4fQ.Y_Su038di49bbJ8_e1uA61IWKnTt-SJXATBR2ktnXkI', 1, '2025-06-20 06:16:48', '2025-06-19 06:16:48', '2025-06-19 06:16:48'),
+(107, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNDA5MDYxfQ.HCt679bZPlRZAaGCoBUUc_qKVloSTMYgxkuLv3dXDCs', 1, '2025-06-20 08:44:21', '2025-06-19 08:44:21', '2025-06-19 08:44:21'),
+(108, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNDA5MDg3fQ.4Gde-TnFvLyTn0n_SM2_Daun1kuqLkJpTtEFYh4e-GA', 1, '2025-06-20 08:44:47', '2025-06-19 08:44:47', '2025-06-19 08:44:47'),
+(109, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNDE1NzYzfQ.10XvGxgvfEv0_1MHNBNLHK3qNdqwh8rgngsuCOPPbT4', 1, '2025-06-20 10:36:03', '2025-06-19 10:36:03', '2025-06-19 10:36:03'),
+(110, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNDE1NzczfQ.zu8O0AAi3eHZtmGWxf56x99dZv_3u8_plbD87EEiu6w', 1, '2025-06-20 10:36:13', '2025-06-19 10:36:13', '2025-06-19 10:36:13'),
+(111, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNDE1ODQzfQ.V7dq5n0X5KSsiPmLaFQMKO3SX3Z3K5nmdBj_EsrhWjg', 1, '2025-06-20 10:37:23', '2025-06-19 10:37:23', '2025-06-19 10:37:23'),
+(112, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNDc4Njg4fQ.ANm12VqX-i10LFrQWublwLPwDCl0u3gevQgoER3KEMQ', 1, '2025-06-21 04:04:48', '2025-06-20 04:04:48', '2025-06-20 04:04:48'),
+(113, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNDc4NzgwfQ.AolfLtKSGUA7KuK8KUzzk8LHiICzP5IyOrZldMvWjr8', 1, '2025-06-21 04:06:20', '2025-06-20 04:06:20', '2025-06-20 04:06:20'),
+(114, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNDc4ODIxfQ.opkSyEfMTcgEDawOWhawB2mhtLsCsKoMRswPFcXFkxo', 1, '2025-06-21 04:07:01', '2025-06-20 04:07:01', '2025-06-20 04:07:01'),
+(115, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNDgxMDk0fQ.Kzh86CSoMf1I_lhsgr2Wr2mkXHm2HGOQjpQrs9RbR4c', 1, '2025-06-21 04:44:54', '2025-06-20 04:44:54', '2025-06-20 04:44:54'),
+(116, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNDgxMTc4fQ.lv0_NkEopi-LB8sD1JHNaWPl2FbUUQRgeTQUgDiEcbI', 1, '2025-06-21 04:46:18', '2025-06-20 04:46:18', '2025-06-20 04:46:18'),
+(117, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNDg3NjQ4fQ.5YbPn5l9aBuuJ_ogSgqp6i2i3BN0jEzO9pVgzwk--XY', 1, '2025-06-21 06:34:08', '2025-06-20 06:34:08', '2025-06-20 06:34:08'),
+(118, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzM4MDE3fQ.Z_6qfJjTOZPRXism90URpqY3Z5wp3q3-3xBTxM2RKKo', 1, '2025-06-24 04:06:57', '2025-06-23 04:06:57', '2025-06-23 04:06:57'),
+(119, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNzM4MDYwfQ.FD37Dz5AK6YCShOC8UtuTZQWKQObjv7NJYp54HlLhJk', 1, '2025-06-24 04:07:40', '2025-06-23 04:07:40', '2025-06-23 04:07:40'),
+(120, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzQ2Mzk1fQ.m54A4JtycqdVcFw6ivE8jJVT9uYD5IpIlLr0CKQr9CU', 1, '2025-06-24 06:26:35', '2025-06-23 06:26:35', '2025-06-23 06:26:35');
 
 --
 -- Indexes for dumped tables
@@ -804,6 +859,14 @@ ALTER TABLE `enhanced_tokens`
   ADD KEY `idx_token_status` (`status`),
   ADD KEY `idx_token_created` (`created_at`),
   ADD KEY `idx_token_department_status` (`department_id`,`status`,`created_at`);
+
+--
+-- Indexes for table `excel_edits`
+--
+ALTER TABLE `excel_edits`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_excel_edits_document` (`document_id`),
+  ADD KEY `idx_excel_edits_user` (`edited_by_user_id`);
 
 --
 -- Indexes for table `forms`
@@ -944,6 +1007,15 @@ ALTER TABLE `service_requests`
   ADD KEY `idx_status_date` (`status`,`created_at`);
 
 --
+-- Indexes for table `subject_staff`
+--
+ALTER TABLE `subject_staff`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_subject_staff_user` (`user_id`),
+  ADD KEY `idx_subject_staff_department` (`assigned_department_id`),
+  ADD KEY `idx_subject_staff_division` (`assigned_division_id`);
+
+--
 -- Indexes for table `tokens`
 --
 ALTER TABLE `tokens`
@@ -1020,6 +1092,12 @@ ALTER TABLE `enhanced_tokens`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `excel_edits`
+--
+ALTER TABLE `excel_edits`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `forms`
 --
 ALTER TABLE `forms`
@@ -1071,13 +1149,13 @@ ALTER TABLE `public_registry`
 -- AUTO_INCREMENT for table `public_users`
 --
 ALTER TABLE `public_users`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `qr_codes`
 --
 ALTER TABLE `qr_codes`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `qr_scans`
@@ -1110,10 +1188,16 @@ ALTER TABLE `service_requests`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `subject_staff`
+--
+ALTER TABLE `subject_staff`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `tokens`
 --
 ALTER TABLE `tokens`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -1125,7 +1209,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=107;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=121;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -347,10 +347,30 @@ class ApiService {
       
       console.warn('Unexpected services response format:', response);
       return [];
-    } catch (error) {
-      console.error('Failed to fetch services:', error);
-      // Don't redirect to login on service catalog errors
-      throw error;
+    } catch (error: any) {
+      console.error('Failed to fetch services:', {
+        error: error.message,
+        status: error.status,
+        response: error.response,
+        stack: error.stack
+      });
+
+      // Check if it's a server error (500)
+      if (error.status === 500) {
+        console.warn('Server error encountered, attempting to use cached data if available');
+        // In the future, we could implement a caching mechanism here
+        
+        // For now, return empty array but trigger a notification
+        if (typeof window !== 'undefined') {
+          // Only show toast if we're in browser environment
+          const toast = (window as any).toast;
+          if (toast?.error) {
+            toast.error('Service catalog temporarily unavailable. Please try again later.');
+          }
+        }
+      }
+      
+      return [];
     }
   }
 
@@ -451,16 +471,28 @@ class ApiService {
   async getUsers(status?: string): Promise<User[]> {
     try {
       const query = status && status !== 'all' ? `?status=${status}` : '';
-      const response = await this.makeRequestWithRetry(`/users/${query}`);
+      const response = await this.makeRequestWithRetry(`/users${query}`);
       console.log('Users API response:', response);
       
-      // Handle different response formats
-      if (response?.data && Array.isArray(response.data)) {
-        return response.data;
-      } else if (Array.isArray(response)) {
-        return response;
-      } else if (response?.users && Array.isArray(response.users)) {
-        return response.users;
+      // Handle the response format from the backend
+      if (response && response.status === 'success' && Array.isArray(response.data)) {
+        // Transform the data to match the User interface
+        return response.data.map((user: any) => ({
+          id: user.id,
+          user_id: user.user_id || `USR-${user.id}`,
+          name: user.name,
+          nic: user.nic || '',
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          department_id: user.department_id || null,
+          division_id: user.division_id || null,
+          department_name: user.department_name || '',
+          division_name: user.division_name || '',
+          status: user.status || 'active',
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        }));
       }
       
       console.warn('Unexpected users response format:', response);
@@ -472,26 +504,95 @@ class ApiService {
   }
 
   async createUser(userData: any): Promise<User> {
-    const response = await this.makeRequestWithRetry('/users/', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
-    return response?.data || response;
+    try {
+      const response = await this.makeRequestWithRetry('/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+      
+      // Handle the response format from the backend
+      if (response && response.status === 'success' && response.data) {
+        const user = response.data;
+        return {
+          id: user.id,
+          user_id: user.user_id || `USR-${user.id}`,
+          name: user.name,
+          nic: user.nic || '',
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          department_id: user.department_id || null,
+          division_id: user.division_id || null,
+          department_name: user.department_name || '',
+          division_name: user.division_name || '',
+          status: user.status || 'active',
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        };
+      }
+      
+      throw new Error('Unexpected response format from server');
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      throw error;
+    }
   }
 
   async updateUser(id: number, userData: any): Promise<User> {
-    const response = await this.makeRequestWithRetry('/users/', {
-      method: 'PUT',
-      body: JSON.stringify({ id, ...userData }),
-    });
-    return response?.data || response;
+    try {
+      const response = await this.makeRequestWithRetry(`/users/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+      
+      // Handle the response format from the backend
+      if (response && response.status === 'success' && response.data) {
+        const user = response.data;
+        return {
+          id: user.id,
+          user_id: user.user_id || `USR-${user.id}`,
+          name: user.name,
+          nic: user.nic || '',
+          email: user.email,
+          username: user.username,
+          role: user.role,
+          department_id: user.department_id || null,
+          division_id: user.division_id || null,
+          department_name: user.department_name || '',
+          division_name: user.division_name || '',
+          status: user.status || 'active',
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        };
+      }
+      
+      throw new Error('Unexpected response format from server');
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      throw error;
+    }
   }
 
   async deleteUser(id: number): Promise<void> {
-    await this.makeRequestWithRetry('/users/', {
-      method: 'DELETE',
-      body: JSON.stringify({ id }),
-    });
+    try {
+      const response = await this.makeRequestWithRetry(`/users/${id}`, {
+        method: 'DELETE',
+      });
+      
+      // Handle the response format from the backend
+      if (!response || response.status !== 'success') {
+        throw new Error(response?.message || 'Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      throw error;
+    }
   }
 
   // Departments

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { apiService, ServiceCatalog } from '@/services/apiService';
 const StaffServiceCatalog = () => {
   const [services, setServices] = useState<ServiceCatalog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const { toast } = useToast();
@@ -23,18 +23,24 @@ const StaffServiceCatalog = () => {
   const fetchServices = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const servicesData = await apiService.getServices();
       setServices(Array.isArray(servicesData) ? servicesData : []);
     } catch (error) {
       console.error('Error fetching services:', error);
+      setError('Unable to load services. Please try again later.');
       toast({
         title: "Error",
-        description: "Failed to load services.",
+        description: "Failed to load services. Please try refreshing the page.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRetry = () => {
+    fetchServices();
   };
 
   const filteredServices = services.filter(service => {
@@ -50,6 +56,27 @@ const StaffServiceCatalog = () => {
       <div className="text-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
         <p className="mt-2 text-gray-500">Loading services...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <div className="rounded-full h-12 w-12 bg-red-100 flex items-center justify-center mx-auto mb-4">
+          <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load Services</h3>
+        <p className="text-gray-500 mb-4">{error}</p>
+        <Button
+          onClick={handleRetry}
+          variant="outline"
+          className="mx-auto"
+        >
+          Try Again
+        </Button>
       </div>
     );
   }

@@ -8,24 +8,40 @@ set_error_handler(function($severity, $message, $file, $line) {
     throw new ErrorException($message, 0, $severity, $file, $line);
 });
 
-// Handle CORS
-header("Access-Control-Allow-Origin: *");
+// Handle CORS headers
+$origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
+header("Access-Control-Allow-Origin: $origin");
+header("Access-Control-Allow-Credentials: true");
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Max-Age: 3600");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, Accept");
-
-// Force JSON for all responses
-if (strpos($_SERVER['HTTP_ACCEPT'], 'application/json') === false && $_SERVER['REQUEST_METHOD'] !== 'OPTIONS') {
-    http_response_code(406);
-    echo json_encode(array("message" => "Only JSON requests are accepted"));
-    exit();
-}
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Accept");
+header("Access-Control-Expose-Headers: Content-Length, Content-Type, X-Total-Count");
 
 // Handle preflight OPTIONS request
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     http_response_code(200);
-    exit();
+    exit(0);
+}
+
+// Set default Accept header if not present
+if (!isset($_SERVER['HTTP_ACCEPT'])) {
+    $_SERVER['HTTP_ACCEPT'] = 'application/json';
+}
+
+// Only check Accept header for non-OPTIONS requests
+if ($_SERVER['REQUEST_METHOD'] !== 'OPTIONS') {
+    $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+    if (!empty($accept) && strpos($accept, 'application/json') === false && 
+        strpos($accept, '*/*') === false) {
+        header('Content-Type: application/json');
+        http_response_code(406);
+        echo json_encode([
+            "status" => "error",
+            "message" => "Only JSON responses are supported. Please set Accept: application/json"
+        ]);
+        exit();
+    }
 }
 
 // Clean any previous output

@@ -3,6 +3,7 @@
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
+include_once '../../config/jwt_middleware.php';
 
 header('Content-Type: application/json');
 
@@ -11,6 +12,11 @@ try {
     $db = $database->getConnection();
     if (!$db) {
         throw new Exception("Database connection failed", 500);
+    }
+
+    // Require authentication for all endpoints except OPTIONS
+    if ($_SERVER['REQUEST_METHOD'] !== 'OPTIONS') {
+        $auth = requireAuth(); // This will exit if not authenticated
     }
 
     switch ($_SERVER['REQUEST_METHOD']) {
