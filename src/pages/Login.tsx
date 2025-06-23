@@ -114,6 +114,9 @@ const Login = () => {
         case 'staff':
           redirectPath = '/staff';
           break;
+        case 'subject_staff':
+          redirectPath = '/subject-staff';
+          break;
         case 'public':
           redirectPath = '/public';
           break;

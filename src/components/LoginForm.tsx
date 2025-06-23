@@ -38,6 +38,7 @@ const LoginForm = ({ onSubmit, isLoading, errors }: LoginFormProps) => {
           <SelectContent>
             <SelectItem value="admin">Administrator</SelectItem>
             <SelectItem value="staff">Staff Member</SelectItem>
+            <SelectItem value="subject_staff">Subject Staff</SelectItem>
             <SelectItem value="public">Public User</SelectItem>
           </SelectContent>
         </Select>
