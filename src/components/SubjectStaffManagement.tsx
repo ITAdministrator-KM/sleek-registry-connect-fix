@@ -10,18 +10,18 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, User } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { subjectService } from '@/services/subjectService';
+import { subjectService, SubjectStaff } from '@/services/subjectService';
 import { userService } from '@/services/userService';
-import { departmentService } from '@/services/departmentService';
+import { departmentService, Department, Division } from '@/services/departmentService';
 
 const SubjectStaffManagement = () => {
-  const [subjectStaffList, setSubjectStaffList] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [divisions, setDivisions] = useState([]);
+  const [subjectStaffList, setSubjectStaffList] = useState<SubjectStaff[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingSubjectStaff, setEditingSubjectStaff] = useState(null);
+  const [editingSubjectStaff, setEditingSubjectStaff] = useState<SubjectStaff | null>(null);
   const [formData, setFormData] = useState({
     user_id: '',
     post: '',
@@ -38,12 +38,20 @@ const SubjectStaffManagement = () => {
     try {
       setLoading(true);
       const [subjectStaffResponse, usersResponse, departmentsResponse] = await Promise.all([
-        subjectService.getSubjectStaffData(),
+        subjectService.getSubjectStaffData(0), // Pass 0 to get all staff
         userService.getUsers(),
         departmentService.getDepartments()
       ]);
       
-      setSubjectStaffList(subjectStaffResponse.data || []);
+      // Handle subjectStaffResponse - it could be a single item or array
+      if (Array.isArray(subjectStaffResponse.data)) {
+        setSubjectStaffList(subjectStaffResponse.data);
+      } else if (subjectStaffResponse.data) {
+        setSubjectStaffList([subjectStaffResponse.data]);
+      } else {
+        setSubjectStaffList([]);
+      }
+      
       setUsers(usersResponse || []);
       setDepartments(departmentsResponse.data || []);
     } catch (error) {
@@ -77,14 +85,21 @@ const SubjectStaffManagement = () => {
     e.preventDefault();
     
     try {
+      const numericFormData = {
+        user_id: parseInt(formData.user_id),
+        post: formData.post,
+        assigned_department_id: parseInt(formData.assigned_department_id),
+        assigned_division_id: parseInt(formData.assigned_division_id)
+      };
+
       if (editingSubjectStaff) {
-        await subjectService.updateSubjectStaff(editingSubjectStaff.id, formData);
+        await subjectService.updateSubjectStaff(editingSubjectStaff.id, numericFormData);
         toast({
           title: "Success",
           description: "Subject staff updated successfully",
         });
       } else {
-        await subjectService.createSubjectStaff(formData);
+        await subjectService.createSubjectStaff(numericFormData);
         toast({
           title: "Success",
           description: "Subject staff created successfully",
@@ -109,7 +124,7 @@ const SubjectStaffManagement = () => {
     }
   };
 
-  const handleEdit = (subjectStaff: any) => {
+  const handleEdit = (subjectStaff: SubjectStaff) => {
     setEditingSubjectStaff(subjectStaff);
     setFormData({
       user_id: subjectStaff.user_id.toString(),
@@ -266,7 +281,7 @@ const SubjectStaffManagement = () => {
             <TableBody>
               {subjectStaffList.map((staff) => (
                 <TableRow key={staff.id}>
-                  <TableCell className="font-medium">{staff.user_name}</TableCell>
+                  <TableCell className="font-medium">{staff.user_id}</TableCell>
                   <TableCell>{staff.post}</TableCell>
                   <TableCell>{staff.department_name}</TableCell>
                   <TableCell>{staff.division_name}</TableCell>

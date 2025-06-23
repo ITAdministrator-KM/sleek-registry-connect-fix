@@ -8,18 +8,42 @@ export interface Department {
   status: string;
 }
 
-export class DepartmentService extends ApiBase {  async getDepartments(): Promise<Department[]> {
+export interface Division {
+  id: number;
+  name: string;
+  department_id: number;
+  description?: string;
+  status: string;
+}
+
+export class DepartmentService extends ApiBase {
+  async getDepartments(): Promise<{data: Department[]}> {
     try {
       const response = await this.makeRequest('/departments/index.php');
       if (response?.status === "success" && Array.isArray(response.data)) {
-        return response.data.filter(dept => dept.status === 'active');
+        return { data: response.data.filter(dept => dept.status === 'active') };
       } else if (Array.isArray(response)) {
-        return response.filter(dept => dept.status === 'active');
+        return { data: response.filter(dept => dept.status === 'active') };
       }
-      return [];
+      return { data: [] };
     } catch (error) {
       console.error('Error fetching departments:', error);
-      return [];
+      return { data: [] };
+    }
+  }
+
+  async getDivisions(departmentId: number): Promise<{data: Division[]}> {
+    try {
+      const response = await this.makeRequest(`/divisions/index.php?department_id=${departmentId}`);
+      if (response?.status === "success" && Array.isArray(response.data)) {
+        return { data: response.data.filter(div => div.status === 'active') };
+      } else if (Array.isArray(response)) {
+        return { data: response.filter(div => div.status === 'active') };
+      }
+      return { data: [] };
+    } catch (error) {
+      console.error('Error fetching divisions:', error);
+      return { data: [] };
     }
   }
 
