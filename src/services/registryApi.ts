@@ -1,9 +1,11 @@
-import { apiService } from './api';
+
+import { ApiBase } from './apiBase';
 
 export interface RegistryEntry {
   id: number;
-  registry_id: string;
+  registry_id?: string;
   public_user_id?: number;
+  visitor_id?: number;
   visitor_name: string;
   visitor_nic: string;
   visitor_address?: string;
@@ -13,13 +15,12 @@ export interface RegistryEntry {
   purpose_of_visit: string;
   remarks?: string;
   entry_time: string;
+  exit_time?: string;
   visitor_type: 'new' | 'existing';
   status: 'active' | 'checked_out' | 'deleted';
   department_name?: string;
   division_name?: string;
-  public_user_name?: string;
-  public_user_id_display?: string;
-  created_at: string;
+  created_at?: string;
   updated_at?: string;
 }
 
@@ -34,84 +35,44 @@ export interface RegistryEntryCreateData {
   purpose_of_visit: string;
   remarks?: string;
   visitor_type: 'new' | 'existing';
+  check_in?: string;
+  status?: 'active' | 'checked_out' | 'deleted';
 }
 
-class RegistryApiService {
-  private baseUrl = 'https://dskalmunai.lk/backend/api/registry';
-
-  private async handleResponse(response: Response) {
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      try {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } else {
-          const textError = await response.text();
-          errorMessage = textError || errorMessage;
-        }
-      } catch (e) {
-        console.error('Error parsing response:', e);
-      }
-      throw new Error(errorMessage);
-    }
-
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      try {
-        const textResponse = await response.text();
-        console.warn('Non-JSON response received:', textResponse);
-        // If it's HTML error page, throw error
-        if (textResponse.includes('<html>') || textResponse.includes('<!DOCTYPE')) {
-          throw new Error('Server returned HTML error page instead of JSON');
-        }
-        // Try to parse as JSON anyway
-        return JSON.parse(textResponse);
-      } catch (e) {
-        throw new Error('Invalid response format. Expected JSON.');
-      }
-    }
-
-    return await response.json();
-  }
-
-  async getRegistryEntries(params?: {
+class RegistryApiService extends ApiBase {
+  async getRegistryEntries(filters: {
     date?: string;
-    department_id?: number;
-    division_id?: number;
-    visitor_type?: 'new' | 'existing';
-    status?: 'active' | 'checked_out' | 'deleted';
-  }): Promise<RegistryEntry[]> {
+    departmentId?: number;
+    status?: string;
+    visitorType?: 'new' | 'existing';
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<RegistryEntry[]> {
     try {
-      const queryParams = new URLSearchParams();
-      if (params?.date) queryParams.append('date', params.date);
-      if (params?.department_id) queryParams.append('department_id', params.department_id.toString());
-      if (params?.division_id) queryParams.append('division_id', params.division_id.toString());
-      if (params?.visitor_type) queryParams.append('visitor_type', params.visitor_type);
-      if (params?.status) queryParams.append('status', params.status);
+      const params = new URLSearchParams();
+      if (filters.date) params.append('date', filters.date);
+      if (filters.departmentId) params.append('department_id', filters.departmentId.toString());
+      if (filters.status) params.append('status', filters.status);
+      if (filters.visitorType) params.append('visitor_type', filters.visitorType);
+      if (filters.search) params.append('search', filters.search);
+      if (filters.page) params.append('page', filters.page.toString());
+      if (filters.limit) params.append('limit', filters.limit.toString());
 
-      const url = queryParams.toString() ? `${this.baseUrl}?${queryParams}` : this.baseUrl;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
-      });
-
-      const data = await this.handleResponse(response);
+      const queryString = params.toString();
+      const url = queryString ? `/registry/index.php?${queryString}` : '/registry/index.php';
+      
+      console.log('Fetching registry entries from:', url);
+      const response = await this.makeRequest(url);
+      console.log('Registry API response:', response);
       
       // Handle different response formats
-      if (data && typeof data === 'object') {
-        if (Array.isArray(data.data)) {
-          return data.data;
-        } else if (Array.isArray(data)) {
-          return data;
-        } else if (data.success && Array.isArray(data.entries)) {
-          return data.entries;
-        }
+      if (Array.isArray(response)) {
+        return response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        return response.data;
+      } else if (response?.entries && Array.isArray(response.entries)) {
+        return response.entries;
       }
       
       return [];
@@ -121,47 +82,86 @@ class RegistryApiService {
     }
   }
 
-  async createRegistryEntry(data: RegistryEntryCreateData): Promise<RegistryEntry> {
+  async createRegistryEntry(entryData: RegistryEntryCreateData): Promise<RegistryEntry> {
     try {
-      const response = await fetch(this.baseUrl, {
+      console.log('Creating registry entry with data:', entryData);
+      
+      // Ensure required fields are present
+      const payload = {
+        ...entryData,
+        entry_time: entryData.check_in || new Date().toISOString(),
+        status: entryData.status || 'active'
+      };
+      
+      const response = await this.makeRequest('/registry/index.php', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
-        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
-
-      const result = await this.handleResponse(response);
-      return result.data || result;
+      
+      console.log('Registry creation response:', response);
+      return response?.data || response;
     } catch (error) {
       console.error('Error creating registry entry:', error);
       throw error;
     }
   }
 
-  async exportRegistryData(params: {
+  async updateRegistryEntry(id: number, entryData: Partial<RegistryEntry>): Promise<RegistryEntry> {
+    try {
+      const response = await this.makeRequest('/registry/index.php', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...entryData, id })
+      });
+      
+      return response?.data || response;
+    } catch (error) {
+      console.error('Error updating registry entry:', error);
+      throw error;
+    }
+  }
+
+  async checkOutVisitor(entryId: number): Promise<boolean> {
+    try {
+      const response = await this.makeRequest(`/registry/index.php`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: entryId,
+          status: 'checked_out',
+          exit_time: new Date().toISOString()
+        })
+      });
+      
+      return response?.success || true;
+    } catch (error) {
+      console.error('Error checking out visitor:', error);
+      return false;
+    }
+  }
+
+  async exportRegistryData(filters: {
     date?: string;
-    department_id?: number;
     format: 'csv' | 'pdf';
+    departmentId?: number;
+    divisionId?: number;
   }): Promise<Blob> {
     try {
-      const queryParams = new URLSearchParams({
-        export: params.format,
-        ...(params.date && { date: params.date }),
-        ...(params.department_id && { department_id: params.department_id.toString() })
+      const params = new URLSearchParams({
+        format: filters.format,
+        ...(filters.date && { date: filters.date }),
+        ...(filters.departmentId && { department_id: filters.departmentId.toString() }),
+        ...(filters.divisionId && { division_id: filters.divisionId.toString() })
       });
 
-      const response = await fetch(`${this.baseUrl}/export?${queryParams}`, {
+      const response = await fetch(`${this.baseURL}/registry/export.php?${params}`, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json, application/octet-stream',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
+        headers: this.getAuthHeaders()
       });
 
       if (!response.ok) {
-        throw new Error(`Export failed: ${response.status}`);
+        throw new Error(`Export failed with status: ${response.status}`);
       }
 
       return await response.blob();
