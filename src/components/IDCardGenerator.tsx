@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiService } from '@/services/apiService';
 import type { PublicUser } from '@/services/apiService';
 import { Search, Printer, AlertCircle, Download } from 'lucide-react';
-import { StandardBlackWhiteIDCard } from './id-card/StandardBlackWhiteIDCard';
+import IDCardUserList from './id-card/IDCardUserList';
 
 const IDCardGenerator = () => {
   const [users, setUsers] = useState<PublicUser[]>([]);
@@ -35,7 +35,6 @@ const IDCardGenerator = () => {
     try {
       setIsLoading(true);
       const response = await apiService.getPublicUsers();
-      // Sort by public_id to ensure proper order (PUB00001, PUB00002, etc.)
       const sortedUsers = response.sort((a, b) => {
         const aNum = parseInt(a.public_id.replace('PUB', ''));
         const bNum = parseInt(b.public_id.replace('PUB', ''));
@@ -307,14 +306,6 @@ const IDCardGenerator = () => {
     );
   };
 
-  const handleSelectAll = () => {
-    if (selectedUsers.length === filteredUsers.length) {
-      setSelectedUsers([]);
-    } else {
-      setSelectedUsers(filteredUsers.map(user => user.id));
-    }
-  };
-
   const handleAutoPrintChange = (checked: boolean | "indeterminate") => {
     if (typeof checked === 'boolean') {
       setAutoPrint(checked);
@@ -378,54 +369,14 @@ const IDCardGenerator = () => {
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredUsers.map((user) => (
-                    <Card key={user.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <Checkbox
-                            checked={selectedUsers.includes(user.id)}
-                            onCheckedChange={() => {
-                              setSelectedUsers(prev => 
-                                prev.includes(user.id)
-                                  ? prev.filter(id => id !== user.id)
-                                  : [...prev, user.id]
-                              );
-                            }}
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handlePrintSingle(user)}
-                          >
-                            <Printer className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        
-                        <div className="space-y-1 text-sm">
-                          <p className="font-semibold">{user.name}</p>
-                          <p className="text-gray-600">ID: {user.public_id}</p>
-                          <p className="text-gray-600">NIC: {user.nic}</p>
-                          <p className="text-gray-500 text-xs">{user.mobile}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <IDCardUserList
+                  users={filteredUsers}
+                  selectedUsers={selectedUsers}
+                  onUserSelect={handleSelectUser}
+                  onPrintSingle={handlePrintSingle}
+                />
               </div>
             )}
-
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-700 mb-2">🖨️ Black & White ID Card Features:</h4>
-              <ul className="text-xs text-blue-600 space-y-1">
-                <li>• ⚫ High contrast black and white design</li>
-                <li>• 🏛️ Official government format with dual logos</li>
-                <li>• 📏 Wallet size: 85.6mm x 54mm</li>
-                <li>• 🔍 Large QR code for easy scanning</li>
-                <li>• 🖨️ Optimized for monochrome printing</li>
-                <li>• 📄 Professional typography and layout</li>
-              </ul>
-            </div>
           </div>
         </CardContent>
       </Card>
