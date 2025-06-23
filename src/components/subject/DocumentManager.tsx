@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, Download, Edit, File } from 'lucide-react';
+import { FileText, Download, Edit, File, FolderOpen } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { subjectService } from '@/services/subjectService';
 import ExcelEditor from './ExcelEditor';
@@ -67,9 +67,11 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ subjectStaffData }) =
 
   if (loading) {
     return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-2 text-gray-500">Loading documents...</p>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-500">Loading documents...</p>
+        </div>
       </div>
     );
   }
@@ -89,73 +91,98 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ subjectStaffData }) =
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 text-white">
-        <h2 className="text-2xl font-bold mb-2">Document Management</h2>
-        <p className="text-blue-100">
-          Access and manage documents for {subjectStaffData?.division_name}
-        </p>
+      {/* Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-teal-600 rounded-2xl p-8 text-white shadow-lg">
+        <div className="flex items-center space-x-4">
+          <FolderOpen className="h-8 w-8" />
+          <div>
+            <h2 className="text-3xl font-bold mb-2">Document Management</h2>
+            <p className="text-blue-100 text-lg">
+              Access and manage documents for <span className="font-semibold">{subjectStaffData?.division_name}</span>
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
+      {/* Document Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* Word Documents Card */}
+        <Card className="bg-white shadow-sm border-0 hover:shadow-lg transition-shadow duration-300">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <FileText className="h-6 w-6 text-blue-600" />
+              </div>
               Word Documents
             </CardTitle>
-            <CardDescription>
-              Downloadable Word documents ({wordDocuments.length})
+            <CardDescription className="text-gray-600">
+              Downloadable Word documents ({wordDocuments.length} available)
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {wordDocuments.length > 0 ? (
                 wordDocuments.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <File className="h-4 w-4 text-blue-600" />
+                  <div key={doc.id} className="group flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-blue-50 transition-colors duration-200">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 bg-blue-100 rounded-md group-hover:bg-blue-200 transition-colors">
+                        <File className="h-5 w-5 text-blue-600" />
+                      </div>
                       <div>
-                        <p className="font-medium">{doc.document_name}</p>
-                        <p className="text-sm text-gray-500">{doc.description}</p>
+                        <p className="font-semibold text-gray-900 group-hover:text-blue-900">{doc.document_name}</p>
+                        {doc.description && (
+                          <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
+                        )}
                       </div>
                     </div>
                     <Button
                       size="sm"
                       onClick={() => handleDownload(doc)}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className="bg-blue-600 hover:bg-blue-700 shadow-sm"
                     >
-                      <Download className="h-4 w-4 mr-1" />
+                      <Download className="h-4 w-4 mr-2" />
                       Download
                     </Button>
                   </div>
                 ))
               ) : (
-                <p className="text-gray-500 text-center py-4">No Word documents available</p>
+                <div className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg">No Word documents available</p>
+                  <p className="text-gray-400 text-sm mt-2">Documents will appear here once uploaded</p>
+                </div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Edit className="h-5 w-5" />
+        {/* Excel Documents Card */}
+        <Card className="bg-white shadow-sm border-0 hover:shadow-lg transition-shadow duration-300">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-teal-100 rounded-lg">
+                <Edit className="h-6 w-6 text-teal-600" />
+              </div>
               Excel Documents
             </CardTitle>
-            <CardDescription>
-              Editable Excel spreadsheets ({excelDocuments.length})
+            <CardDescription className="text-gray-600">
+              Editable Excel spreadsheets ({excelDocuments.length} available)
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {excelDocuments.length > 0 ? (
                 excelDocuments.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <File className="h-4 w-4 text-green-600" />
+                  <div key={doc.id} className="group flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-teal-50 transition-colors duration-200">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 bg-teal-100 rounded-md group-hover:bg-teal-200 transition-colors">
+                        <File className="h-5 w-5 text-teal-600" />
+                      </div>
                       <div>
-                        <p className="font-medium">{doc.document_name}</p>
-                        <p className="text-sm text-gray-500">{doc.description}</p>
+                        <p className="font-semibold text-gray-900 group-hover:text-teal-900">{doc.document_name}</p>
+                        {doc.description && (
+                          <p className="text-sm text-gray-600 mt-1">{doc.description}</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -163,23 +190,28 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ subjectStaffData }) =
                         size="sm"
                         variant="outline"
                         onClick={() => handleEdit(doc)}
+                        className="border-teal-200 text-teal-700 hover:bg-teal-50"
                       >
-                        <Edit className="h-4 w-4 mr-1" />
+                        <Edit className="h-4 w-4 mr-2" />
                         Edit
                       </Button>
                       <Button
                         size="sm"
                         onClick={() => handleDownload(doc)}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-teal-600 hover:bg-teal-700 shadow-sm"
                       >
-                        <Download className="h-4 w-4 mr-1" />
+                        <Download className="h-4 w-4 mr-2" />
                         Download
                       </Button>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-gray-500 text-center py-4">No Excel documents available</p>
+                <div className="text-center py-12">
+                  <Edit className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg">No Excel documents available</p>
+                  <p className="text-gray-400 text-sm mt-2">Documents will appear here once uploaded</p>
+                </div>
               )}
             </div>
           </CardContent>

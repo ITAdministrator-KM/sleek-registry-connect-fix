@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { subjectService, SubjectStaff } from '@/services/subjectService';
 import { userService } from '@/services/userService';
 import { departmentService, Department, Division } from '@/services/departmentService';
+import DocumentUploadManagement from './DocumentUploadManagement';
 
 const SubjectStaffManagement = () => {
   const [subjectStaffList, setSubjectStaffList] = useState<SubjectStaff[]>([]);
@@ -174,96 +175,101 @@ const SubjectStaffManagement = () => {
                 Subject Staff Management
               </CardTitle>
               <CardDescription>
-                Manage subject staff accounts and their department assignments
+                Manage subject staff accounts and upload documents to divisions
               </CardDescription>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Subject Staff
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingSubjectStaff ? 'Edit Subject Staff' : 'Add New Subject Staff'}
-                  </DialogTitle>
-                  <DialogDescription>
-                    Assign a user as subject staff to a specific department and division.
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="user_id">User</Label>
-                    <Select value={formData.user_id} onValueChange={(value) => setFormData({...formData, user_id: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a user" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {users.map((user) => (
-                          <SelectItem key={user.id} value={user.id.toString()}>
-                            {user.name} ({user.username})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="post">Post/Job Title</Label>
-                    <Input
-                      id="post"
-                      value={formData.post}
-                      onChange={(e) => setFormData({...formData, post: e.target.value})}
-                      placeholder="Enter job title/post"
-                      required
-                    />
-                  </div>
+            <div className="flex gap-2">
+              <DocumentUploadManagement onDocumentUploaded={fetchData} />
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-green-600 hover:bg-green-700">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Subject Staff
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingSubjectStaff ? 'Edit Subject Staff' : 'Create New Subject Staff'}
+                    </DialogTitle>
+                    <DialogDescription>
+                      Assign a user as subject staff to a specific department and division.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="user_id">User</Label>
+                      <Select value={formData.user_id} onValueChange={(value) => setFormData({...formData, user_id: value})}>
+                        <SelectTrigger id="user_id">
+                          <SelectValue placeholder="Select a user" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border shadow-lg z-50">
+                          {users.map((user) => (
+                            <SelectItem key={user.id} value={user.id.toString()}>
+                              {user.name} ({user.username})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="post">Post/Job Title</Label>
+                      <Input
+                        id="post"
+                        name="post"
+                        value={formData.post}
+                        onChange={(e) => setFormData({...formData, post: e.target.value})}
+                        placeholder="Enter job title/post"
+                        required
+                        autoComplete="organization-title"
+                      />
+                    </div>
 
-                  <div>
-                    <Label htmlFor="department">Department</Label>
-                    <Select value={formData.assigned_department_id} onValueChange={handleDepartmentChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id.toString()}>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    <div>
+                      <Label htmlFor="department">Department</Label>
+                      <Select value={formData.assigned_department_id} onValueChange={handleDepartmentChange}>
+                        <SelectTrigger id="department">
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border shadow-lg z-50">
+                          {departments.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.id.toString()}>
+                              {dept.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <div>
-                    <Label htmlFor="division">Division</Label>
-                    <Select value={formData.assigned_division_id} onValueChange={(value) => setFormData({...formData, assigned_division_id: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select division" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {divisions.map((div) => (
-                          <SelectItem key={div.id} value={div.id.toString()}>
-                            {div.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    <div>
+                      <Label htmlFor="division">Division</Label>
+                      <Select value={formData.assigned_division_id} onValueChange={(value) => setFormData({...formData, assigned_division_id: value})}>
+                        <SelectTrigger id="division">
+                          <SelectValue placeholder="Select division" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border shadow-lg z-50">
+                          {divisions.map((div) => (
+                            <SelectItem key={div.id} value={div.id.toString()}>
+                              {div.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <div className="flex justify-end space-x-2">
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit">
-                      {editingSubjectStaff ? 'Update' : 'Create'}
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+                    <div className="flex justify-end space-x-2">
+                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit">
+                        {editingSubjectStaff ? 'Update' : 'Create'}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

@@ -19,6 +19,7 @@ import PublicRegistry from '@/components/staff/PublicRegistry';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 import ServiceCatalogManagement from '@/components/ServiceCatalogManagement';
+import SubjectStaffManagement from '@/components/SubjectStaffManagement';
 
 const AdminDashboard = () => {
   const { user, loading, isAuthenticated, logout } = useAuth(['admin']); // Allow only admin
@@ -64,6 +65,7 @@ const AdminDashboard = () => {
     { id: 'departments', label: 'Departments', icon: Building },
     { id: 'divisions', label: 'Divisions', icon: Database },
     { id: 'users', label: 'User Management', icon: Users },
+    { id: 'subject-management', label: 'Subject Management', icon: Users },
     { id: 'tokens', label: 'Token Management', icon: Ticket },
     { id: 'public-users', label: 'Public Accounts', icon: Shield },
     { id: 'public-registry', label: 'Public Registry', icon: ClipboardList },
@@ -190,6 +192,8 @@ const AdminDashboard = () => {
         return <DivisionManagement />;
       case 'users':
         return <UserManagement />;
+      case 'subject-management':
+        return <SubjectStaffManagement />;
       case 'tokens':
         return <TokenManagement />;
       case 'public-users':
