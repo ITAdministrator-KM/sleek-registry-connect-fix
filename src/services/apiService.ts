@@ -33,6 +33,10 @@ export interface PublicUser {
   status: 'active' | 'inactive';
   created_at?: string;
   updated_at?: string;
+  qr_code?: string;
+  username?: string;
+  department_name?: string;
+  division_name?: string;
 }
 
 export interface Department {
@@ -67,9 +71,11 @@ export interface ServiceCatalog {
   division_name?: string;
   fee_amount: number;
   processing_time_days: number;
-  required_documents?: string;
+  required_documents: string;
   status: 'active' | 'inactive';
   icon?: string;
+  eligibility_criteria?: string;
+  form_template_url?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -81,7 +87,6 @@ class ApiService extends ApiBase {
       const response = await this.makeRequest('/users/index.php');
       console.log('Users API response:', response);
       
-      // Handle different response formats
       if (Array.isArray(response)) {
         return response;
       } else if (response?.data && Array.isArray(response.data)) {
@@ -148,6 +153,22 @@ class ApiService extends ApiBase {
       body: JSON.stringify(userData)
     });
     return response?.data || response;
+  }
+
+  async updatePublicUser(id: number, userData: Partial<PublicUser>): Promise<PublicUser> {
+    const response = await this.makeRequest('/public-users/index.php', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...userData, id })
+    });
+    return response?.data || response;
+  }
+
+  async deletePublicUser(id: number): Promise<boolean> {
+    await this.makeRequest(`/public-users/index.php?id=${id}`, {
+      method: 'DELETE'
+    });
+    return true;
   }
 
   // Department Management

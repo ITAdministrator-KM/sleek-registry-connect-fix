@@ -24,7 +24,8 @@ export const PublicAccountsManagement: React.FC = () => {
     email: '',
     mobile: '',
     address: '',
-    date_of_birth: ''
+    date_of_birth: '',
+    status: 'active' as 'active' | 'inactive'
   });
   const { toast } = useToast();
 
@@ -63,7 +64,8 @@ export const PublicAccountsManagement: React.FC = () => {
         email: '',
         mobile: '',
         address: '',
-        date_of_birth: ''
+        date_of_birth: '',
+        status: 'active'
       });
       fetchUsers();
     } catch (error) {
@@ -83,7 +85,8 @@ export const PublicAccountsManagement: React.FC = () => {
       email: user.email || '',
       mobile: user.mobile || '',
       address: user.address || '',
-      date_of_birth: user.date_of_birth || ''
+      date_of_birth: user.date_of_birth || '',
+      status: user.status || 'active'
     });
     setIsEditDialogOpen(true);
   };
@@ -286,7 +289,6 @@ export const PublicAccountsManagement: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Edit Public Account</DialogTitle>
           </DialogHeader>
-          {/* ... keep existing code (same form fields as create) */}
           <div className="space-y-4">
             <div>
               <Label htmlFor="edit-name">Name</Label>
