@@ -3,26 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2 } from 'lucide-react';
-
-interface ServiceCatalog {
-  id: number;
-  service_name: string;
-  service_code: string;
-  description: string;
-  department_id: number;
-  division_id?: number;
-  icon: string;
-  fee_amount: number;
-  required_documents: string[];
-  processing_time_days: number;
-  eligibility_criteria?: string;
-  form_template_url?: string;
-  status: string;
-  department_name?: string;
-  division_name?: string;
-  created_at: string;
-  updated_at: string;
-}
+import type { ServiceCatalog } from "@/services/apiService";
 
 interface ServiceCatalogTableProps {
   services: ServiceCatalog[];
@@ -71,7 +52,7 @@ const ServiceCatalogTable = ({ services, onEdit, onDelete, isLoading }: ServiceC
               <TableRow key={service.id}>
                 <TableCell>
                   <div className="flex items-center space-x-3">
-                    <span className="text-2xl flex-shrink-0">{service.icon}</span>
+                    <span className="text-2xl flex-shrink-0">{service.icon || '📄'}</span>
                     <div className="min-w-0">
                       <div className="font-medium truncate">{service.service_name}</div>
                       <div className="text-sm text-gray-500 truncate max-w-xs">
