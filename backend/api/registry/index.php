@@ -1,14 +1,17 @@
+
 <?php
-include_once '../../config/cors.php';
-include_once '../../config/database.php';
-include_once '../../config/error_handler.php';
-
-// Set headers for JSON response
 header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
-// Set error handlers
-set_error_handler('handleError');
-set_exception_handler('handleException');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit();
+}
+
+require_once '../../config/database.php';
+require_once '../../config/response_handler.php';
 
 try {
     $database = new Database();
@@ -19,16 +22,7 @@ try {
         exit;
     }
 
-    $method = $_SERVER['REQUEST_METHOD'];
-    $request_uri = $_SERVER['REQUEST_URI'];
-    
-    // Handle export requests
-    if (strpos($request_uri, '/export') !== false) {
-        handleExportRequest($db);
-        exit;
-    }
-
-    switch ($method) {
+    switch ($_SERVER['REQUEST_METHOD']) {
         case 'GET':
             getRegistryEntries($db);
             break;
@@ -50,266 +44,128 @@ try {
     sendError(500, "Internal server error: " . $e->getMessage());
 }
 
-function generateRegistryId($db) {
-    $stmt = $db->prepare("SELECT registry_id FROM public_registry WHERE registry_id LIKE 'REG%' ORDER BY CAST(SUBSTRING(registry_id, 4) AS UNSIGNED) DESC LIMIT 1");
-    $stmt->execute();
-    $lastId = $stmt->fetchColumn();
-    
-    if ($lastId) {
-        $lastNumber = intval(substr($lastId, 3));
-        $newNumber = $lastNumber + 1;
-    } else {
-        $newNumber = 1;
-    }
-    
-    return 'REG' . str_pad($newNumber, 5, '0', STR_PAD_LEFT);
-}
-
-function handleExportRequest($db) {
+function createRegistryEntry($db) {
     try {
-        $format = $_GET['export'] ?? 'csv';
-        $date = $_GET['date'] ?? null;
-        $department_id = $_GET['department_id'] ?? null;
+        $input = file_get_contents("php://input");
+        $data = json_decode($input, true);
         
-        $query = "SELECT pr.*, pu.name as public_user_name, pu.public_user_id,
-                        d.name as department_name, `div`.name as division_name
-                 FROM public_registry pr 
-                 LEFT JOIN public_users pu ON pr.public_user_id = pu.id
-                 LEFT JOIN departments d ON pr.department_id = d.id 
-                 LEFT JOIN divisions `div` ON pr.division_id = `div`.id 
-                 WHERE pr.status = 'active'";
-        
-        $params = [];
-        
-        if ($date) {
-            $query .= " AND DATE(pr.entry_time) = ?";
-            $params[] = $date;
+        if (!$data) {
+            sendError(400, "Invalid JSON data");
+            return;
         }
         
-        if ($department_id) {
-            $query .= " AND pr.department_id = ?";
-            $params[] = $department_id;
+        // Required fields validation
+        $requiredFields = ['visitor_name', 'visitor_nic', 'department_id', 'purpose_of_visit', 'visitor_type'];
+        foreach ($requiredFields as $field) {
+            if (!isset($data[$field]) || empty(trim($data[$field]))) {
+                sendError(400, "Missing required field: $field");
+                return;
+            }
         }
         
-        $query .= " ORDER BY pr.entry_time DESC";
+        // Generate unique registry ID
+        $registryId = 'REG' . date('Ymd') . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        
+        $query = "INSERT INTO public_registry (
+            registry_id, 
+            public_user_id, 
+            visitor_name, 
+            visitor_nic, 
+            visitor_address, 
+            visitor_phone, 
+            department_id, 
+            division_id, 
+            purpose_of_visit, 
+            remarks, 
+            visitor_type, 
+            status, 
+            entry_time, 
+            created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW(), NOW())";
         
         $stmt = $db->prepare($query);
-        $stmt->execute($params);
-        $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $result = $stmt->execute([
+            $registryId,
+            $data['public_user_id'] ?? null,
+            $data['visitor_name'],
+            $data['visitor_nic'],
+            $data['visitor_address'] ?? null,
+            $data['visitor_phone'] ?? null,
+            intval($data['department_id']),
+            !empty($data['division_id']) ? intval($data['division_id']) : null,
+            $data['purpose_of_visit'],
+            $data['remarks'] ?? null,
+            $data['visitor_type']
+        ]);
         
-        if ($format === 'csv') {
-            header('Content-Type: text/csv');
-            header('Content-Disposition: attachment; filename="registry_export.csv"');
-            
-            $output = fopen('php://output', 'w');
-            
-            // CSV headers
-            fputcsv($output, [
-                'Registry ID', 'Entry Time', 'Visitor Name', 'NIC', 'Address', 
-                'Phone', 'Department', 'Division', 'Purpose', 'Remarks', 
-                'Visitor Type', 'Status'
-            ]);
-            
-            // CSV data
-            foreach ($entries as $entry) {
-                fputcsv($output, [
-                    $entry['registry_id'],
-                    $entry['entry_time'],
-                    $entry['visitor_name'],
-                    $entry['visitor_nic'],
-                    $entry['visitor_address'],
-                    $entry['visitor_phone'],
-                    $entry['department_name'],
-                    $entry['division_name'],
-                    $entry['purpose_of_visit'],
-                    $entry['remarks'],
-                    $entry['visitor_type'],
-                    $entry['status']
-                ]);
-            }
-            
-            fclose($output);
-        } else if ($format === 'pdf') {
-            // For PDF, return JSON that frontend can process
-            header('Content-Type: application/json');
-            sendResponse($entries, "Registry data for PDF export");
+        if (!$result) {
+            throw new Exception("Failed to create registry entry");
         }
         
+        $entryId = $db->lastInsertId();
+        
+        sendResponse([
+            "id" => intval($entryId),
+            "registry_id" => $registryId
+        ], "Registry entry created successfully");
+        
     } catch (Exception $e) {
-        error_log("Export error: " . $e->getMessage());
-        sendError(500, "Failed to export data: " . $e->getMessage());
+        error_log("Create registry entry error: " . $e->getMessage());
+        sendError(500, "Failed to create registry entry: " . $e->getMessage());
     }
 }
 
 function getRegistryEntries($db) {
     try {
-        $date = $_GET['date'] ?? null;
-        $id = $_GET['id'] ?? null;
-        $department_id = $_GET['department_id'] ?? null;
-        $division_id = $_GET['division_id'] ?? null;
-        $visitor_type = $_GET['visitor_type'] ?? null;
-        $status = $_GET['status'] ?? 'active';
+        $query = "SELECT 
+            pr.*,
+            d.name as department_name,
+            div.name as division_name,
+            pu.name as public_user_name,
+            pu.public_id as public_user_id_display
+        FROM public_registry pr
+        LEFT JOIN departments d ON pr.department_id = d.id
+        LEFT JOIN divisions div ON pr.division_id = div.id
+        LEFT JOIN public_users pu ON pr.public_user_id = pu.id
+        WHERE pr.status != 'deleted'
+        ORDER BY pr.entry_time DESC";
         
-        if ($id) {
-            $query = "SELECT pr.*, pu.name as public_user_name, pu.public_user_id,
-                            d.name as department_name, `div`.name as division_name
-                     FROM public_registry pr 
-                     LEFT JOIN public_users pu ON pr.public_user_id = pu.id
-                     LEFT JOIN departments d ON pr.department_id = d.id 
-                     LEFT JOIN divisions `div` ON pr.division_id = `div`.id 
-                     WHERE pr.id = ? AND pr.status = ?";
-            
-            $stmt = $db->prepare($query);
-            $stmt->execute([$id, $status]);
-            $entry = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if (!$entry) {
-                sendError(404, "Registry entry not found");
-                return;
-            }
-            
-            sendResponse($entry, "Registry entry retrieved successfully");
-        } else {
-            $query = "SELECT pr.*, pu.name as public_user_name, pu.public_user_id,
-                            d.name as department_name, `div`.name as division_name
-                     FROM public_registry pr 
-                     LEFT JOIN public_users pu ON pr.public_user_id = pu.id
-                     LEFT JOIN departments d ON pr.department_id = d.id 
-                     LEFT JOIN divisions `div` ON pr.division_id = `div`.id 
-                     WHERE pr.status = ?";
-            
-            $params = [$status];
-            
-            if ($date) {
-                $query .= " AND DATE(pr.entry_time) = ?";
-                $params[] = $date;
-            }
-            
-            if ($department_id) {
-                $query .= " AND pr.department_id = ?";
-                $params[] = $department_id;
-            }
-            
-            if ($division_id) {
-                $query .= " AND pr.division_id = ?";
-                $params[] = $division_id;
-            }
-            
-            if ($visitor_type) {
-                $query .= " AND pr.visitor_type = ?";
-                $params[] = $visitor_type;
-            }
-            
-            $query .= " ORDER BY pr.entry_time DESC";
-            
-            $stmt = $db->prepare($query);
-            $stmt->execute($params);
-            $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            sendResponse($entries, "Registry entries retrieved successfully");
-        }
+        $stmt = $db->prepare($query);
+        $stmt->execute();
+        $entries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        sendResponse($entries, "Registry entries retrieved successfully");
+        
     } catch (Exception $e) {
         error_log("Get registry entries error: " . $e->getMessage());
         sendError(500, "Failed to fetch registry entries: " . $e->getMessage());
     }
 }
 
-function createRegistryEntry($db) {
-    try {
-        $input = file_get_contents("php://input");
-        if (empty($input)) {
-            sendError(400, "Empty request body");
-            return;
-        }
-
-        $data = json_decode($input);
-        if (!$data) {
-            sendError(400, "Invalid JSON data");
-            return;
-        }
-        
-        $requiredFields = ['visitor_name', 'visitor_nic', 'department_id', 'purpose_of_visit'];
-        foreach ($requiredFields as $field) {
-            if (!isset($data->$field) || empty(trim($data->$field))) {
-                sendError(400, "Missing required field: $field");
-                return;
-            }
-        }
-        
-        $db->beginTransaction();
-        
-        // Generate registry ID
-        $registry_id = generateRegistryId($db);
-        
-        $query = "INSERT INTO public_registry (registry_id, public_user_id, visitor_name, visitor_nic, visitor_address, visitor_phone, department_id, division_id, purpose_of_visit, remarks, entry_time, visitor_type, status) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, 'active')";
-        
-        $stmt = $db->prepare($query);
-        $params = [
-            $registry_id,
-            isset($data->public_user_id) ? $data->public_user_id : null,
-            $data->visitor_name,
-            $data->visitor_nic,
-            isset($data->visitor_address) ? $data->visitor_address : null,
-            isset($data->visitor_phone) ? $data->visitor_phone : null,
-            $data->department_id,
-            isset($data->division_id) ? $data->division_id : null,
-            $data->purpose_of_visit,
-            isset($data->remarks) ? $data->remarks : null,
-            isset($data->visitor_type) ? $data->visitor_type : 'new'
-        ];
-        
-        if (!$stmt->execute($params)) {
-            throw new Exception("Failed to create registry entry");
-        }
-        
-        $entryId = $db->lastInsertId();
-        
-        $db->commit();
-        
-        sendResponse([
-            "registry_id" => $registry_id,
-            "id" => $entryId
-        ], "Registry entry created successfully");
-        
-    } catch (Exception $e) {
-        if ($db->inTransaction()) {
-            $db->rollBack();
-        }
-        error_log("Create registry entry error: " . $e->getMessage());
-        sendError(500, "Failed to create registry entry: " . $e->getMessage());
-    }
-}
-
 function updateRegistryEntry($db) {
     try {
         $input = file_get_contents("php://input");
-        $data = json_decode($input);
+        $data = json_decode($input, true);
         
-        if (!$data || !isset($data->id)) {
+        if (!$data || !isset($data['id'])) {
             sendError(400, "Registry entry ID is required");
-            return;
-        }
-        
-        $db->beginTransaction();
-        
-        $stmt = $db->prepare("SELECT id FROM public_registry WHERE id = ? AND status = 'active'");
-        $stmt->execute([$data->id]);
-        
-        if ($stmt->rowCount() === 0) {
-            sendError(404, "Registry entry not found");
             return;
         }
         
         $updateFields = [];
         $params = [];
         
-        $allowedFields = ['visitor_name', 'visitor_nic', 'visitor_address', 'visitor_phone', 'department_id', 'division_id', 'purpose_of_visit', 'remarks', 'visitor_type', 'status'];
+        $allowedFields = ['status', 'exit_time', 'remarks', 'purpose_of_visit'];
         
         foreach ($allowedFields as $field) {
-            if (isset($data->$field)) {
-                $updateFields[] = "$field = ?";
-                $params[] = $data->$field;
+            if (isset($data[$field])) {
+                if ($field === 'exit_time' && $data[$field]) {
+                    $updateFields[] = "$field = ?";
+                    $params[] = $data[$field];
+                } else if ($field !== 'exit_time') {
+                    $updateFields[] = "$field = ?";
+                    $params[] = $data[$field];
+                }
             }
         }
         
@@ -318,19 +174,21 @@ function updateRegistryEntry($db) {
             return;
         }
         
-        $query = "UPDATE public_registry SET " . implode(", ", $updateFields) . ", updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-        $params[] = $data->id;
+        $updateFields[] = "updated_at = NOW()";
+        
+        $query = "UPDATE public_registry SET " . implode(", ", $updateFields) . " WHERE id = ?";
+        $params[] = $data['id'];
         
         $stmt = $db->prepare($query);
-        $stmt->execute($params);
+        $result = $stmt->execute($params);
         
-        $db->commit();
-        sendResponse(["id" => $data->id], "Registry entry updated successfully");
+        if (!$result) {
+            throw new Exception("Failed to update registry entry");
+        }
+        
+        sendResponse(["id" => intval($data['id'])], "Registry entry updated successfully");
         
     } catch (Exception $e) {
-        if ($db->inTransaction()) {
-            $db->rollBack();
-        }
         error_log("Update registry entry error: " . $e->getMessage());
         sendError(500, "Failed to update registry entry: " . $e->getMessage());
     }
@@ -338,35 +196,24 @@ function updateRegistryEntry($db) {
 
 function deleteRegistryEntry($db) {
     try {
-        $input = file_get_contents("php://input");
-        $data = json_decode($input);
+        $id = $_GET['id'] ?? null;
         
-        if (!$data || !isset($data->id)) {
+        if (!$id) {
             sendError(400, "Registry entry ID is required");
             return;
         }
         
-        $db->beginTransaction();
+        $query = "UPDATE public_registry SET status = 'deleted', updated_at = NOW() WHERE id = ?";
+        $stmt = $db->prepare($query);
+        $result = $stmt->execute([intval($id)]);
         
-        $stmt = $db->prepare("SELECT id FROM public_registry WHERE id = ? AND status = 'active'");
-        $stmt->execute([$data->id]);
-        
-        if ($stmt->rowCount() === 0) {
-            sendError(404, "Registry entry not found or already deleted");
-            return;
+        if (!$result) {
+            throw new Exception("Failed to delete registry entry");
         }
         
-        $query = "UPDATE public_registry SET status = 'deleted', updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-        $stmt = $db->prepare($query);
-        $stmt->execute([$data->id]);
-        
-        $db->commit();
-        sendResponse(["id" => $data->id], "Registry entry deleted successfully");
+        sendResponse(["id" => intval($id)], "Registry entry deleted successfully");
         
     } catch (Exception $e) {
-        if ($db->inTransaction()) {
-            $db->rollBack();
-        }
         error_log("Delete registry entry error: " . $e->getMessage());
         sendError(500, "Failed to delete registry entry: " . $e->getMessage());
     }
