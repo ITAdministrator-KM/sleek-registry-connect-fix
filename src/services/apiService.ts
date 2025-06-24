@@ -12,7 +12,25 @@ export interface User {
   role: 'admin' | 'staff' | 'public' | 'subject_staff';
   department_id?: number;
   division_id?: number;
+  department_name?: string;
+  division_name?: string;
   status: 'active' | 'inactive' | 'pending';
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PublicUser {
+  id: number;
+  public_id: string;
+  name: string;
+  nic: string;
+  email?: string;
+  mobile: string;
+  address: string;
+  date_of_birth?: string;
+  department_id?: number;
+  division_id?: number;
+  status: 'active' | 'inactive';
   created_at?: string;
   updated_at?: string;
 }
@@ -34,6 +52,24 @@ export interface Division {
   department_id: number;
   description?: string;
   status: 'active' | 'inactive';
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ServiceCatalog {
+  id: number;
+  service_name: string;
+  service_code: string;
+  description: string;
+  department_id: number;
+  department_name?: string;
+  division_id?: number;
+  division_name?: string;
+  fee_amount: number;
+  processing_time_days: number;
+  required_documents?: string;
+  status: 'active' | 'inactive';
+  icon?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -84,6 +120,34 @@ class ApiService extends ApiBase {
       method: 'DELETE'
     });
     return true;
+  }
+
+  // Public User Management
+  async getPublicUsers(): Promise<PublicUser[]> {
+    try {
+      const response = await this.makeRequest('/public-users/index.php');
+      console.log('Public Users API response:', response);
+      
+      if (Array.isArray(response)) {
+        return response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        return response.data;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error fetching public users:', error);
+      return [];
+    }
+  }
+
+  async createPublicUser(userData: Omit<PublicUser, 'id' | 'public_id' | 'created_at' | 'updated_at'>): Promise<PublicUser> {
+    const response = await this.makeRequest('/public-users/index.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData)
+    });
+    return response?.data || response;
   }
 
   // Department Management
@@ -173,6 +237,68 @@ class ApiService extends ApiBase {
 
   async deleteDivision(id: number): Promise<boolean> {
     await this.makeRequest(`/divisions/index.php?id=${id}`, {
+      method: 'DELETE'
+    });
+    return true;
+  }
+
+  // Service Catalog Management
+  async getServices(): Promise<ServiceCatalog[]> {
+    try {
+      const response = await this.makeRequest('/service-catalog/index.php');
+      console.log('Services API response:', response);
+      
+      if (Array.isArray(response)) {
+        return response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        return response.data;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      return [];
+    }
+  }
+
+  async getPublicServices(): Promise<ServiceCatalog[]> {
+    try {
+      const response = await this.makeRequest('/service-catalog/index.php?public=true');
+      console.log('Public Services API response:', response);
+      
+      if (Array.isArray(response)) {
+        return response;
+      } else if (response?.data && Array.isArray(response.data)) {
+        return response.data;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error fetching public services:', error);
+      return [];
+    }
+  }
+
+  async createService(serviceData: Omit<ServiceCatalog, 'id' | 'created_at' | 'updated_at'>): Promise<ServiceCatalog> {
+    const response = await this.makeRequest('/service-catalog/index.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(serviceData)
+    });
+    return response?.data || response;
+  }
+
+  async updateService(id: number, serviceData: Partial<ServiceCatalog>): Promise<ServiceCatalog> {
+    const response = await this.makeRequest('/service-catalog/index.php', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...serviceData, id })
+    });
+    return response?.data || response;
+  }
+
+  async deleteService(id: number): Promise<boolean> {
+    await this.makeRequest(`/service-catalog/index.php?id=${id}`, {
       method: 'DELETE'
     });
     return true;

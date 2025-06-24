@@ -1,4 +1,5 @@
-import { apiService } from './api';
+
+import { ApiBase } from './apiBase';
 
 export interface PublicVisitor {
   id: number;
@@ -58,11 +59,11 @@ export interface CreateRegistryEntryData {
   visitor_type: 'new' | 'existing';
 }
 
-class PublicRegistryService {
+class PublicRegistryService extends ApiBase {
   // Visitor methods
   async searchVisitors(query: string): Promise<PublicVisitor[]> {
     try {
-      const response = await apiService.makeRequestWithRetry(`/public-users/search?q=${encodeURIComponent(query)}`);
+      const response = await this.makeRequest(`/public-users/search?q=${encodeURIComponent(query)}`);
       return Array.isArray(response?.data) ? response.data : [];
     } catch (error) {
       console.error('Error searching visitors:', error);
@@ -72,7 +73,7 @@ class PublicRegistryService {
 
   async getVisitorById(id: number): Promise<PublicVisitor | null> {
     try {
-      const response = await apiService.makeRequestWithRetry(`/public-users/${id}`);
+      const response = await this.makeRequest(`/public-users/${id}`);
       return response?.data || null;
     } catch (error) {
       console.error('Error getting visitor:', error);
@@ -82,7 +83,7 @@ class PublicRegistryService {
 
   async createVisitor(visitorData: Omit<PublicVisitor, 'id' | 'public_id' | 'created_at' | 'updated_at' | 'visit_count'>): Promise<PublicVisitor | null> {
     try {
-      const response = await apiService.makeRequestWithRetry('/public-users', {
+      const response = await this.makeRequest('/public-users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(visitorData)
@@ -115,7 +116,7 @@ class PublicRegistryService {
       if (filters.limit) params.append('limit', filters.limit.toString());
 
       const queryString = params.toString();
-      const response = await apiService.makeRequestWithRetry(`/registry?${queryString}`);
+      const response = await this.makeRequest(`/registry?${queryString}`);
       
       return {
         data: Array.isArray(response?.data) ? response.data : [],
@@ -129,7 +130,7 @@ class PublicRegistryService {
 
   async createRegistryEntry(entryData: CreateRegistryEntryData): Promise<RegistryEntry | null> {
     try {
-      const response = await apiService.makeRequestWithRetry('/registry', {
+      const response = await this.makeRequest('/registry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(entryData)
@@ -143,7 +144,7 @@ class PublicRegistryService {
 
   async checkOutVisitor(entryId: number): Promise<boolean> {
     try {
-      await apiService.makeRequestWithRetry(`/registry/${entryId}/checkout`, {
+      await this.makeRequest(`/registry/${entryId}/checkout`, {
         method: 'PUT'
       });
       return true;
@@ -169,7 +170,7 @@ class PublicRegistryService {
       if (filters.departmentId) params.append('department_id', filters.departmentId.toString());
       if (filters.divisionId) params.append('division_id', filters.divisionId.toString());
 
-      const response = await apiService.makeRequestWithRetry(`/registry/export?${params.toString()}`);
+      const response = await this.makeRequest(`/registry/export?${params.toString()}`);
       return response?.data || null;
     } catch (error) {
       console.error('Error exporting registry entries:', error);
