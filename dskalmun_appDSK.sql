@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jun 23, 2025 at 02:04 PM
+-- Generation Time: Jun 24, 2025 at 09:03 AM
 -- Server version: 8.0.42-cll-lve
 -- PHP Version: 8.3.22
 
@@ -109,7 +109,7 @@ CREATE TABLE `divisions` (
 
 INSERT INTO `divisions` (`id`, `div_id`, `name`, `department_id`, `description`, `status`, `created_at`, `updated_at`) VALUES
 (17, 'DIV007', 'Senior Citizenship Identity Cards', 14, 'Issuing Senior Citizenship Identity Cards', 'active', '2025-06-12 05:53:08', '2025-06-12 05:53:08'),
-(16, 'DIV006', 'Aids and Equipment\'s', 14, 'Provision of Aids and Equipment\'s.', 'active', '2025-06-12 05:52:48', '2025-06-12 05:52:48'),
+(16, 'DIV006', 'Aids and Equipment\'s', 14, 'Provision of Aids and Equipment\'s.', 'inactive', '2025-06-12 05:52:48', '2025-06-23 08:38:50'),
 (15, 'DIV005', 'Animal Permit', 1, 'Give Animal Permits for the public', 'active', '2025-06-12 05:52:17', '2025-06-12 05:52:17'),
 (14, 'DIV004', 'Collecting Revenue', 1, 'Collecting Revenue', 'active', '2025-06-12 05:51:51', '2025-06-12 05:51:51'),
 (13, 'DIV003', 'Licenses', 1, 'Renewing Licenses', 'active', '2025-06-12 05:51:35', '2025-06-12 05:51:35'),
@@ -486,6 +486,41 @@ CREATE TABLE `request_documents` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `service_catalog`
+--
+
+CREATE TABLE `service_catalog` (
+  `id` int NOT NULL,
+  `service_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `service_code` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `department_id` int DEFAULT NULL,
+  `division_id` int DEFAULT NULL,
+  `icon` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 0xF09F9384,
+  `fee_amount` decimal(10,2) DEFAULT '0.00',
+  `required_documents` text COLLATE utf8mb4_unicode_ci,
+  `processing_time_days` int DEFAULT '7',
+  `eligibility_criteria` text COLLATE utf8mb4_unicode_ci,
+  `form_template_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` enum('active','inactive') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `service_catalog`
+--
+
+INSERT INTO `service_catalog` (`id`, `service_name`, `service_code`, `description`, `department_id`, `division_id`, `icon`, `fee_amount`, `required_documents`, `processing_time_days`, `eligibility_criteria`, `form_template_url`, `status`, `created_at`, `updated_at`) VALUES
+(1, 'Marriage Registration', 'MR-001', 'Registration of marriages', NULL, NULL, '📄', 0.00, NULL, 7, NULL, NULL, 'active', '2025-06-23 09:02:39', '2025-06-23 09:02:39'),
+(2, 'Birth Certificate', 'BC-001', 'Application for birth certificate', NULL, NULL, '📄', 0.00, NULL, 7, NULL, NULL, 'active', '2025-06-23 09:02:39', '2025-06-23 09:02:39'),
+(3, 'Death Certificate', 'DC-001', 'Application for death certificate', NULL, NULL, '📄', 0.00, NULL, 7, NULL, NULL, 'active', '2025-06-23 09:02:39', '2025-06-23 09:02:39'),
+(4, 'Business License', 'BL-001', 'Business registration and licensing', NULL, NULL, '📄', 0.00, NULL, 7, NULL, NULL, 'active', '2025-06-23 09:02:39', '2025-06-23 09:02:39'),
+(5, 'Building Permit', 'BP-001', 'Application for building construction permit', NULL, NULL, '📄', 0.00, NULL, 7, NULL, NULL, 'active', '2025-06-23 09:02:39', '2025-06-23 09:02:39');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `service_history`
 --
 
@@ -786,7 +821,21 @@ INSERT INTO `user_sessions` (`id`, `user_id`, `token`, `is_valid`, `expires_at`,
 (117, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNDg3NjQ4fQ.5YbPn5l9aBuuJ_ogSgqp6i2i3BN0jEzO9pVgzwk--XY', 1, '2025-06-21 06:34:08', '2025-06-20 06:34:08', '2025-06-20 06:34:08'),
 (118, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzM4MDE3fQ.Z_6qfJjTOZPRXism90URpqY3Z5wp3q3-3xBTxM2RKKo', 1, '2025-06-24 04:06:57', '2025-06-23 04:06:57', '2025-06-23 04:06:57'),
 (119, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNzM4MDYwfQ.FD37Dz5AK6YCShOC8UtuTZQWKQObjv7NJYp54HlLhJk', 1, '2025-06-24 04:07:40', '2025-06-23 04:07:40', '2025-06-23 04:07:40'),
-(120, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzQ2Mzk1fQ.m54A4JtycqdVcFw6ivE8jJVT9uYD5IpIlLr0CKQr9CU', 1, '2025-06-24 06:26:35', '2025-06-23 06:26:35', '2025-06-23 06:26:35');
+(120, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzQ2Mzk1fQ.m54A4JtycqdVcFw6ivE8jJVT9uYD5IpIlLr0CKQr9CU', 1, '2025-06-24 06:26:35', '2025-06-23 06:26:35', '2025-06-23 06:26:35'),
+(121, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzU0Mjk2fQ.BqFQBoum5eWZlUZj-0tR-G2HDQrwoJeQH20c5B1aARU', 1, '2025-06-24 08:38:16', '2025-06-23 08:38:16', '2025-06-23 08:38:16'),
+(122, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzU0Mzg3fQ.6Gi4o3vz3Ebhx4cNturUr3t1fVmLBx_yShU82X2T0Xw', 1, '2025-06-24 08:39:47', '2025-06-23 08:39:47', '2025-06-23 08:39:47'),
+(123, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNzU0NDI3fQ.-Q0oB9GJq0r6c0gwIJEGi_ueoCMFseJGeviv7LWDlls', 1, '2025-06-24 08:40:27', '2025-06-23 08:40:27', '2025-06-23 08:40:27'),
+(124, 1, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJwdWJsaWNfaWQiOiJQVUIwMDEiLCJ1c2VybmFtZSI6ImFuemFyIiwicm9sZSI6InB1YmxpYyIsImV4cCI6MTc1MDc1NTMzNH0.X7WBg3Ua2BW8qC96GF-PjaeEvSzdkPVukCyYu21tVRU', 1, '2025-06-24 08:55:34', '2025-06-23 08:55:34', '2025-06-23 08:55:34'),
+(125, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzU1NDQwfQ.iCgSxxJPBMYm8ZblxGE39li9KIxqNUGGppdVjcqvwUY', 1, '2025-06-24 08:57:20', '2025-06-23 08:57:20', '2025-06-23 08:57:20'),
+(126, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzU2MjEwfQ.O2nkZJr1a6IKfEet122G9MvmWa3gIf-kfMbC72kmEDA', 1, '2025-06-24 09:10:10', '2025-06-23 09:10:10', '2025-06-23 09:10:10'),
+(127, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzU4ODk0fQ.HLUk2QH1WrR3AZJPIOM8q3ZyiDg476JuJrCheK49PI8', 1, '2025-06-24 09:54:54', '2025-06-23 09:54:54', '2025-06-23 09:54:54'),
+(128, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzU4ODk0fQ.HLUk2QH1WrR3AZJPIOM8q3ZyiDg476JuJrCheK49PI8', 1, '2025-06-24 09:54:54', '2025-06-23 09:54:54', '2025-06-23 09:54:54'),
+(129, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzYyMzg4fQ.2aijR4Srqy_W4gmZWBrL0m64mt1BiV647ceHuo2JGwU', 1, '2025-06-24 10:53:08', '2025-06-23 10:53:08', '2025-06-23 10:53:08'),
+(130, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzYyMzk4fQ.sxM8m8_ZxHltnahwPTuHdwVg4Uec_x-yD7PKacFlp4s', 1, '2025-06-24 10:53:18', '2025-06-23 10:53:18', '2025-06-23 10:53:18'),
+(131, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzYyNDEwfQ.3x6VMGlmq9TROHvDHIKFBaLMshit2ZW0U1CkoSVRiTA', 1, '2025-06-24 10:53:30', '2025-06-23 10:53:30', '2025-06-23 10:53:30'),
+(132, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNzYyNDIxfQ.ii85_uyJgkgU_7ZVXVlD1OP5waXB4s4qI2hUpM44E5A', 1, '2025-06-24 10:53:41', '2025-06-23 10:53:41', '2025-06-23 10:53:41'),
+(133, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwODIyMjU0fQ.WHGsfpZWKjK6OwcC3aBChw94xF_h_KJzEBe_WhOZpVU', 1, '2025-06-25 03:30:54', '2025-06-24 03:30:54', '2025-06-24 03:30:54'),
+(134, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwODIyMjcyfQ.GBTLwrWuVeEiiIZ_nxjAlfSbt78i6TAOfLTdL3ZNeoY', 1, '2025-06-25 03:31:12', '2025-06-24 03:31:12', '2025-06-24 03:31:12');
 
 --
 -- Indexes for dumped tables
@@ -986,6 +1035,13 @@ ALTER TABLE `request_documents`
   ADD KEY `idx_doc_request` (`service_request_id`);
 
 --
+-- Indexes for table `service_catalog`
+--
+ALTER TABLE `service_catalog`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `service_code` (`service_code`);
+
+--
 -- Indexes for table `service_history`
 --
 ALTER TABLE `service_history`
@@ -1176,6 +1232,12 @@ ALTER TABLE `request_documents`
   MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `service_catalog`
+--
+ALTER TABLE `service_catalog`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
 -- AUTO_INCREMENT for table `service_history`
 --
 ALTER TABLE `service_history`
@@ -1209,7 +1271,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=121;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=135;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
