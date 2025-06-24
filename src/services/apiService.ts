@@ -1,4 +1,3 @@
-
 import { ApiBase } from './apiBase';
 
 export interface User {
@@ -71,7 +70,7 @@ export interface ServiceCatalog {
   division_name?: string;
   fee_amount: number;
   processing_time_days: number;
-  required_documents: string;
+  required_documents: string[] | string;
   status: 'active' | 'inactive';
   icon?: string;
   eligibility_criteria?: string;
@@ -269,13 +268,23 @@ class ApiService extends ApiBase {
       const response = await this.makeRequest('/service-catalog/index.php');
       console.log('Services API response:', response);
       
+      let services: ServiceCatalog[] = [];
+      
       if (Array.isArray(response)) {
-        return response;
+        services = response;
       } else if (response?.data && Array.isArray(response.data)) {
-        return response.data;
+        services = response.data;
       }
       
-      return [];
+      // Ensure required_documents is properly handled
+      return services.map(service => ({
+        ...service,
+        required_documents: Array.isArray(service.required_documents) 
+          ? service.required_documents 
+          : (typeof service.required_documents === 'string' 
+              ? service.required_documents.split(',').map(doc => doc.trim()).filter(doc => doc.length > 0)
+              : [])
+      }));
     } catch (error) {
       console.error('Error fetching services:', error);
       return [];
@@ -287,13 +296,23 @@ class ApiService extends ApiBase {
       const response = await this.makeRequest('/service-catalog/index.php?public=true');
       console.log('Public Services API response:', response);
       
+      let services: ServiceCatalog[] = [];
+      
       if (Array.isArray(response)) {
-        return response;
+        services = response;
       } else if (response?.data && Array.isArray(response.data)) {
-        return response.data;
+        services = response.data;
       }
       
-      return [];
+      // Ensure required_documents is properly handled
+      return services.map(service => ({
+        ...service,
+        required_documents: Array.isArray(service.required_documents) 
+          ? service.required_documents 
+          : (typeof service.required_documents === 'string' 
+              ? service.required_documents.split(',').map(doc => doc.trim()).filter(doc => doc.length > 0)
+              : [])
+      }));
     } catch (error) {
       console.error('Error fetching public services:', error);
       return [];

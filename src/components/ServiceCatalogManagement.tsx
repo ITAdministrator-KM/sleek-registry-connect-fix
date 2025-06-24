@@ -17,20 +17,11 @@ import {
 } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
 
 import StaffLayout from './staff/StaffLayout';
 import { apiService, ServiceCatalog } from '@/services/apiService';
+import { ServiceCatalogDialog } from './service-catalog/ServiceCatalogDialog';
+import type { ServiceFormData } from './service-catalog/ServiceCatalogTypes';
 
 const ServiceCatalogManagement = () => {
   const [activeTab, setActiveTab] = useState('service-catalog');
@@ -43,7 +34,7 @@ const ServiceCatalogManagement = () => {
   const [selectedService, setSelectedService] = useState<ServiceCatalog | null>(null);
   const { toast } = useToast();
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ServiceFormData>({
     service_name: '',
     service_code: '',
     description: '',
@@ -51,11 +42,11 @@ const ServiceCatalogManagement = () => {
     division_id: '',
     icon: '',
     fee_amount: '',
-    required_documents: [] as string[],
+    required_documents: [],
     processing_time_days: '',
     eligibility_criteria: '',
     form_template_url: '',
-    status: 'active' as 'active' | 'inactive',
+    status: 'active',
   });
 
   useEffect(() => {
@@ -66,6 +57,7 @@ const ServiceCatalogManagement = () => {
     try {
       setLoading(true);
       const data = await apiService.getServices();
+      console.log('Fetched services:', data);
       setServices(data);
     } catch (error) {
       console.error('Failed to fetch services:', error);
@@ -80,12 +72,12 @@ const ServiceCatalogManagement = () => {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
     if (id === 'required_documents') {
       setFormData(prevState => ({
         ...prevState,
-        [id]: value.split(',').map(doc => doc.trim())
+        required_documents: value.split(',').map(doc => doc.trim()).filter(doc => doc.length > 0)
       }));
     } else {
       setFormData(prevState => ({
@@ -93,6 +85,13 @@ const ServiceCatalogManagement = () => {
         [id]: value
       }));
     }
+  };
+
+  const handleStatusChange = (value: 'active' | 'inactive') => {
+    setFormData(prevState => ({
+      ...prevState,
+      status: value
+    }));
   };
 
   const handleDialogClose = () => {
@@ -105,12 +104,28 @@ const ServiceCatalogManagement = () => {
   const handleCreate = () => {
     setIsDialogOpen(true);
     setIsEditing(false);
+    resetForm();
   };
 
   const handleEdit = (service: ServiceCatalog) => {
     setIsDialogOpen(true);
     setIsEditing(true);
     setSelectedService(service);
+    
+    // Handle required_documents properly - it might be a string or array
+    let requiredDocuments: string[] = [];
+    if (typeof service.required_documents === 'string') {
+      try {
+        // Try to parse as JSON first
+        requiredDocuments = JSON.parse(service.required_documents);
+      } catch {
+        // If parsing fails, split by comma
+        requiredDocuments = service.required_documents.split(',').map(doc => doc.trim()).filter(doc => doc.length > 0);
+      }
+    } else if (Array.isArray(service.required_documents)) {
+      requiredDocuments = service.required_documents;
+    }
+
     setFormData({
       service_name: service.service_name,
       service_code: service.service_code,
@@ -119,7 +134,7 @@ const ServiceCatalogManagement = () => {
       division_id: service.division_id?.toString() || '',
       icon: service.icon || '',
       fee_amount: service.fee_amount?.toString() || '',
-      required_documents: Array.isArray(service.required_documents) ? service.required_documents : [],
+      required_documents: requiredDocuments,
       processing_time_days: service.processing_time_days?.toString() || '',
       eligibility_criteria: service.eligibility_criteria || '',
       form_template_url: service.form_template_url || '',
@@ -147,45 +162,35 @@ const ServiceCatalogManagement = () => {
 
   const handleSubmit = async () => {
     try {
+      const serviceData = {
+        service_name: formData.service_name,
+        service_code: formData.service_code,
+        description: formData.description,
+        department_id: parseInt(formData.department_id) || null,
+        division_id: formData.division_id ? parseInt(formData.division_id) : null,
+        icon: formData.icon,
+        fee_amount: parseFloat(formData.fee_amount) || 0,
+        required_documents: formData.required_documents,
+        processing_time_days: parseInt(formData.processing_time_days) || 7,
+        eligibility_criteria: formData.eligibility_criteria,
+        form_template_url: formData.form_template_url,
+        status: formData.status,
+      };
+
       if (isEditing && selectedService) {
-        await apiService.updateService(selectedService.id, {
-          service_name: formData.service_name,
-          service_code: formData.service_code,
-          description: formData.description,
-          department_id: parseInt(formData.department_id),
-          division_id: formData.division_id ? parseInt(formData.division_id) : null,
-          icon: formData.icon,
-          fee_amount: parseFloat(formData.fee_amount),
-          required_documents: formData.required_documents,
-          processing_time_days: parseInt(formData.processing_time_days),
-          eligibility_criteria: formData.eligibility_criteria,
-          form_template_url: formData.form_template_url,
-          status: formData.status,
-        });
+        await apiService.updateService(selectedService.id, serviceData);
         toast({
           title: "Success",
           description: "Service updated successfully",
         });
       } else {
-        await apiService.createService({
-          service_name: formData.service_name,
-          service_code: formData.service_code,
-          description: formData.description,
-          department_id: parseInt(formData.department_id),
-          division_id: formData.division_id ? parseInt(formData.division_id) : null,
-          icon: formData.icon,
-          fee_amount: parseFloat(formData.fee_amount),
-          required_documents: formData.required_documents,
-          processing_time_days: parseInt(formData.processing_time_days),
-          eligibility_criteria: formData.eligibility_criteria,
-          form_template_url: formData.form_template_url,
-          status: formData.status,
-        });
+        await apiService.createService(serviceData);
         toast({
           title: "Success",
           description: "Service created successfully",
         });
       }
+      
       fetchServices();
       handleDialogClose();
     } catch (error) {
@@ -218,7 +223,7 @@ const ServiceCatalogManagement = () => {
   const filteredServices = services.filter(service => {
     const matchesSearch = service.service_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       service.service_code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDepartment = filterDepartment === 'all' || service.department_id.toString() === filterDepartment;
+    const matchesDepartment = filterDepartment === 'all' || service.department_id?.toString() === filterDepartment;
     return matchesSearch && matchesDepartment;
   });
 
@@ -228,110 +233,13 @@ const ServiceCatalogManagement = () => {
         <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-2xl font-bold">Service Catalog Management</CardTitle>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" onClick={handleCreate}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Service
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>{isEditing ? 'Edit Service' : 'Create Service'}</DialogTitle>
-                  <DialogDescription>
-                    {isEditing ? 'Edit the service details.' : 'Add a new service to the catalog.'}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="service_name" className="text-right">
-                      Name
-                    </Label>
-                    <Input type="text" id="service_name" value={formData.service_name} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="service_code" className="text-right">
-                      Code
-                    </Label>
-                    <Input type="text" id="service_code" value={formData.service_code} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="description" className="text-right">
-                      Description
-                    </Label>
-                    <Textarea id="description" value={formData.description} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="department_id" className="text-right">
-                      Department ID
-                    </Label>
-                    <Input type="text" id="department_id" value={formData.department_id} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="division_id" className="text-right">
-                      Division ID
-                    </Label>
-                    <Input type="text" id="division_id" value={formData.division_id} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="icon" className="text-right">
-                      Icon
-                    </Label>
-                    <Input type="text" id="icon" value={formData.icon} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="fee_amount" className="text-right">
-                      Fee Amount
-                    </Label>
-                    <Input type="text" id="fee_amount" value={formData.fee_amount} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="required_documents" className="text-right">
-                      Required Documents
-                    </Label>
-                    <Input type="text" id="required_documents" value={formData.required_documents.join(', ')} onChange={handleInputChange} className="col-span-3" placeholder="Comma separated" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="processing_time_days" className="text-right">
-                      Processing Time (Days)
-                    </Label>
-                    <Input type="text" id="processing_time_days" value={formData.processing_time_days} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="eligibility_criteria" className="text-right">
-                      Eligibility Criteria
-                    </Label>
-                    <Textarea id="eligibility_criteria" value={formData.eligibility_criteria} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="form_template_url" className="text-right">
-                      Form Template URL
-                    </Label>
-                    <Input type="text" id="form_template_url" value={formData.form_template_url} onChange={handleInputChange} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="status" className="text-right">
-                      Status
-                    </Label>
-                    <Select value={formData.status} onValueChange={(value: 'active' | 'inactive') => setFormData(prevState => ({ ...prevState, status: value }))}>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <Button type="submit" onClick={handleSubmit}>
-                  {isEditing ? 'Update Service' : 'Create Service'}
-                </Button>
-              </DialogContent>
-            </Dialog>
+            <Button variant="outline" onClick={handleCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Service
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 md:space-x-4">
+            <div className="flex flex-col md:flex-row items-center justify-between space-y-4 md:space-y-0 md:space-x-4 mb-4">
               <Input
                 placeholder="Search services..."
                 value={searchTerm}
@@ -349,7 +257,8 @@ const ServiceCatalogManagement = () => {
                 </SelectContent>
               </Select>
             </div>
-            <ScrollArea className="my-4">
+            
+            <ScrollArea className="h-[400px]">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -375,18 +284,26 @@ const ServiceCatalogManagement = () => {
                       <TableRow key={service.id}>
                         <TableCell className="font-medium">{service.service_code}</TableCell>
                         <TableCell>{service.service_name}</TableCell>
-                        <TableCell>{service.description}</TableCell>
+                        <TableCell className="max-w-xs truncate">{service.description}</TableCell>
                         <TableCell>{service.department_id}</TableCell>
-                        <TableCell>{service.status}</TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded-full text-xs ${
+                            service.status === 'active' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {service.status}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(service)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(service.id)}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="sm" onClick={() => handleEdit(service)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(service.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -396,6 +313,16 @@ const ServiceCatalogManagement = () => {
             </ScrollArea>
           </CardContent>
         </Card>
+
+        <ServiceCatalogDialog
+          isOpen={isDialogOpen}
+          onClose={handleDialogClose}
+          isEditing={isEditing}
+          formData={formData}
+          onInputChange={handleInputChange}
+          onSubmit={handleSubmit}
+          onStatusChange={handleStatusChange}
+        />
       </div>
     </StaffLayout>
   );
