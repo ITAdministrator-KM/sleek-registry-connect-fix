@@ -1,17 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiService, type ServiceCatalog } from "@/services/apiService";
 import { ServiceCatalogDialog } from './service-catalog/ServiceCatalogDialog';
+import ServiceCatalogTable from './service-catalog/ServiceCatalogTable';
+import { ServiceCatalogErrorBoundary } from './ServiceCatalogErrorBoundary';
 import type { ServiceFormData } from './service-catalog/ServiceCatalogTypes';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
-const ServiceCatalogManagement = () => {
+const ServiceCatalogManagement: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingService, setEditingService] = useState<ServiceCatalog | null>(null);
@@ -52,9 +52,10 @@ const ServiceCatalogManagement = () => {
       });
     },
     onError: (error) => {
+      console.error('Create service error:', error);
       toast({
         title: "Error",
-        description: `Failed to create service: ${error.message}`,
+        description: `Failed to create service: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
     },
@@ -74,9 +75,10 @@ const ServiceCatalogManagement = () => {
       });
     },
     onError: (error) => {
+      console.error('Update service error:', error);
       toast({
         title: "Error",
-        description: `Failed to update service: ${error.message}`,
+        description: `Failed to update service: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
     },
@@ -93,9 +95,10 @@ const ServiceCatalogManagement = () => {
       });
     },
     onError: (error) => {
+      console.error('Delete service error:', error);
       toast({
         title: "Error",
-        description: `Failed to delete service: ${error.message}`,
+        description: `Failed to delete service: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
     },
@@ -143,48 +146,66 @@ const ServiceCatalogManagement = () => {
   };
 
   const handleSubmit = () => {
-    const serviceData = {
-      service_name: formData.service_name,
-      service_code: formData.service_code,
-      description: formData.description,
-      department_id: parseInt(formData.department_id) || 0,
-      division_id: parseInt(formData.division_id) || undefined,
-      icon: formData.icon,
-      fee_amount: parseFloat(formData.fee_amount) || 0,
-      required_documents: formData.required_documents,
-      processing_time_days: parseInt(formData.processing_time_days) || 0,
-      eligibility_criteria: formData.eligibility_criteria,
-      form_template_url: formData.form_template_url,
-      status: formData.status
-    };
+    try {
+      const serviceData = {
+        service_name: formData.service_name,
+        service_code: formData.service_code,
+        description: formData.description,
+        department_id: parseInt(formData.department_id) || 0,
+        division_id: formData.division_id ? parseInt(formData.division_id) : undefined,
+        icon: formData.icon || '📄',
+        fee_amount: parseFloat(formData.fee_amount) || 0,
+        required_documents: formData.required_documents,
+        processing_time_days: parseInt(formData.processing_time_days) || 1,
+        eligibility_criteria: formData.eligibility_criteria,
+        form_template_url: formData.form_template_url,
+        status: formData.status
+      };
 
-    if (isEditing && editingService) {
-      updateServiceMutation.mutate({ id: editingService.id, data: serviceData });
-    } else {
-      createServiceMutation.mutate(serviceData);
+      if (isEditing && editingService) {
+        updateServiceMutation.mutate({ id: editingService.id, data: serviceData });
+      } else {
+        createServiceMutation.mutate(serviceData);
+      }
+    } catch (error) {
+      console.error('Submit error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit form. Please check your input.",
+        variant: "destructive",
+      });
     }
   };
 
   const handleEdit = (service: ServiceCatalog) => {
-    setEditingService(service);
-    setFormData({
-      service_name: service.service_name,
-      service_code: service.service_code,
-      description: service.description,
-      department_id: service.department_id.toString(),
-      division_id: service.division_id?.toString() || '',
-      icon: service.icon || '',
-      fee_amount: service.fee_amount.toString(),
-      required_documents: Array.isArray(service.required_documents) 
-        ? service.required_documents 
-        : [],
-      processing_time_days: service.processing_time_days.toString(),
-      eligibility_criteria: service.eligibility_criteria || '',
-      form_template_url: service.form_template_url || '',
-      status: service.status
-    });
-    setIsEditing(true);
-    setIsDialogOpen(true);
+    try {
+      setEditingService(service);
+      setFormData({
+        service_name: service.service_name || '',
+        service_code: service.service_code || '',
+        description: service.description || '',
+        department_id: service.department_id?.toString() || '',
+        division_id: service.division_id?.toString() || '',
+        icon: service.icon || '',
+        fee_amount: service.fee_amount?.toString() || '',
+        required_documents: Array.isArray(service.required_documents) 
+          ? service.required_documents 
+          : [],
+        processing_time_days: service.processing_time_days?.toString() || '',
+        eligibility_criteria: service.eligibility_criteria || '',
+        form_template_url: service.form_template_url || '',
+        status: service.status || 'active'
+      });
+      setIsEditing(true);
+      setIsDialogOpen(true);
+    } catch (error) {
+      console.error('Edit error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load service data for editing.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = (id: number) => {
@@ -202,95 +223,52 @@ const ServiceCatalogManagement = () => {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-red-600">Error loading services: {(error as Error).message}</p>
+          <p className="text-red-600">Error loading services: {error instanceof Error ? error.message : 'Unknown error'}</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Service Catalog Management</CardTitle>
-              <CardDescription>
-                Manage services offered by the Divisional Secretariat
-              </CardDescription>
+    <ServiceCatalogErrorBoundary>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Service Catalog Management</CardTitle>
+                <CardDescription>
+                  Manage services offered by the Divisional Secretariat
+                </CardDescription>
+              </div>
+              <Button onClick={handleAddNew}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Service
+              </Button>
             </div>
-            <Button onClick={handleAddNew}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Service
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <p>Loading services...</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Service Name</TableHead>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Fee Amount</TableHead>
-                  <TableHead>Processing Time</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {services.map((service) => (
-                  <TableRow key={service.id}>
-                    <TableCell className="font-medium">{service.service_name}</TableCell>
-                    <TableCell>{service.service_code}</TableCell>
-                    <TableCell>{service.department_name || 'N/A'}</TableCell>
-                    <TableCell>Rs. {service.fee_amount}</TableCell>
-                    <TableCell>{service.processing_time_days} days</TableCell>
-                    <TableCell>
-                      <Badge variant={service.status === 'active' ? 'default' : 'secondary'}>
-                        {service.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(service)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(service.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            <ServiceCatalogTable
+              services={services}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              isLoading={isLoading}
+            />
+          </CardContent>
+        </Card>
 
-      <ServiceCatalogDialog
-        isOpen={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
-        isEditing={isEditing}
-        formData={formData}
-        onInputChange={handleInputChange}
-        onSubmit={handleSubmit}
-        onStatusChange={handleStatusChange}
-        onDocumentsChange={handleDocumentsChange}
-      />
-    </div>
+        <ServiceCatalogDialog
+          isOpen={isDialogOpen}
+          onClose={() => setIsDialogOpen(false)}
+          isEditing={isEditing}
+          formData={formData}
+          onInputChange={handleInputChange}
+          onSubmit={handleSubmit}
+          onStatusChange={handleStatusChange}
+          onDocumentsChange={handleDocumentsChange}
+        />
+      </div>
+    </ServiceCatalogErrorBoundary>
   );
 };
 

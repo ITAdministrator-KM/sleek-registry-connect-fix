@@ -37,20 +37,29 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
 }) => {
   const handleDocumentsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    const documents = value.split(',').map(doc => doc.trim()).filter(doc => doc.length > 0);
+    const documents = value ? value.split(',').map(doc => doc.trim()).filter(doc => doc.length > 0) : [];
     onDocumentsChange(documents);
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit();
+  };
+
+  if (!formData) {
+    return null;
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[425px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Service' : 'Create Service'}</DialogTitle>
           <DialogDescription>
             {isEditing ? 'Edit the service details.' : 'Add a new service to the catalog.'}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="service_name" className="text-right">
               Name
@@ -59,9 +68,10 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               type="text" 
               id="service_name" 
               name="service_name"
-              value={formData.service_name} 
+              value={formData.service_name || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
+              required
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -72,9 +82,10 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               type="text" 
               id="service_code" 
               name="service_code"
-              value={formData.service_code} 
+              value={formData.service_code || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
+              required
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -84,7 +95,7 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
             <Textarea 
               id="description" 
               name="description"
-              value={formData.description} 
+              value={formData.description || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
             />
@@ -94,10 +105,10 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               Department ID
             </Label>
             <Input 
-              type="text" 
+              type="number" 
               id="department_id" 
               name="department_id"
-              value={formData.department_id} 
+              value={formData.department_id || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
             />
@@ -107,10 +118,10 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               Division ID
             </Label>
             <Input 
-              type="text" 
+              type="number" 
               id="division_id" 
               name="division_id"
-              value={formData.division_id} 
+              value={formData.division_id || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
             />
@@ -123,7 +134,7 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               type="text" 
               id="icon" 
               name="icon"
-              value={formData.icon} 
+              value={formData.icon || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
             />
@@ -133,10 +144,11 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               Fee Amount
             </Label>
             <Input 
-              type="text" 
+              type="number" 
+              step="0.01"
               id="fee_amount" 
               name="fee_amount"
-              value={formData.fee_amount} 
+              value={formData.fee_amount || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
             />
@@ -149,7 +161,7 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               type="text" 
               id="required_documents" 
               name="required_documents"
-              value={formData.required_documents.join(', ')} 
+              value={Array.isArray(formData.required_documents) ? formData.required_documents.join(', ') : ''} 
               onChange={handleDocumentsChange} 
               className="col-span-3" 
               placeholder="Comma separated" 
@@ -160,10 +172,10 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               Processing Time (Days)
             </Label>
             <Input 
-              type="text" 
+              type="number" 
               id="processing_time_days" 
               name="processing_time_days"
-              value={formData.processing_time_days} 
+              value={formData.processing_time_days || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
             />
@@ -175,7 +187,7 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
             <Textarea 
               id="eligibility_criteria" 
               name="eligibility_criteria"
-              value={formData.eligibility_criteria} 
+              value={formData.eligibility_criteria || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
             />
@@ -185,10 +197,10 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               Form Template URL
             </Label>
             <Input 
-              type="text" 
+              type="url" 
               id="form_template_url" 
               name="form_template_url"
-              value={formData.form_template_url} 
+              value={formData.form_template_url || ''} 
               onChange={onInputChange} 
               className="col-span-3" 
             />
@@ -197,7 +209,7 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
             <Label htmlFor="status" className="text-right">
               Status
             </Label>
-            <Select value={formData.status} onValueChange={onStatusChange}>
+            <Select value={formData.status || 'active'} onValueChange={onStatusChange}>
               <SelectTrigger className="col-span-3">
                 <SelectValue placeholder="Select status" />
               </SelectTrigger>
@@ -207,10 +219,15 @@ export const ServiceCatalogDialog: React.FC<ServiceCatalogDialogProps> = ({
               </SelectContent>
             </Select>
           </div>
-        </div>
-        <Button type="submit" onClick={onSubmit}>
-          {isEditing ? 'Update Service' : 'Create Service'}
-        </Button>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit">
+              {isEditing ? 'Update Service' : 'Create Service'}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );
