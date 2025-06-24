@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,11 +51,11 @@ const ServiceCatalogManagement = () => {
     division_id: '',
     icon: '',
     fee_amount: '',
-    required_documents: '',
+    required_documents: [] as string[],
     processing_time_days: '',
     eligibility_criteria: '',
     form_template_url: '',
-    status: 'active',
+    status: 'active' as 'active' | 'inactive',
   });
 
   useEffect(() => {
@@ -81,10 +82,17 @@ const ServiceCatalogManagement = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
-    setFormData(prevState => ({
-      ...prevState,
-      [id]: value
-    }));
+    if (id === 'required_documents') {
+      setFormData(prevState => ({
+        ...prevState,
+        [id]: value.split(',').map(doc => doc.trim())
+      }));
+    } else {
+      setFormData(prevState => ({
+        ...prevState,
+        [id]: value
+      }));
+    }
   };
 
   const handleDialogClose = () => {
@@ -109,9 +117,9 @@ const ServiceCatalogManagement = () => {
       description: service.description,
       department_id: service.department_id?.toString() || '',
       division_id: service.division_id?.toString() || '',
-      icon: service.icon,
+      icon: service.icon || '',
       fee_amount: service.fee_amount?.toString() || '',
-      required_documents: service.required_documents?.join(',') || '',
+      required_documents: Array.isArray(service.required_documents) ? service.required_documents : [],
       processing_time_days: service.processing_time_days?.toString() || '',
       eligibility_criteria: service.eligibility_criteria || '',
       form_template_url: service.form_template_url || '',
@@ -148,7 +156,7 @@ const ServiceCatalogManagement = () => {
           division_id: formData.division_id ? parseInt(formData.division_id) : null,
           icon: formData.icon,
           fee_amount: parseFloat(formData.fee_amount),
-          required_documents: formData.required_documents.split(','),
+          required_documents: formData.required_documents,
           processing_time_days: parseInt(formData.processing_time_days),
           eligibility_criteria: formData.eligibility_criteria,
           form_template_url: formData.form_template_url,
@@ -167,7 +175,7 @@ const ServiceCatalogManagement = () => {
           division_id: formData.division_id ? parseInt(formData.division_id) : null,
           icon: formData.icon,
           fee_amount: parseFloat(formData.fee_amount),
-          required_documents: formData.required_documents.split(','),
+          required_documents: formData.required_documents,
           processing_time_days: parseInt(formData.processing_time_days),
           eligibility_criteria: formData.eligibility_criteria,
           form_template_url: formData.form_template_url,
@@ -199,7 +207,7 @@ const ServiceCatalogManagement = () => {
       division_id: '',
       icon: '',
       fee_amount: '',
-      required_documents: '',
+      required_documents: [],
       processing_time_days: '',
       eligibility_criteria: '',
       form_template_url: '',
@@ -281,7 +289,7 @@ const ServiceCatalogManagement = () => {
                     <Label htmlFor="required_documents" className="text-right">
                       Required Documents
                     </Label>
-                    <Input type="text" id="required_documents" value={formData.required_documents} onChange={handleInputChange} className="col-span-3" />
+                    <Input type="text" id="required_documents" value={formData.required_documents.join(', ')} onChange={handleInputChange} className="col-span-3" placeholder="Comma separated" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="processing_time_days" className="text-right">
@@ -305,7 +313,7 @@ const ServiceCatalogManagement = () => {
                     <Label htmlFor="status" className="text-right">
                       Status
                     </Label>
-                    <Select value={formData.status} onValueChange={(value) => setFormData(prevState => ({ ...prevState, status: value }))}>
+                    <Select value={formData.status} onValueChange={(value: 'active' | 'inactive') => setFormData(prevState => ({ ...prevState, status: value }))}>
                       <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>

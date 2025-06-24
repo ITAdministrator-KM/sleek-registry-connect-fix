@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { PublicRegistryForm } from './PublicRegistryForm';
@@ -223,7 +224,7 @@ export const PublicRegistryWrapper: React.FC = () => {
         throw new Error('Entry not found');
       }
       
-      // Create a new entry with the same data but marked as completed
+      // Create a new entry with the same data but marked as checked_out
       const checkOutData = {
         // Required fields for a new entry
         visitor_id: entry.visitor_id,
@@ -232,7 +233,7 @@ export const PublicRegistryWrapper: React.FC = () => {
         department_id: entry.department_id,
         purpose_of_visit: entry.purpose_of_visit,
         check_in: entry.check_in,
-        status: 'completed' as const,
+        status: 'checked_out' as const, // Use checked_out instead of completed
         // Required field with a default value
         visitor_type: 'existing' as const, // Default to 'existing' for check-outs
         // Add the check-out time
@@ -248,7 +249,7 @@ export const PublicRegistryWrapper: React.FC = () => {
         ...(entry.registry_id && { registry_id: String(entry.registry_id) })
       };
       
-      // Create a new entry with the completed status
+      // Create a new entry with the checked_out status
       await registryApiService.createRegistryEntry(checkOutData);
       
       toast({
