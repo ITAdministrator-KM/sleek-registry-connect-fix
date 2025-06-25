@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,8 @@ export const PublicAccountsManagement: React.FC = () => {
     address: '',
     mobile: '',
     email: '',
+    username: '',
+    password: '',
     department_id: '',
     division_id: ''
   });
@@ -79,7 +82,13 @@ export const PublicAccountsManagement: React.FC = () => {
     
     try {
       const userData = {
-        ...formData,
+        name: formData.name,
+        nic: formData.nic,
+        address: formData.address,
+        mobile: formData.mobile,
+        email: formData.email,
+        username: formData.username,
+        password: formData.password,
         department_id: formData.department_id ? parseInt(formData.department_id) : undefined,
         division_id: formData.division_id ? parseInt(formData.division_id) : undefined,
         status: 'active' as const,
@@ -126,6 +135,8 @@ export const PublicAccountsManagement: React.FC = () => {
       address: user.address,
       mobile: user.mobile,
       email: user.email || '',
+      username: user.username || '',
+      password: '',
       department_id: user.department_id?.toString() || '',
       division_id: user.division_id?.toString() || ''
     });
@@ -141,37 +152,14 @@ export const PublicAccountsManagement: React.FC = () => {
     if (!deletingUser) return;
 
     try {
-      // Force delete with cascade handling
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://dskalmunai.lk/backend/api'}/public-users/index.php`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
-        },
-        body: JSON.stringify({ 
-          id: deletingUser.id,
-          force_delete: true // Add flag for force delete
-        })
+      await apiService.deletePublicUser(deletingUser.id);
+      toast({
+        title: "Success",
+        description: `Public user ${deletingUser.name} deleted successfully`,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.status === 'success' || result.success) {
-        toast({
-          title: "Success",
-          description: `Public user ${deletingUser.name} deleted successfully`,
-        });
-        setIsDeleteDialogOpen(false);
-        setDeletingUser(null);
-        fetchUsers();
-      } else {
-        throw new Error(result.message || 'Failed to delete user');
-      }
+      setIsDeleteDialogOpen(false);
+      setDeletingUser(null);
+      fetchUsers();
     } catch (error) {
       console.error('Error deleting public user:', error);
       toast({
@@ -291,6 +279,8 @@ export const PublicAccountsManagement: React.FC = () => {
                       <Label htmlFor="username">Username *</Label>
                       <Input
                         id="username"
+                        name="username"
+                        autoComplete="username"
                         value={formData.username}
                         onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
                         required
@@ -300,7 +290,9 @@ export const PublicAccountsManagement: React.FC = () => {
                       <Label htmlFor="password">Password {!editingUser && '*'}</Label>
                       <Input
                         id="password"
+                        name="password"
                         type="password"
+                        autoComplete={editingUser ? "new-password" : "new-password"}
                         value={formData.password}
                         onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                         required={!editingUser}
@@ -453,28 +445,6 @@ export const PublicAccountsManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
-  );
-};
-
-const resetForm = () => {
-  return {
-    name: '',
-    nic: '',
-    address: '',
-    mobile: '',
-    email: '',
-    username: '',
-    password: '',
-    department_id: '',
-    division_id: ''
-  };
-};
-
-const filteredUsers = (users: PublicUser[], searchTerm: string) => {
-  return users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.public_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.nic.toLowerCase().includes(searchTerm.toLowerCase())
   );
 };
 
