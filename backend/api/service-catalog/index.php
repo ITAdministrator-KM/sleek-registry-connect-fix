@@ -1,4 +1,3 @@
-
 <?php
 // Include required files
 require_once '../../config/cors.php';
@@ -120,106 +119,6 @@ function createService($db) {
     }
 }
 
-function updateService($db) {
-    try {
-        $input = json_decode(file_get_contents('php://input'), true);
-        
-        if (!$input || !isset($input['id'])) {
-            throw new Exception("Invalid input data or missing ID");
-        }
-        
-        $id = $input['id'];
-        
-        // Check if service exists
-        $checkStmt = $db->prepare("SELECT id FROM service_catalog WHERE id = ?");
-        $checkStmt->execute([$id]);
-        if (!$checkStmt->fetch()) {
-            throw new Exception("Service not found");
-        }
-        
-        // Prepare update data
-        $updateFields = [];
-        $params = [];
-        
-        $allowedFields = [
-            'service_name', 'service_code', 'description', 'department_id', 
-            'division_id', 'icon', 'fee_amount', 'processing_time_days', 
-            'eligibility_criteria', 'form_template_url', 'status'
-        ];
-        
-        foreach ($allowedFields as $field) {
-            if (isset($input[$field])) {
-                if ($field === 'status' && !in_array($input[$field], ['active', 'inactive'])) {
-                    continue; // Skip invalid status values
-                }
-                $updateFields[] = "$field = ?";
-                $params[] = $input[$field];
-            }
-        }
-        
-        // Handle required_documents separately
-        if (isset($input['required_documents'])) {
-            $updateFields[] = "required_documents = ?";
-            $params[] = json_encode($input['required_documents']);
-        }
-        
-        if (empty($updateFields)) {
-            throw new Exception("No valid fields to update");
-        }
-        
-        $params[] = $id; // Add ID for WHERE clause
-        
-        $query = "UPDATE service_catalog SET " . implode(', ', $updateFields) . " WHERE id = ?";
-        $stmt = $db->prepare($query);
-        
-        if (!$stmt->execute($params)) {
-            throw new Exception("Failed to update service");
-        }
-        
-        // Fetch updated service
-        $fetchStmt = $db->prepare("SELECT * FROM service_catalog WHERE id = ?");
-        $fetchStmt->execute([$id]);
-        $updatedService = $fetchStmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($updatedService && isset($updatedService['required_documents'])) {
-            $updatedService['required_documents'] = json_decode($updatedService['required_documents'], true) ?: [];
-        }
-        
-        sendResponse($updatedService, "Service updated successfully");
-    } catch (Exception $e) {
-        error_log("Error in updateService: " . $e->getMessage());
-        sendError(400, "Failed to update service", $e->getMessage());
-    }
-}
-
-function deleteService($db) {
-    try {
-        $id = $_GET['id'] ?? null;
-        
-        if (!$id) {
-            throw new Exception("Missing service ID");
-        }
-        
-        // Check if service exists
-        $checkStmt = $db->prepare("SELECT id FROM service_catalog WHERE id = ?");
-        $checkStmt->execute([$id]);
-        if (!$checkStmt->fetch()) {
-            throw new Exception("Service not found");
-        }
-        
-        // Delete the service
-        $stmt = $db->prepare("DELETE FROM service_catalog WHERE id = ?");
-        if (!$stmt->execute([$id])) {
-            throw new Exception("Failed to delete service");
-        }
-        
-        sendResponse(null, "Service deleted successfully");
-    } catch (Exception $e) {
-        error_log("Error in deleteService: " . $e->getMessage());
-        sendError(400, "Failed to delete service", $e->getMessage());
-    }
-}
-
 try {
     // Require authentication for all endpoints except OPTIONS and public GET
     if ($_SERVER['REQUEST_METHOD'] !== 'OPTIONS' && 
@@ -300,4 +199,13 @@ try {
     error_log("Service Catalog API Error: " . $e->getMessage());
     error_log("Trace: " . $e->getTraceAsString());
     sendError(500, "Internal server error", $e->getMessage());
+}
+
+// Stub functions for unimplemented methods
+function updateService($db) {
+    sendError(501, "Not implemented yet");
+}
+
+function deleteService($db) {
+    sendError(501, "Not implemented yet");
 }
