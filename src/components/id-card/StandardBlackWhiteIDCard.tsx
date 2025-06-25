@@ -94,39 +94,40 @@ export const StandardBlackWhiteIDCard = ({
       {/* ID Card */}
       <div 
         ref={cardRef}
-        className="bg-white border-2 border-black"
+        className="bg-white border-4 border-black"
         style={{
           width: '85.6mm',
           height: '54mm',
           fontFamily: 'Arial, sans-serif',
-          fontSize: '9px',
-          lineHeight: '1.1',
+          fontSize: '10px',
+          lineHeight: '1.2',
           fontWeight: 'bold',
-          padding: '2mm',
+          padding: '3mm',
           boxSizing: 'border-box',
-          color: 'black',
-          position: 'relative'
+          color: 'black'
         }}
       >
         {/* Header with Logos and Title */}
-        <div className="flex justify-between items-center mb-1" style={{ height: '12mm' }}>
-          {/* Left Logo - No Border */}
+        <div className="flex justify-between items-center mb-2" style={{ borderBottom: '2px solid black', paddingBottom: '2mm' }}>
+          {/* Left Logo */}
           <div 
             className="flex-shrink-0" 
             style={{ 
               width: '12mm', 
-              height: '12mm',
+              height: '12mm', 
+              border: '2px solid black',
               display: 'flex', 
               alignItems: 'center', 
-              justifyContent: 'center'
+              justifyContent: 'center',
+              backgroundColor: 'white'
             }}
           >
             <img 
               src="/emblem.svg" 
               alt="Government Emblem"
               style={{
-                width: '11mm',
-                height: '11mm',
+                width: '10mm',
+                height: '10mm',
                 objectFit: 'contain',
                 filter: 'contrast(1) brightness(0)'
               }}
@@ -134,32 +135,34 @@ export const StandardBlackWhiteIDCard = ({
           </div>
           
           {/* Center Title */}
-          <div className="text-center px-1 flex-1">
-            <div style={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.3px', lineHeight: '1' }}>
+          <div className="text-center px-2 flex-1">
+            <div style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               DIVISIONAL SECRETARIAT
             </div>
-            <div style={{ fontSize: '11px', fontWeight: 'bold', letterSpacing: '0.5px', marginTop: '1mm', lineHeight: '1' }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', letterSpacing: '1px', marginTop: '1mm' }}>
               KALMUNAI
             </div>
           </div>
           
-          {/* Right Logo - No Border */}
+          {/* Right Logo */}
           <div 
             className="flex-shrink-0" 
             style={{ 
               width: '12mm', 
-              height: '12mm',
+              height: '12mm', 
+              border: '2px solid black',
               display: 'flex', 
               alignItems: 'center', 
-              justifyContent: 'center'
+              justifyContent: 'center',
+              backgroundColor: 'white'
             }}
           >
             <img 
               src="/logo.svg" 
               alt="DS Logo"
               style={{
-                width: '11mm',
-                height: '11mm',
+                width: '10mm',
+                height: '10mm',
                 objectFit: 'contain',
                 filter: 'contrast(1) brightness(0)'
               }}
@@ -167,56 +170,52 @@ export const StandardBlackWhiteIDCard = ({
           </div>
         </div>
         
-        {/* Separator Line */}
-        <div style={{ borderBottom: '1px solid black', marginBottom: '2mm' }}></div>
-        
         {/* Main Content Area */}
-        <div className="flex" style={{ height: 'calc(100% - 16mm)' }}>
-          {/* Left Side - User Information (50%) */}
-          <div style={{ width: '50%', paddingRight: '2mm', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-            <div style={{ marginBottom: '1mm' }}>
-              <div style={{ fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>NAME:</div>
-              <div style={{ fontSize: '8px', fontWeight: 'bold', lineHeight: '1', wordBreak: 'break-word' }}>
-                {user.name.length > 20 ? user.name.substring(0, 20) + '...' : user.name}
-              </div>
+        <div className="flex" style={{ height: 'calc(100% - 20mm)' }}>
+          {/* Left Side - User Information */}
+          <div style={{ width: '50%', paddingRight: '2mm', display: 'flex', flexDirection: 'column', justifyContent: 'space-around' }}>
+            <div style={{ marginBottom: '1.5mm' }}>
+              <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>Name:</div>
+              <div style={{ fontSize: '9px', fontWeight: 'bold', lineHeight: '1.1' }}>{user.name}</div>
             </div>
             
-            <div style={{ marginBottom: '1mm' }}>
-              <div style={{ fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>NIC:</div>
-              <div style={{ fontSize: '8px', fontFamily: 'monospace', fontWeight: 'bold' }}>{user.nic}</div>
+            <div style={{ marginBottom: '1.5mm' }}>
+              <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>NIC:</div>
+              <div style={{ fontSize: '9px', fontFamily: 'monospace', fontWeight: 'bold' }}>{user.nic}</div>
             </div>
             
-            <div style={{ marginBottom: '1mm' }}>
-              <div style={{ fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>DATE OF BIRTH:</div>
-              <div style={{ fontSize: '7px', fontWeight: 'bold' }}>
+            <div style={{ marginBottom: '1.5mm' }}>
+              <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>Date of Birth:</div>
+              <div style={{ fontSize: '8px', fontWeight: 'bold' }}>
                 {user.date_of_birth || user.dateOfBirth || 'N/A'}
               </div>
             </div>
             
-            <div style={{ marginBottom: '1mm' }}>
-              <div style={{ fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>MOBILE NUMBER:</div>
-              <div style={{ fontSize: '7px', fontWeight: 'bold' }}>{user.mobile || 'N/A'}</div>
+            <div style={{ marginBottom: '1.5mm' }}>
+              <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>Mobile Number:</div>
+              <div style={{ fontSize: '8px', fontWeight: 'bold' }}>{user.mobile || 'N/A'}</div>
             </div>
             
-            <div style={{ marginBottom: '1mm' }}>
-              <div style={{ fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>ADDRESS:</div>
-              <div style={{ fontSize: '6px', lineHeight: '1', wordBreak: 'break-word', fontWeight: 'bold' }}>
-                {user.address.length > 40 ? user.address.substring(0, 40) + '...' : user.address}
+            <div style={{ marginBottom: '1.5mm' }}>
+              <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>Address:</div>
+              <div style={{ fontSize: '7px', lineHeight: '1.1', wordBreak: 'break-word', fontWeight: 'bold' }}>
+                {user.address.length > 30 ? user.address.substring(0, 30) + '...' : user.address}
               </div>
             </div>
             
             <div>
-              <div style={{ fontSize: '7px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>PUBLIC ID:</div>
-              <div style={{ fontSize: '8px', fontFamily: 'monospace', fontWeight: 'bold' }}>{publicUserId}</div>
+              <div style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.5mm' }}>Public ID:</div>
+              <div style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 'bold' }}>{publicUserId}</div>
             </div>
           </div>
           
-          {/* Right Side - QR Code (50% width) */}
-          <div style={{ width: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '1px solid black', paddingLeft: '2mm' }}>
+          {/* Right Side - QR Code (50% of card width) */}
+          <div style={{ width: '50%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: '2px solid black', paddingLeft: '2mm' }}>
             <div 
               style={{ 
                 backgroundColor: 'white', 
-                padding: '1mm',
+                padding: '2mm', 
+                border: '2px solid black',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -224,7 +223,7 @@ export const StandardBlackWhiteIDCard = ({
             >
               <QRCodeSVG 
                 value={qrCodeData}
-                size={60}
+                size={70}
                 level="H"
                 includeMargin={false}
                 fgColor="#000000"
@@ -235,16 +234,19 @@ export const StandardBlackWhiteIDCard = ({
                 }}
               />
             </div>
+            <div style={{ fontSize: '7px', textAlign: 'center', marginTop: '2mm', fontWeight: 'bold', textTransform: 'uppercase' }}>
+              SCAN TO VERIFY
+            </div>
           </div>
         </div>
         
         {/* Footer */}
-        <div style={{ position: 'absolute', bottom: '1mm', left: '2mm', right: '2mm', paddingTop: '1mm', borderTop: '1px solid black' }}>
+        <div style={{ position: 'absolute', bottom: '2mm', left: '3mm', right: '3mm', paddingTop: '1mm', borderTop: '1px solid black' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '6px', fontWeight: 'bold' }}>
+            <span style={{ fontSize: '7px', fontWeight: 'bold' }}>
               Issued: {new Date().toLocaleDateString()}
             </span>
-            <span style={{ fontSize: '6px', fontWeight: 'bold' }}>
+            <span style={{ fontSize: '7px', fontWeight: 'bold' }}>
               OFFICIAL DOCUMENT
             </span>
           </div>

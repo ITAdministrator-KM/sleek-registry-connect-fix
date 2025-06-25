@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,11 +50,11 @@ const ServiceCatalogManagement = () => {
     division_id: '',
     icon: '',
     fee_amount: '',
-    required_documents: [] as string[],
+    required_documents: '',
     processing_time_days: '',
     eligibility_criteria: '',
     form_template_url: '',
-    status: 'active' as 'active' | 'inactive',
+    status: 'active',
   });
 
   useEffect(() => {
@@ -82,17 +81,10 @@ const ServiceCatalogManagement = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
-    if (id === 'required_documents') {
-      setFormData(prevState => ({
-        ...prevState,
-        [id]: value.split(',').map(doc => doc.trim())
-      }));
-    } else {
-      setFormData(prevState => ({
-        ...prevState,
-        [id]: value
-      }));
-    }
+    setFormData(prevState => ({
+      ...prevState,
+      [id]: value
+    }));
   };
 
   const handleDialogClose = () => {
@@ -111,32 +103,15 @@ const ServiceCatalogManagement = () => {
     setIsDialogOpen(true);
     setIsEditing(true);
     setSelectedService(service);
-    
-    // Parse required_documents from string to array for editing
-    let requiredDocsArray: string[] = [];
-    if (service.required_documents) {
-      try {
-        // If it's already a string array, use it directly
-        if (typeof service.required_documents === 'string') {
-          requiredDocsArray = JSON.parse(service.required_documents);
-        } else if (Array.isArray(service.required_documents)) {
-          requiredDocsArray = service.required_documents;
-        }
-      } catch (e) {
-        // If parsing fails, treat as comma-separated string
-        requiredDocsArray = service.required_documents.split(',').map(doc => doc.trim());
-      }
-    }
-    
     setFormData({
       service_name: service.service_name,
       service_code: service.service_code,
       description: service.description,
       department_id: service.department_id?.toString() || '',
       division_id: service.division_id?.toString() || '',
-      icon: service.icon || '',
+      icon: service.icon,
       fee_amount: service.fee_amount?.toString() || '',
-      required_documents: requiredDocsArray,
+      required_documents: service.required_documents?.join(',') || '',
       processing_time_days: service.processing_time_days?.toString() || '',
       eligibility_criteria: service.eligibility_criteria || '',
       form_template_url: service.form_template_url || '',
@@ -164,9 +139,6 @@ const ServiceCatalogManagement = () => {
 
   const handleSubmit = async () => {
     try {
-      // Convert required_documents array to JSON string for API
-      const requiredDocsString = JSON.stringify(formData.required_documents);
-      
       if (isEditing && selectedService) {
         await apiService.updateService(selectedService.id, {
           service_name: formData.service_name,
@@ -176,7 +148,7 @@ const ServiceCatalogManagement = () => {
           division_id: formData.division_id ? parseInt(formData.division_id) : null,
           icon: formData.icon,
           fee_amount: parseFloat(formData.fee_amount),
-          required_documents: requiredDocsString,
+          required_documents: formData.required_documents.split(','),
           processing_time_days: parseInt(formData.processing_time_days),
           eligibility_criteria: formData.eligibility_criteria,
           form_template_url: formData.form_template_url,
@@ -195,7 +167,7 @@ const ServiceCatalogManagement = () => {
           division_id: formData.division_id ? parseInt(formData.division_id) : null,
           icon: formData.icon,
           fee_amount: parseFloat(formData.fee_amount),
-          required_documents: requiredDocsString,
+          required_documents: formData.required_documents.split(','),
           processing_time_days: parseInt(formData.processing_time_days),
           eligibility_criteria: formData.eligibility_criteria,
           form_template_url: formData.form_template_url,
@@ -227,7 +199,7 @@ const ServiceCatalogManagement = () => {
       division_id: '',
       icon: '',
       fee_amount: '',
-      required_documents: [],
+      required_documents: '',
       processing_time_days: '',
       eligibility_criteria: '',
       form_template_url: '',
@@ -248,14 +220,14 @@ const ServiceCatalogManagement = () => {
         <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-2xl font-bold">Service Catalog Management</CardTitle>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" onClick={handleCreate}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Service
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+              <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                   <DialogTitle>{isEditing ? 'Edit Service' : 'Create Service'}</DialogTitle>
                   <DialogDescription>
@@ -267,149 +239,73 @@ const ServiceCatalogManagement = () => {
                     <Label htmlFor="service_name" className="text-right">
                       Name
                     </Label>
-                    <Input 
-                      type="text" 
-                      id="service_name" 
-                      name="service_name"
-                      value={formData.service_name} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Input type="text" id="service_name" value={formData.service_name} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="service_code" className="text-right">
                       Code
                     </Label>
-                    <Input 
-                      type="text" 
-                      id="service_code" 
-                      name="service_code"
-                      value={formData.service_code} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Input type="text" id="service_code" value={formData.service_code} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="description" className="text-right">
                       Description
                     </Label>
-                    <Textarea 
-                      id="description" 
-                      name="description"
-                      value={formData.description} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Textarea id="description" value={formData.description} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="department_id" className="text-right">
                       Department ID
                     </Label>
-                    <Input 
-                      type="text" 
-                      id="department_id" 
-                      name="department_id"
-                      value={formData.department_id} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Input type="text" id="department_id" value={formData.department_id} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="division_id" className="text-right">
                       Division ID
                     </Label>
-                    <Input 
-                      type="text" 
-                      id="division_id" 
-                      name="division_id"
-                      value={formData.division_id} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Input type="text" id="division_id" value={formData.division_id} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="icon" className="text-right">
                       Icon
                     </Label>
-                    <Input 
-                      type="text" 
-                      id="icon" 
-                      name="icon"
-                      value={formData.icon} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Input type="text" id="icon" value={formData.icon} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="fee_amount" className="text-right">
                       Fee Amount
                     </Label>
-                    <Input 
-                      type="text" 
-                      id="fee_amount" 
-                      name="fee_amount"
-                      value={formData.fee_amount} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Input type="text" id="fee_amount" value={formData.fee_amount} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="required_documents" className="text-right">
                       Required Documents
                     </Label>
-                    <Input 
-                      type="text" 
-                      id="required_documents" 
-                      name="required_documents"
-                      value={formData.required_documents.join(', ')} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                      placeholder="Comma separated" 
-                    />
+                    <Input type="text" id="required_documents" value={formData.required_documents} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="processing_time_days" className="text-right">
                       Processing Time (Days)
                     </Label>
-                    <Input 
-                      type="text" 
-                      id="processing_time_days" 
-                      name="processing_time_days"
-                      value={formData.processing_time_days} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Input type="text" id="processing_time_days" value={formData.processing_time_days} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="eligibility_criteria" className="text-right">
                       Eligibility Criteria
                     </Label>
-                    <Textarea 
-                      id="eligibility_criteria" 
-                      name="eligibility_criteria"
-                      value={formData.eligibility_criteria} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Textarea id="eligibility_criteria" value={formData.eligibility_criteria} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="form_template_url" className="text-right">
                       Form Template URL
                     </Label>
-                    <Input 
-                      type="text" 
-                      id="form_template_url" 
-                      name="form_template_url"
-                      value={formData.form_template_url} 
-                      onChange={handleInputChange} 
-                      className="col-span-3" 
-                    />
+                    <Input type="text" id="form_template_url" value={formData.form_template_url} onChange={handleInputChange} className="col-span-3" />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="status" className="text-right">
                       Status
                     </Label>
-                    <Select value={formData.status} onValueChange={(value: 'active' | 'inactive') => setFormData(prevState => ({ ...prevState, status: value }))}>
+                    <Select value={formData.status} onValueChange={(value) => setFormData(prevState => ({ ...prevState, status: value }))}>
                       <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>

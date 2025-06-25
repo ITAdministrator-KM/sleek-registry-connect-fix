@@ -1,3 +1,4 @@
+
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -104,24 +105,12 @@ function createSubjectStaff($db) {
             }
         }
         
-        // Get user name for staff_name
-        $userQuery = "SELECT name FROM users WHERE id = ?";
-        $userStmt = $db->prepare($userQuery);
-        $userStmt->execute([$data['user_id']]);
-        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$user) {
-            sendError(400, "User not found");
-            return;
-        }
-        
-        $query = "INSERT INTO subject_staff (user_id, staff_name, post, assigned_department_id, assigned_division_id, status, created_at) 
-                  VALUES (?, ?, ?, ?, ?, 'active', NOW())";
+        $query = "INSERT INTO subject_staff (user_id, post, assigned_department_id, assigned_division_id, status, created_at) 
+                  VALUES (?, ?, ?, ?, 'active', NOW())";
         
         $stmt = $db->prepare($query);
         $result = $stmt->execute([
             $data['user_id'],
-            $user['name'],
             $data['post'],
             $data['assigned_department_id'],
             $data['assigned_division_id']
@@ -134,8 +123,7 @@ function createSubjectStaff($db) {
         $subjectStaffId = $db->lastInsertId();
         
         sendResponse([
-            "id" => intval($subjectStaffId),
-            "staff_name" => $user['name']
+            "id" => intval($subjectStaffId)
         ], "Subject staff created successfully");
         
     } catch (Exception $e) {
@@ -163,21 +151,6 @@ function updateSubjectStaff($db) {
             if (isset($data[$field])) {
                 $updateFields[] = "$field = ?";
                 $params[] = $data[$field];
-            }
-        }
-        
-        // Update staff_name if user_id is being changed
-        if (isset($data['user_id'])) {
-            $userQuery = "SELECT name FROM users WHERE id = ?";
-            $userStmt = $db->prepare($userQuery);
-            $userStmt->execute([$data['user_id']]);
-            $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($user) {
-                $updateFields[] = "user_id = ?";
-                $updateFields[] = "staff_name = ?";
-                $params[] = $data['user_id'];
-                $params[] = $user['name'];
             }
         }
         

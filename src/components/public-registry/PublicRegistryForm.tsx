@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,14 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, Search, User, UserPlus } from 'lucide-react';
 import { registryApiService } from '@/services/registryApi';
-import { apiService } from '@/services/apiService';
+import { apiService, Department, Division } from '@/services/apiService';
 import type { PublicRegistryFormProps } from './types';
-
-// Define local Department type to match what we need
-interface LocalDepartment {
-  id: string | number;
-  name: string;
-}
 
 export const PublicRegistryForm: React.FC<PublicRegistryFormProps> = ({
   onSuccess,
@@ -26,9 +19,9 @@ export const PublicRegistryForm: React.FC<PublicRegistryFormProps> = ({
   initialValues,
   departments: propDepartments = []
 }) => {
-  const [activeTab, setActiveTab] = useState<'new' | 'existing'>(defaultTab);
-  const [departments, setDepartments] = useState<LocalDepartment[]>([]);
-  const [divisions, setDivisions] = useState<LocalDepartment[]>([]);
+  const [activeTab, setActiveTab] = useState(defaultTab);
+  const [departments, setDepartments] = useState<Department[]>(propDepartments);
+  const [divisions, setDivisions] = useState<Division[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -60,25 +53,13 @@ export const PublicRegistryForm: React.FC<PublicRegistryFormProps> = ({
   useEffect(() => {
     if (propDepartments.length === 0) {
       fetchDepartments();
-    } else {
-      // Convert propDepartments to LocalDepartment format
-      const localDepartments: LocalDepartment[] = propDepartments.map(dept => ({
-        id: dept.id,
-        name: dept.name
-      }));
-      setDepartments(localDepartments);
     }
   }, [propDepartments]);
 
   const fetchDepartments = async () => {
     try {
       const departmentsData = await apiService.getDepartments();
-      // Convert to LocalDepartment format
-      const localDepartments: LocalDepartment[] = departmentsData.map(dept => ({
-        id: dept.id,
-        name: dept.name
-      }));
-      setDepartments(localDepartments);
+      setDepartments(departmentsData);
     } catch (error) {
       console.error('Error fetching departments:', error);
       toast({
@@ -92,12 +73,7 @@ export const PublicRegistryForm: React.FC<PublicRegistryFormProps> = ({
   const fetchDivisions = async (departmentId: number) => {
     try {
       const divisionsData = await apiService.getDivisions(departmentId);
-      // Convert to LocalDepartment format
-      const localDivisions: LocalDepartment[] = divisionsData.map(div => ({
-        id: div.id,
-        name: div.name
-      }));
-      setDivisions(localDivisions);
+      setDivisions(divisionsData);
     } catch (error) {
       console.error('Error fetching divisions:', error);
       toast({
@@ -127,12 +103,6 @@ export const PublicRegistryForm: React.FC<PublicRegistryFormProps> = ({
     
     if (departmentId) {
       fetchDivisions(deptId);
-    }
-  };
-
-  const handleTabChange = (value: string) => {
-    if (value === 'new' || value === 'existing') {
-      setActiveTab(value);
     }
   };
 
@@ -273,7 +243,7 @@ export const PublicRegistryForm: React.FC<PublicRegistryFormProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="new" className="flex items-center gap-2">
               <User className="w-4 h-4" />
