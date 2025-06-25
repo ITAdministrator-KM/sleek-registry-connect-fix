@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -64,7 +65,7 @@ const IDCardGenerator = () => {
       return;
     }
 
-    const cardHTML = generateSingleCardHTML(user);
+    const cardHTML = generateProfessionalCardHTML(user);
     printWindow.document.write(cardHTML);
     printWindow.document.close();
 
@@ -80,7 +81,7 @@ const IDCardGenerator = () => {
     };
   };
 
-  const generateSingleCardHTML = (user: PublicUser) => {
+  const generateProfessionalCardHTML = (user: PublicUser) => {
     const qrData = JSON.stringify({
       public_id: user.public_id,
       name: user.name,
@@ -96,7 +97,7 @@ const IDCardGenerator = () => {
       <html>
       <head>
         <meta charset="UTF-8">
-        <title>ID Card - ${user.name}</title>
+        <title>Official ID Card - ${user.name}</title>
         <style>
           @page { 
             size: 85.6mm 54mm;
@@ -107,119 +108,135 @@ const IDCardGenerator = () => {
           body { 
             margin: 0;
             padding: 0;
-            font-family: Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
+            background: white;
           }
           .id-card {
             width: 85.6mm;
             height: 54mm;
-            border: 4px solid #000;
-            background: white;
-            color: black;
-            font-size: 10px;
-            line-height: 1.2;
-            font-weight: bold;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            color: #212529;
+            font-size: 8px;
+            line-height: 1.3;
             padding: 3mm;
             box-sizing: border-box;
             position: relative;
+            border: 1px solid #dee2e6;
+            border-radius: 3mm;
           }
           .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 2mm;
-            border-bottom: 2px solid black;
-            padding-bottom: 2mm;
+            padding-bottom: 1.5mm;
+            border-bottom: 1px solid #6c757d;
           }
           .logo {
-            width: 12mm;
-            height: 12mm;
-            border: 2px solid black;
+            width: 10mm;
+            height: 10mm;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: white;
           }
           .logo img {
-            width: 10mm;
-            height: 10mm;
+            width: 100%;
+            height: 100%;
             object-fit: contain;
-            filter: contrast(1) brightness(0);
+            filter: contrast(1.2) brightness(0.8);
           }
-          .title {
+          .header-title {
             text-align: center;
             flex: 1;
             margin: 0 2mm;
           }
           .title-main {
-            font-size: 11px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-          .title-sub {
-            font-size: 12px;
-            font-weight: bold;
-            letter-spacing: 1px;
-            margin-top: 1mm;
-          }
-          .card-body {
-            display: flex;
-            height: calc(100% - 20mm);
-          }
-          .user-info {
-            width: 50%;
-            padding-right: 2mm;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-          }
-          .info-item {
-            margin-bottom: 1.5mm;
-          }
-          .info-label {
-            font-size: 8px;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 0.5mm;
-          }
-          .info-value {
             font-size: 9px;
             font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #495057;
+            margin-bottom: 0.5mm;
+          }
+          .title-sub {
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 0.8px;
+            color: #212529;
+          }
+          .card-content {
+            display: flex;
+            height: calc(100% - 16mm);
+            gap: 2mm;
+          }
+          .user-details {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+          }
+          .detail-group {
+            margin-bottom: 1mm;
+          }
+          .detail-label {
+            font-size: 6px;
+            font-weight: bold;
+            color: #6c757d;
+            text-transform: uppercase;
+            margin-bottom: 0.3mm;
+            letter-spacing: 0.2px;
+          }
+          .detail-value {
+            font-size: 8px;
+            font-weight: 600;
+            color: #212529;
             line-height: 1.1;
+            word-wrap: break-word;
           }
           .qr-section {
-            width: 50%;
+            width: 20mm;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border-left: 2px solid black;
-            padding-left: 2mm;
+            background: white;
+            border-radius: 1mm;
+            padding: 1mm;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
           }
           .qr-container {
-            background: white;
-            padding: 2mm;
-            border: 2px solid black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
           }
           .qr-label {
-            font-size: 7px;
+            font-size: 5px;
             text-align: center;
-            margin-top: 2mm;
+            margin-top: 1mm;
             font-weight: bold;
+            color: #6c757d;
             text-transform: uppercase;
+            letter-spacing: 0.2px;
           }
           .card-footer {
             position: absolute;
-            bottom: 2mm;
+            bottom: 1.5mm;
             left: 3mm;
             right: 3mm;
-            padding-top: 1mm;
-            border-top: 1px solid black;
             display: flex;
             justify-content: space-between;
-            font-size: 7px;
+            align-items: center;
+            font-size: 5px;
+            font-weight: bold;
+            color: #6c757d;
+            border-top: 1px solid #dee2e6;
+            padding-top: 1mm;
+          }
+          .official-seal {
+            font-size: 6px;
+            color: #dc3545;
             font-weight: bold;
           }
         </style>
@@ -231,8 +248,8 @@ const IDCardGenerator = () => {
             <div class="logo">
               <img src="/emblem.svg" alt="Government Emblem" />
             </div>
-            <div class="title">
-              <div class="title-main">DIVISIONAL SECRETARIAT</div>
+            <div class="header-title">
+              <div class="title-main">Divisional Secretariat</div>
               <div class="title-sub">KALMUNAI</div>
             </div>
             <div class="logo">
@@ -240,57 +257,58 @@ const IDCardGenerator = () => {
             </div>
           </div>
           
-          <div class="card-body">
-            <div class="user-info">
-              <div class="info-item">
-                <div class="info-label">Name:</div>
-                <div class="info-value">${user.name}</div>
+          <div class="card-content">
+            <div class="user-details">
+              <div class="detail-group">
+                <div class="detail-label">Full Name</div>
+                <div class="detail-value">${user.name}</div>
               </div>
-              <div class="info-item">
-                <div class="info-label">NIC:</div>
-                <div class="info-value">${user.nic}</div>
+              <div class="detail-group">
+                <div class="detail-label">NIC Number</div>
+                <div class="detail-value">${user.nic}</div>
               </div>
-              <div class="info-item">
-                <div class="info-label">Date of Birth:</div>
-                <div class="info-value">${user.date_of_birth || 'N/A'}</div>
+              <div class="detail-group">
+                <div class="detail-label">Date of Birth</div>
+                <div class="detail-value">${user.date_of_birth || 'N/A'}</div>
               </div>
-              <div class="info-item">
-                <div class="info-label">Mobile Number:</div>
-                <div class="info-value">${user.mobile}</div>
+              <div class="detail-group">
+                <div class="detail-label">Mobile Number</div>
+                <div class="detail-value">${user.mobile}</div>
               </div>
-              <div class="info-item">
-                <div class="info-label">Address:</div>
-                <div class="info-value">${user.address.length > 30 ? user.address.substring(0, 30) + '...' : user.address}</div>
+              <div class="detail-group">
+                <div class="detail-label">Address</div>
+                <div class="detail-value">${user.address.length > 35 ? user.address.substring(0, 35) + '...' : user.address}</div>
               </div>
-              <div class="info-item">
-                <div class="info-label">Public ID:</div>
-                <div class="info-value">${user.public_id}</div>
+              <div class="detail-group">
+                <div class="detail-label">Public ID</div>
+                <div class="detail-value">${user.public_id}</div>
               </div>
             </div>
             
             <div class="qr-section">
               <div class="qr-container">
-                <canvas id="qr-canvas" width="70" height="70"></canvas>
+                <canvas id="qr-canvas" width="60" height="60"></canvas>
               </div>
-              <div class="qr-label">SCAN TO VERIFY</div>
+              <div class="qr-label">Scan to Verify</div>
             </div>
           </div>
           
           <div class="card-footer">
             <span>Issued: ${new Date().toLocaleDateString()}</span>
-            <span>OFFICIAL DOCUMENT</span>
+            <span class="official-seal">OFFICIAL DOCUMENT</span>
           </div>
         </div>
         
         <script>
           QRCode.toCanvas(document.getElementById('qr-canvas'), '${qrData}', {
-            width: 70,
-            height: 70,
+            width: 60,
+            height: 60,
             color: {
-              dark: '#000000',
+              dark: '#212529',
               light: '#FFFFFF'
             },
-            errorCorrectionLevel: 'H'
+            errorCorrectionLevel: 'H',
+            margin: 1
           });
         </script>
       </body>
@@ -318,9 +336,11 @@ const IDCardGenerator = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>📇 ID Card Generator</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                📇 Professional ID Card Generator
+              </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Generate black & white government ID cards with official format
+                Generate official government ID cards with international standards
               </p>
             </div>
             <div className="flex items-center gap-4">
@@ -328,7 +348,7 @@ const IDCardGenerator = () => {
                 <Checkbox 
                   id="auto-print" 
                   checked={autoPrint}
-                  onCheckedChange={handleAutoPrintChange}
+                  onCheckedChange={(checked) => typeof checked === 'boolean' && setAutoPrint(checked)}
                 />
                 <label htmlFor="auto-print" className="text-sm">Auto Print</label>
               </div>

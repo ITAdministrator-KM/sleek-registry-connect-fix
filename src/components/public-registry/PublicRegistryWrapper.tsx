@@ -70,13 +70,49 @@ const PublicRegistryWrapper: React.FC = () => {
     try {
       setIsSubmitting(true);
       
-      // First, create the registry entry
-      const registryData = {
-        visitor_id: formData.visitor_id || null,
+      let finalVisitorId = formData.visitor_id;
+      let finalVisitorData = {
         visitor_name: formData.visitor_name,
         visitor_nic: formData.visitor_nic,
         visitor_phone: formData.visitor_phone || '',
-        visitor_address: formData.visitor_address,
+        visitor_address: formData.visitor_address
+      };
+
+      // If it's a new visitor, create public user account first
+      if (!formData.visitor_id || formData.visitor_id === 0) {
+        try {
+          const newPublicUser = await apiService.createPublicUser({
+            name: formData.visitor_name,
+            nic: formData.visitor_nic,
+            mobile: formData.visitor_phone || '',
+            address: formData.visitor_address,
+            department_id: parseInt(formData.department_id),
+            division_id: parseInt(formData.division_id),
+            username: `visitor_${Date.now()}`,
+            password: 'temp123', // Temporary password
+            status: 'active' as const,
+          });
+          
+          finalVisitorId = newPublicUser.id;
+          
+          toast({
+            title: "Success",
+            description: `New public account created with ID: ${newPublicUser.public_id}`,
+          });
+        } catch (error) {
+          console.error('Error creating public user:', error);
+          // Continue with visitor_id = 0 if public user creation fails
+          finalVisitorId = 0;
+        }
+      }
+
+      // Create registry entry
+      const registryData = {
+        visitor_id: finalVisitorId,
+        visitor_name: finalVisitorData.visitor_name,
+        visitor_nic: finalVisitorData.visitor_nic,
+        visitor_phone: finalVisitorData.visitor_phone,
+        visitor_address: finalVisitorData.visitor_address,
         department_id: formData.department_id.toString(),
         department_name: formData.department_name,
         division_id: formData.division_id.toString(),
@@ -88,9 +124,8 @@ const PublicRegistryWrapper: React.FC = () => {
         status: 'active' as const,
       };
 
-      console.log("Registry data:", registryData);
+      console.log("Creating registry entry:", registryData);
 
-      // Create registry entry via API (this would need to be implemented in the backend)
       const registryResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://dskalmunai.lk/backend/api'}/registry/create-entry.php`, {
         method: 'POST',
         headers: {
@@ -101,7 +136,7 @@ const PublicRegistryWrapper: React.FC = () => {
       });
 
       if (!registryResponse.ok) {
-        throw new Error('Failed to create registry entry');
+        throw new Error(`Registry creation failed: ${registryResponse.status}`);
       }
 
       const registryResult = await registryResponse.json();
@@ -112,8 +147,10 @@ const PublicRegistryWrapper: React.FC = () => {
 
       const registryId = registryResult.data.id || registryResult.data.registry_id;
 
-      // Generate token for the visitor
+      // Generate token automatically
       try {
+        console.log("Generating token for registry:", registryId);
+        
         const tokenResponse = await tokenService.generateToken({
           registry_id: registryId,
           department_id: formData.department_id.toString(),
@@ -124,9 +161,10 @@ const PublicRegistryWrapper: React.FC = () => {
 
         setGeneratedToken({
           ...tokenResponse,
-          visitor_name: formData.visitor_name,
+          visitor_name: finalVisitorData.visitor_name,
           department_name: formData.department_name,
-          division_name: formData.division_name
+          division_name: formData.division_name,
+          registry_id: registryId
         });
 
         toast({
@@ -136,10 +174,9 @@ const PublicRegistryWrapper: React.FC = () => {
 
       } catch (tokenError) {
         console.error('Token generation failed:', tokenError);
-        // Registry was created but token generation failed
         toast({
           title: "Partial Success",
-          description: "Visitor registered but token generation failed. Please generate manually.",
+          description: "Visitor registered but token generation failed. Entry recorded successfully.",
           variant: "destructive",
         });
       }
@@ -193,7 +230,6 @@ const PublicRegistryWrapper: React.FC = () => {
       ================================
     `;
 
-    // Create a new window for printing
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
@@ -206,17 +242,27 @@ const PublicRegistryWrapper: React.FC = () => {
                 white-space: pre-line; 
                 margin: 20px;
                 text-align: center;
+                font-size: 14px;
+              }
+              @media print {
+                body { margin: 0; padding: 20px; }
               }
             </style>
           </head>
           <body>
             ${printContent}
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                  window.close();
+                }, 500);
+              };
+            </script>
           </body>
         </html>
       `);
       printWindow.document.close();
-      printWindow.print();
-      printWindow.close();
     }
 
     toast({
@@ -283,6 +329,9 @@ const PublicRegistryWrapper: React.FC = () => {
           <CardTitle className="text-2xl font-bold text-center text-blue-800">
             Public Visitor Registry
           </CardTitle>
+          <p className="text-center text-gray-600">
+            Register visitors and generate tokens automatically
+          </p>
         </CardHeader>
         <CardContent>
           <PublicRegistryForm

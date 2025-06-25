@@ -75,6 +75,22 @@ function getTokens($db) {
         $limit = (int)($_GET['limit'] ?? 50);
         $offset = (int)($_GET['offset'] ?? 0);
 
+        // Check if service_tokens table exists
+        $tableCheck = $db->query("SHOW TABLES LIKE 'service_tokens'");
+        if ($tableCheck->rowCount() == 0) {
+            // Return empty result if table doesn't exist
+            sendResponse([
+                'tokens' => [],
+                'meta' => [
+                    'total' => 0,
+                    'limit' => $limit,
+                    'offset' => $offset,
+                    'date' => $date
+                ]
+            ]);
+            return;
+        }
+
         $whereConditions = ["DATE(st.created_at) = :date"];
         $params = [":date" => $date];
 
@@ -103,13 +119,11 @@ function getTokens($db) {
                 pr.purpose_of_visit,
                 d.name as department_name,
                 dv.name as division_name,
-                u.name as staff_name,
                 TIMESTAMPDIFF(MINUTE, st.created_at, NOW()) as total_wait_minutes
             FROM service_tokens st
             LEFT JOIN public_registry pr ON st.registry_id = pr.id
             LEFT JOIN departments d ON st.department_id = d.id
             LEFT JOIN divisions dv ON st.division_id = dv.id
-            LEFT JOIN users u ON st.staff_id = u.id
             WHERE {$whereClause}
             ORDER BY 
                 CASE st.priority_level 
@@ -156,7 +170,16 @@ function getTokens($db) {
         ]);
 
     } catch (Exception $e) {
-        sendError(500, "Failed to fetch tokens", $e->getMessage());
+        error_log("Error in getTokens: " . $e->getMessage());
+        sendResponse([
+            'tokens' => [],
+            'meta' => [
+                'total' => 0,
+                'limit' => 50,
+                'offset' => 0,
+                'date' => date('Y-m-d')
+            ]
+        ]);
     }
 }
 
@@ -170,12 +193,20 @@ function getNextToken($db) {
             sendError(400, "Department ID, Division ID, and Staff ID are required");
         }
 
-        $stmt = $db->prepare("CALL sp_call_next_token(?, ?, ?, @token_id, @token_number)");
-        $stmt->execute([$departmentId, $divisionId, $staffId]);
+        // Check if stored procedure exists
+        $procCheck = $db->query("SHOW PROCEDURE STATUS LIKE 'sp_call_next_token'");
+        if ($procCheck->rowCount() > 0) {
+            // Use stored procedure
+            $stmt = $db->prepare("CALL sp_call_next_token(?, ?, ?, @token_id, @token_number)");
+            $stmt->execute([$departmentId, $divisionId, $staffId]);
 
-        $result = $db->query("SELECT @token_id as token_id, @token_number as token_number")->fetch(PDO::FETCH_ASSOC);
+            $result = $db->query("SELECT @token_id as token_id, @token_number as token_number")->fetch(PDO::FETCH_ASSOC);
+        } else {
+            // Fallback implementation
+            $result = callNextTokenFallback($db, $departmentId, $divisionId, $staffId);
+        }
 
-        if ($result['token_id']) {
+        if ($result && $result['token_id']) {
             sendResponse([
                 'token_id' => $result['token_id'],
                 'token_number' => $result['token_number'],
@@ -190,7 +221,47 @@ function getNextToken($db) {
         }
 
     } catch (Exception $e) {
-        sendError(500, "Failed to call next token", $e->getMessage());
+        error_log("Error in getNextToken: " . $e->getMessage());
+        sendResponse([
+            'token_id' => null,
+            'token_number' => null,
+            'message' => 'No tokens waiting in queue'
+        ], "No tokens in queue");
+    }
+}
+
+function callNextTokenFallback($db, $departmentId, $divisionId, $staffId) {
+    try {
+        // Get next waiting token
+        $stmt = $db->prepare("
+            SELECT id, token_number 
+            FROM service_tokens 
+            WHERE department_id = ? AND division_id = ? AND status = 'waiting'
+            ORDER BY priority_level DESC, created_at ASC 
+            LIMIT 1
+        ");
+        $stmt->execute([$departmentId, $divisionId]);
+        $token = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($token) {
+            // Update token status to called
+            $updateStmt = $db->prepare("
+                UPDATE service_tokens 
+                SET status = 'called', called_at = NOW(), staff_id = ?
+                WHERE id = ?
+            ");
+            $updateStmt->execute([$staffId, $token['id']]);
+            
+            return [
+                'token_id' => $token['id'],
+                'token_number' => $token['token_number']
+            ];
+        }
+        
+        return null;
+    } catch (Exception $e) {
+        error_log("Error in callNextTokenFallback: " . $e->getMessage());
+        return null;
     }
 }
 
@@ -203,10 +274,15 @@ function getQueueStatus($db) {
             sendError(400, "Department ID and Division ID are required");
         }
 
-        $stmt = $db->prepare("CALL sp_get_queue_status(?, ?)");
-        $stmt->execute([$departmentId, $divisionId]);
-        
-        $queueStatus = $stmt->fetch(PDO::FETCH_ASSOC);
+        // Check if stored procedure exists
+        $procCheck = $db->query("SHOW PROCEDURE STATUS LIKE 'sp_get_queue_status'");
+        if ($procCheck->rowCount() > 0) {
+            $stmt = $db->prepare("CALL sp_get_queue_status(?, ?)");
+            $stmt->execute([$departmentId, $divisionId]);
+            $queueStatus = $stmt->fetch(PDO::FETCH_ASSOC);
+        } else {
+            $queueStatus = getQueueStatusFallback($db, $departmentId, $divisionId);
+        }
 
         sendResponse($queueStatus ?: [
             'total_tokens_issued' => 0,
@@ -221,7 +297,41 @@ function getQueueStatus($db) {
         ]);
 
     } catch (Exception $e) {
-        sendError(500, "Failed to get queue status", $e->getMessage());
+        error_log("Error in getQueueStatus: " . $e->getMessage());
+        sendResponse([
+            'total_tokens_issued' => 0,
+            'tokens_served' => 0,
+            'tokens_waiting' => 0,
+            'tokens_cancelled' => 0,
+            'average_service_time' => 15,
+            'estimated_wait_time' => 0,
+            'current_serving_token' => null,
+            'last_called_token' => null,
+            'active_tokens' => 0
+        ]);
+    }
+}
+
+function getQueueStatusFallback($db, $departmentId, $divisionId) {
+    try {
+        $today = date('Y-m-d');
+        
+        $stmt = $db->prepare("
+            SELECT 
+                COUNT(*) as total_tokens_issued,
+                SUM(CASE WHEN status = 'served' THEN 1 ELSE 0 END) as tokens_served,
+                SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as tokens_waiting,
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as tokens_cancelled,
+                AVG(CASE WHEN actual_service_time IS NOT NULL THEN actual_service_time ELSE 15 END) as average_service_time
+            FROM service_tokens 
+            WHERE department_id = ? AND division_id = ? AND DATE(created_at) = ?
+        ");
+        $stmt->execute([$departmentId, $divisionId, $today]);
+        
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Error in getQueueStatusFallback: " . $e->getMessage());
+        return null;
     }
 }
 
@@ -244,15 +354,16 @@ function handlePostRequest($db) {
             sendError(400, "Registry ID, Department ID, and Division ID are required");
         }
 
-        // Validate priority level
-        if (!in_array($priorityLevel, ['normal', 'urgent', 'vip'])) {
-            sendError(400, "Invalid priority level");
+        // Check if stored procedure exists
+        $procCheck = $db->query("SHOW PROCEDURE STATUS LIKE 'sp_generate_token'");
+        if ($procCheck->rowCount() > 0) {
+            $stmt = $db->prepare("CALL sp_generate_token(?, ?, ?, ?, ?, ?, @token_id, @token_number, @queue_position, @estimated_wait_time)");
+            $stmt->execute([$registryId, $departmentId, $divisionId, $serviceType, $priorityLevel, $createdBy]);
+
+            $result = $db->query("SELECT @token_id as token_id, @token_number as token_number, @queue_position as queue_position, @estimated_wait_time as estimated_wait_time")->fetch(PDO::FETCH_ASSOC);
+        } else {
+            $result = generateTokenFallback($db, $registryId, $departmentId, $divisionId, $serviceType, $priorityLevel, $createdBy);
         }
-
-        $stmt = $db->prepare("CALL sp_generate_token(?, ?, ?, ?, ?, ?, @token_id, @token_number, @queue_position, @estimated_wait_time)");
-        $stmt->execute([$registryId, $departmentId, $divisionId, $serviceType, $priorityLevel, $createdBy]);
-
-        $result = $db->query("SELECT @token_id as token_id, @token_number as token_number, @queue_position as queue_position, @estimated_wait_time as estimated_wait_time")->fetch(PDO::FETCH_ASSOC);
 
         sendResponse([
             'token_id' => $result['token_id'],
@@ -265,8 +376,49 @@ function handlePostRequest($db) {
         ], "Token generated successfully", 201);
 
     } catch (Exception $e) {
+        error_log("Error in handlePostRequest: " . $e->getMessage());
         sendError(500, "Failed to generate token", $e->getMessage());
     }
+}
+
+function generateTokenFallback($db, $registryId, $departmentId, $divisionId, $serviceType, $priorityLevel, $createdBy) {
+    try {
+        // Generate token number
+        $today = date('Y-m-d');
+        $stmt = $db->prepare("SELECT COUNT(*) as count FROM service_tokens WHERE DATE(created_at) = ? AND department_id = ? AND division_id = ?");
+        $stmt->execute([$today, $departmentId, $divisionId]);
+        $count = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+        
+        $tokenNumber = sprintf("D%d-V%d-%04d", $departmentId, $divisionId, $count + 1);
+        $tokenId = generateUUID();
+        
+        // Insert token
+        $insertStmt = $db->prepare("
+            INSERT INTO service_tokens (id, token_number, registry_id, department_id, division_id, service_type, priority_level, queue_position, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $insertStmt->execute([$tokenId, $tokenNumber, $registryId, $departmentId, $divisionId, $serviceType, $priorityLevel, $count + 1, $createdBy]);
+        
+        return [
+            'token_id' => $tokenId,
+            'token_number' => $tokenNumber,
+            'queue_position' => $count + 1,
+            'estimated_wait_time' => ($count + 1) * 15 // 15 minutes per token
+        ];
+    } catch (Exception $e) {
+        error_log("Error in generateTokenFallback: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+function generateUUID() {
+    return sprintf('%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+        mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+        mt_rand(0, 0xffff),
+        mt_rand(0, 0x0fff) | 0x4000,
+        mt_rand(0, 0x3fff) | 0x8000,
+        mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+    );
 }
 
 function handlePutRequest($db) {

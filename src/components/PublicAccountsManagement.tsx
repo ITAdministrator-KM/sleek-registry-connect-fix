@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { apiService, PublicUser, Department, Division } from '@/services/apiService';
-import { Search, Plus, Edit, Trash2, User } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, User, AlertTriangle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export const PublicAccountsManagement: React.FC = () => {
@@ -18,6 +18,8 @@ export const PublicAccountsManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<PublicUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState<PublicUser | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     nic: '',
@@ -83,11 +85,10 @@ export const PublicAccountsManagement: React.FC = () => {
         ...formData,
         department_id: formData.department_id ? parseInt(formData.department_id) : undefined,
         division_id: formData.division_id ? parseInt(formData.division_id) : undefined,
-        status: 'active' as const, // Add missing status property
+        status: 'active' as const,
       };
 
       if (editingUser) {
-        // For editing, we don't include password if it's empty
         const updateData = { ...userData };
         if (!updateData.password) {
           delete updateData.password;
@@ -128,29 +129,36 @@ export const PublicAccountsManagement: React.FC = () => {
       address: user.address,
       mobile: user.mobile,
       email: user.email || '',
-      username: `${user.public_id}`, // Use public_id as username
-      password: '', // Don't pre-fill password for security
+      username: `${user.public_id}`,
+      password: '',
       department_id: user.department_id?.toString() || '',
       division_id: user.division_id?.toString() || ''
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this public user?')) return;
+  const handleDelete = (user: PublicUser) => {
+    setDeletingUser(user);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingUser) return;
 
     try {
-      await apiService.deletePublicUser(id);
+      await apiService.deletePublicUser(deletingUser.id);
       toast({
         title: "Success",
-        description: "Public user deleted successfully",
+        description: `Public user ${deletingUser.name} deleted successfully`,
       });
+      setIsDeleteDialogOpen(false);
+      setDeletingUser(null);
       fetchUsers();
     } catch (error) {
       console.error('Error deleting public user:', error);
       toast({
         title: "Error",
-        description: "Failed to delete public user",
+        description: "Failed to delete public user. This user may have associated records.",
         variant: "destructive",
       });
     }
@@ -356,7 +364,7 @@ export const PublicAccountsManagement: React.FC = () => {
                       <Button 
                         size="sm" 
                         variant="outline"
-                        onClick={() => handleDelete(user.id)}
+                        onClick={() => handleDelete(user)}
                         className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="w-3 h-3 mr-1" />
@@ -376,6 +384,42 @@ export const PublicAccountsManagement: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              Confirm Delete
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p>
+              Are you sure you want to delete the public account for{' '}
+              <strong>{deletingUser?.name}</strong> (ID: {deletingUser?.public_id})?
+            </p>
+            <p className="text-sm text-gray-600">
+              This action cannot be undone. All associated data will be permanently removed.
+            </p>
+            <div className="flex justify-end space-x-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsDeleteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={confirmDelete}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Account
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
