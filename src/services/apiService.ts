@@ -1,3 +1,4 @@
+
 import { ApiBase } from './apiBase';
 
 export interface User {
@@ -24,6 +25,7 @@ export interface PublicUser {
   name: string;
   nic: string;
   email?: string;
+  username?: string;
   mobile: string;
   address: string;
   date_of_birth?: string;
