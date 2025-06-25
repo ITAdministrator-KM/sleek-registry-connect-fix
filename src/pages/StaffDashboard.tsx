@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +14,7 @@ import StaffDashboardLayout from '@/components/staff/StaffDashboardLayout';
 import TokenDisplayLauncher from '@/components/display/TokenDisplayLauncher';
 import StaffOverview from '@/components/staff/StaffOverview';
 import { apiService } from '@/services/api';
+import ModernPublicRegistry from '@/components/public-registry/ModernPublicRegistry';
 
 const StaffDashboard = () => {
   const { user, loading, isAuthenticated, logout } = useAuth(['staff']);
@@ -117,7 +117,7 @@ const StaffDashboard = () => {
       case 'public-accounts':
         return <PublicAccountsManagement />;
       case 'public-registry':
-        return <PublicRegistry />;
+        return <ModernPublicRegistry />;
       case 'id-cards':
         return <IDCardGenerator />;
       case 'display':
