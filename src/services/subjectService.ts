@@ -4,6 +4,7 @@ import { ApiBase } from './apiBase';
 export interface SubjectStaff {
   id: number;
   user_id: number;
+  staff_name?: string;
   post: string;
   assigned_department_id: number;
   assigned_division_id: number;
@@ -25,8 +26,9 @@ export interface Document {
 }
 
 export class SubjectService extends ApiBase {
-  async getSubjectStaffData(userId: number): Promise<{data: SubjectStaff}> {
-    return this.makeRequest(`/subject-staff/index.php?user_id=${userId}`);
+  async getSubjectStaffData(userId: number): Promise<{data: SubjectStaff | SubjectStaff[]}> {
+    const url = userId === 0 ? '/subject-staff/index.php' : `/subject-staff/index.php?user_id=${userId}`;
+    return this.makeRequest(url);
   }
 
   async getDocuments(departmentId: number, divisionId: number): Promise<{data: Document[]}> {
@@ -38,7 +40,6 @@ export class SubjectService extends ApiBase {
       method: 'GET',
     });
     
-    // Handle file download
     const blob = new Blob([response], { type: 'application/octet-stream' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -66,6 +67,7 @@ export class SubjectService extends ApiBase {
 
   async createSubjectStaff(data: {
     user_id: number;
+    staff_name: string;
     post: string;
     assigned_department_id: number;
     assigned_division_id: number;

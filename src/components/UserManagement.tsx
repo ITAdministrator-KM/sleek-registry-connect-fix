@@ -37,6 +37,7 @@ const UserManagement = () => {
     try {
       setIsLoading(true);
       const usersData = await apiService.getUsers();
+      console.log('Fetched users:', usersData);
       setUsers(Array.isArray(usersData) ? usersData : []);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -94,6 +95,7 @@ const UserManagement = () => {
       setIsDialogOpen(false);
       setEditingUser(null);
     } catch (error) {
+      console.error('Error saving user:', error);
       toast({
         title: "Error",
         description: `Failed to ${editingUser ? 'update' : 'create'} user`,
@@ -118,6 +120,7 @@ const UserManagement = () => {
       });
       fetchUsers();
     } catch (error) {
+      console.error('Error deleting user:', error);
       toast({
         title: "Error",
         description: "Failed to delete user",
@@ -182,7 +185,6 @@ const UserManagement = () => {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Search and Filter Section */}
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -203,6 +205,7 @@ const UserManagement = () => {
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="staff">Staff</SelectItem>
                   <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="subject_staff">Subject Staff</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
@@ -219,7 +222,6 @@ const UserManagement = () => {
             </div>
           </div>
 
-          {/* Users Table */}
           <UserTable
             users={filteredUsers}
             onEdit={handleEdit}

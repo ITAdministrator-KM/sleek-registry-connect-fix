@@ -1,4 +1,3 @@
-
 import { ApiBase } from './apiBase';
 
 export interface User {
@@ -81,7 +80,6 @@ class ApiService extends ApiBase {
       const response = await this.makeRequest('/users/index.php');
       console.log('Users API response:', response);
       
-      // Handle different response formats
       if (Array.isArray(response)) {
         return response;
       } else if (response?.data && Array.isArray(response.data)) {
@@ -148,6 +146,24 @@ class ApiService extends ApiBase {
       body: JSON.stringify(userData)
     });
     return response?.data || response;
+  }
+
+  async updatePublicUser(id: number, userData: Partial<PublicUser>): Promise<PublicUser> {
+    const response = await this.makeRequest('/public-users/index.php', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...userData, id })
+    });
+    return response?.data || response;
+  }
+
+  async deletePublicUser(id: number): Promise<boolean> {
+    await this.makeRequest('/public-users/index.php', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+    return true;
   }
 
   // Department Management

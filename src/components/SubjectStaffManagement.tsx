@@ -11,13 +11,12 @@ import { Plus, Edit, Trash2, User } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { subjectService, SubjectStaff } from '@/services/subjectService';
-import { userService } from '@/services/userService';
-import { departmentService, Department, Division } from '@/services/departmentService';
+import { apiService, User as SystemUser, Department, Division } from '@/services/apiService';
 import DocumentUploadManagement from './DocumentUploadManagement';
 
 const SubjectStaffManagement = () => {
   const [subjectStaffList, setSubjectStaffList] = useState<SubjectStaff[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<SystemUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +24,7 @@ const SubjectStaffManagement = () => {
   const [editingSubjectStaff, setEditingSubjectStaff] = useState<SubjectStaff | null>(null);
   const [formData, setFormData] = useState({
     user_id: '',
+    staff_name: '',
     post: '',
     assigned_department_id: '',
     assigned_division_id: ''
@@ -39,12 +39,11 @@ const SubjectStaffManagement = () => {
     try {
       setLoading(true);
       const [subjectStaffResponse, usersResponse, departmentsResponse] = await Promise.all([
-        subjectService.getSubjectStaffData(0), // Pass 0 to get all staff
-        userService.getUsers(),
-        departmentService.getDepartments()
+        subjectService.getSubjectStaffData(0),
+        apiService.getUsers(),
+        apiService.getDepartments()
       ]);
       
-      // Handle subjectStaffResponse - it could be a single item or array
       if (Array.isArray(subjectStaffResponse.data)) {
         setSubjectStaffList(subjectStaffResponse.data);
       } else if (subjectStaffResponse.data) {
@@ -53,8 +52,8 @@ const SubjectStaffManagement = () => {
         setSubjectStaffList([]);
       }
       
-      setUsers(usersResponse || []);
-      setDepartments(departmentsResponse.data || []);
+      setUsers(Array.isArray(usersResponse) ? usersResponse : []);
+      setDepartments(Array.isArray(departmentsResponse) ? departmentsResponse : []);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -68,12 +67,12 @@ const SubjectStaffManagement = () => {
   };
 
   const handleDepartmentChange = async (departmentId: string) => {
-    setFormData({ ...formData, assigned_department_id: departmentId, assigned_division_id: '' });
+    setFormData(prev => ({ ...prev, assigned_department_id: departmentId, assigned_division_id: '' }));
     
     if (departmentId) {
       try {
-        const divisionsResponse = await departmentService.getDivisions(parseInt(departmentId));
-        setDivisions(divisionsResponse.data || []);
+        const divisionsResponse = await apiService.getDivisions(parseInt(departmentId));
+        setDivisions(Array.isArray(divisionsResponse) ? divisionsResponse : []);
       } catch (error) {
         console.error('Error fetching divisions:', error);
       }
@@ -82,25 +81,44 @@ const SubjectStaffManagement = () => {
     }
   };
 
+  const handleUserChange = (userId: string) => {
+    const selectedUser = users.find(user => user.id.toString() === userId);
+    setFormData(prev => ({
+      ...prev,
+      user_id: userId,
+      staff_name: selectedUser ? selectedUser.name : ''
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.user_id || !formData.staff_name || !formData.post || !formData.assigned_department_id || !formData.assigned_division_id) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
-      const numericFormData = {
+      const subjectStaffData = {
         user_id: parseInt(formData.user_id),
+        staff_name: formData.staff_name,
         post: formData.post,
         assigned_department_id: parseInt(formData.assigned_department_id),
         assigned_division_id: parseInt(formData.assigned_division_id)
       };
 
       if (editingSubjectStaff) {
-        await subjectService.updateSubjectStaff(editingSubjectStaff.id, numericFormData);
+        await subjectService.updateSubjectStaff(editingSubjectStaff.id, subjectStaffData);
         toast({
           title: "Success",
           description: "Subject staff updated successfully",
         });
       } else {
-        await subjectService.createSubjectStaff(numericFormData);
+        await subjectService.createSubjectStaff(subjectStaffData);
         toast({
           title: "Success",
           description: "Subject staff created successfully",
@@ -109,14 +127,10 @@ const SubjectStaffManagement = () => {
       
       setIsDialogOpen(false);
       setEditingSubjectStaff(null);
-      setFormData({
-        user_id: '',
-        post: '',
-        assigned_department_id: '',
-        assigned_division_id: ''
-      });
+      resetForm();
       fetchData();
     } catch (error) {
+      console.error('Error saving subject staff:', error);
       toast({
         title: "Error",
         description: "Failed to save subject staff",
@@ -129,6 +143,7 @@ const SubjectStaffManagement = () => {
     setEditingSubjectStaff(subjectStaff);
     setFormData({
       user_id: subjectStaff.user_id.toString(),
+      staff_name: subjectStaff.staff_name || '',
       post: subjectStaff.post,
       assigned_department_id: subjectStaff.assigned_department_id.toString(),
       assigned_division_id: subjectStaff.assigned_division_id.toString()
@@ -146,6 +161,7 @@ const SubjectStaffManagement = () => {
         });
         fetchData();
       } catch (error) {
+        console.error('Error deleting subject staff:', error);
         toast({
           title: "Error",
           description: "Failed to delete subject staff",
@@ -153,6 +169,16 @@ const SubjectStaffManagement = () => {
         });
       }
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      user_id: '',
+      staff_name: '',
+      post: '',
+      assigned_department_id: '',
+      assigned_division_id: ''
+    });
   };
 
   if (loading) {
@@ -182,12 +208,16 @@ const SubjectStaffManagement = () => {
               <DocumentUploadManagement onDocumentUploaded={fetchData} />
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700">
+                  <Button className="bg-green-600 hover:bg-green-700" onClick={() => {
+                    setEditingSubjectStaff(null);
+                    resetForm();
+                    setIsDialogOpen(true);
+                  }}>
                     <Plus className="mr-2 h-4 w-4" />
                     Create Subject Staff
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>
                       {editingSubjectStaff ? 'Edit Subject Staff' : 'Create New Subject Staff'}
@@ -198,8 +228,8 @@ const SubjectStaffManagement = () => {
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                      <Label htmlFor="user_id">User</Label>
-                      <Select value={formData.user_id} onValueChange={(value) => setFormData({...formData, user_id: value})}>
+                      <Label htmlFor="user_id">Select User *</Label>
+                      <Select value={formData.user_id} onValueChange={handleUserChange}>
                         <SelectTrigger id="user_id">
                           <SelectValue placeholder="Select a user" />
                         </SelectTrigger>
@@ -214,20 +244,38 @@ const SubjectStaffManagement = () => {
                     </div>
                     
                     <div>
-                      <Label htmlFor="post">Post/Job Title</Label>
+                      <Label htmlFor="staff_name">Staff Name *</Label>
                       <Input
-                        id="post"
-                        name="post"
-                        value={formData.post}
-                        onChange={(e) => setFormData({...formData, post: e.target.value})}
-                        placeholder="Enter job title/post"
+                        id="staff_name"
+                        value={formData.staff_name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, staff_name: e.target.value }))}
+                        placeholder="Enter staff name"
                         required
-                        autoComplete="organization-title"
                       />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="post">Post/Job Title *</Label>
+                      <Select value={formData.post} onValueChange={(value) => setFormData(prev => ({ ...prev, post: value }))}>
+                        <SelectTrigger id="post">
+                          <SelectValue placeholder="Select job title/post" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border shadow-lg z-50">
+                          <SelectItem value="DO">Divisional Officer (DO)</SelectItem>
+                          <SelectItem value="MSO">Management Services Officer (MSO)</SelectItem>
+                          <SelectItem value="ICTA">ICTA Officer</SelectItem>
+                          <SelectItem value="SSO">Senior Staff Officer (SSO)</SelectItem>
+                          <SelectItem value="EDO">Economic Development Officer (EDO)</SelectItem>
+                          <SelectItem value="AO">Administrative Officer (AO)</SelectItem>
+                          <SelectItem value="Clerk">Clerk</SelectItem>
+                          <SelectItem value="Technical Officer">Technical Officer</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div>
-                      <Label htmlFor="department">Department</Label>
+                      <Label htmlFor="department">Assigned Department *</Label>
                       <Select value={formData.assigned_department_id} onValueChange={handleDepartmentChange}>
                         <SelectTrigger id="department">
                           <SelectValue placeholder="Select department" />
@@ -243,8 +291,8 @@ const SubjectStaffManagement = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="division">Division</Label>
-                      <Select value={formData.assigned_division_id} onValueChange={(value) => setFormData({...formData, assigned_division_id: value})}>
+                      <Label htmlFor="division">Assigned Division *</Label>
+                      <Select value={formData.assigned_division_id} onValueChange={(value) => setFormData(prev => ({ ...prev, assigned_division_id: value }))}>
                         <SelectTrigger id="division">
                           <SelectValue placeholder="Select division" />
                         </SelectTrigger>
@@ -276,7 +324,7 @@ const SubjectStaffManagement = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead>Staff Name</TableHead>
                 <TableHead>Post</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Division</TableHead>
@@ -287,7 +335,7 @@ const SubjectStaffManagement = () => {
             <TableBody>
               {subjectStaffList.map((staff) => (
                 <TableRow key={staff.id}>
-                  <TableCell className="font-medium">{staff.user_id}</TableCell>
+                  <TableCell className="font-medium">{staff.staff_name || `User ID: ${staff.user_id}`}</TableCell>
                   <TableCell>{staff.post}</TableCell>
                   <TableCell>{staff.department_name}</TableCell>
                   <TableCell>{staff.division_name}</TableCell>
