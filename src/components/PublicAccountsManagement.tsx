@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,8 +25,6 @@ export const PublicAccountsManagement: React.FC = () => {
     address: '',
     mobile: '',
     email: '',
-    username: '',
-    password: '',
     department_id: '',
     division_id: ''
   });
@@ -129,8 +126,6 @@ export const PublicAccountsManagement: React.FC = () => {
       address: user.address,
       mobile: user.mobile,
       email: user.email || '',
-      username: `${user.public_id}`,
-      password: '',
       department_id: user.department_id?.toString() || '',
       division_id: user.division_id?.toString() || ''
     });
@@ -146,19 +141,42 @@ export const PublicAccountsManagement: React.FC = () => {
     if (!deletingUser) return;
 
     try {
-      await apiService.deletePublicUser(deletingUser.id);
-      toast({
-        title: "Success",
-        description: `Public user ${deletingUser.name} deleted successfully`,
+      // Force delete with cascade handling
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://dskalmunai.lk/backend/api'}/public-users/index.php`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({ 
+          id: deletingUser.id,
+          force_delete: true // Add flag for force delete
+        })
       });
-      setIsDeleteDialogOpen(false);
-      setDeletingUser(null);
-      fetchUsers();
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.status === 'success' || result.success) {
+        toast({
+          title: "Success",
+          description: `Public user ${deletingUser.name} deleted successfully`,
+        });
+        setIsDeleteDialogOpen(false);
+        setDeletingUser(null);
+        fetchUsers();
+      } else {
+        throw new Error(result.message || 'Failed to delete user');
+      }
     } catch (error) {
       console.error('Error deleting public user:', error);
       toast({
         title: "Error",
-        description: "Failed to delete public user. This user may have associated records.",
+        description: error instanceof Error ? error.message : "Failed to delete public user",
         variant: "destructive",
       });
     }
@@ -228,6 +246,8 @@ export const PublicAccountsManagement: React.FC = () => {
                       <Label htmlFor="name">Full Name *</Label>
                       <Input
                         id="name"
+                        name="name"
+                        autoComplete="name"
                         value={formData.name}
                         onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                         required
@@ -237,6 +257,8 @@ export const PublicAccountsManagement: React.FC = () => {
                       <Label htmlFor="nic">NIC Number *</Label>
                       <Input
                         id="nic"
+                        name="nic"
+                        autoComplete="off"
                         value={formData.nic}
                         onChange={(e) => setFormData(prev => ({ ...prev, nic: e.target.value }))}
                         required
@@ -246,6 +268,9 @@ export const PublicAccountsManagement: React.FC = () => {
                       <Label htmlFor="mobile">Mobile Number *</Label>
                       <Input
                         id="mobile"
+                        name="mobile"
+                        type="tel"
+                        autoComplete="tel"
                         value={formData.mobile}
                         onChange={(e) => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
                         required
@@ -255,7 +280,9 @@ export const PublicAccountsManagement: React.FC = () => {
                       <Label htmlFor="email">Email</Label>
                       <Input
                         id="email"
+                        name="email"
                         type="email"
+                        autoComplete="email"
                         value={formData.email}
                         onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                       />
@@ -282,7 +309,7 @@ export const PublicAccountsManagement: React.FC = () => {
                     <div>
                       <Label htmlFor="department">Department</Label>
                       <Select value={formData.department_id} onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value }))}>
-                        <SelectTrigger>
+                        <SelectTrigger id="department">
                           <SelectValue placeholder="Select department" />
                         </SelectTrigger>
                         <SelectContent>
@@ -297,7 +324,7 @@ export const PublicAccountsManagement: React.FC = () => {
                     <div>
                       <Label htmlFor="division">Division</Label>
                       <Select value={formData.division_id} onValueChange={(value) => setFormData(prev => ({ ...prev, division_id: value }))}>
-                        <SelectTrigger>
+                        <SelectTrigger id="division">
                           <SelectValue placeholder="Select division" />
                         </SelectTrigger>
                         <SelectContent>
@@ -314,6 +341,8 @@ export const PublicAccountsManagement: React.FC = () => {
                     <Label htmlFor="address">Address *</Label>
                     <Input
                       id="address"
+                      name="address"
+                      autoComplete="address-line1"
                       value={formData.address}
                       onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
                       required
@@ -336,6 +365,9 @@ export const PublicAccountsManagement: React.FC = () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <Input
+              id="search"
+              name="search"
+              autoComplete="off"
               placeholder="Search by name, ID, or NIC..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -400,7 +432,7 @@ export const PublicAccountsManagement: React.FC = () => {
               <strong>{deletingUser?.name}</strong> (ID: {deletingUser?.public_id})?
             </p>
             <p className="text-sm text-gray-600">
-              This action cannot be undone. All associated data will be permanently removed.
+              This action cannot be undone. All associated registry entries and tokens will also be removed.
             </p>
             <div className="flex justify-end space-x-2">
               <Button 
@@ -421,6 +453,28 @@ export const PublicAccountsManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+  );
+};
+
+const resetForm = () => {
+  return {
+    name: '',
+    nic: '',
+    address: '',
+    mobile: '',
+    email: '',
+    username: '',
+    password: '',
+    department_id: '',
+    division_id: ''
+  };
+};
+
+const filteredUsers = (users: PublicUser[], searchTerm: string) => {
+  return users.filter(user =>
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.public_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.nic.toLowerCase().includes(searchTerm.toLowerCase())
   );
 };
 
