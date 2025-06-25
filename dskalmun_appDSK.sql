@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jun 24, 2025 at 09:03 AM
+-- Generation Time: Jun 25, 2025 at 03:59 PM
 -- Server version: 8.0.42-cll-lve
 -- PHP Version: 8.3.22
 
@@ -20,6 +20,399 @@ SET time_zone = "+00:00";
 --
 -- Database: `dskalmun_appDSK`
 --
+
+DELIMITER $$
+--
+-- Procedures
+--
+CREATE DEFINER=`dskalmun`@`localhost` PROCEDURE `sp_call_next_token` (IN `p_department_id` VARCHAR(36), IN `p_division_id` VARCHAR(36), IN `p_staff_id` VARCHAR(36), OUT `p_token_id` VARCHAR(36), OUT `p_token_number` VARCHAR(20))   BEGIN
+    DECLARE v_current_date DATE;
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+    SET v_current_date = CURDATE();
+
+    -- Get next waiting token (priority: urgent, vip, then normal by creation time)
+    SELECT id, token_number INTO p_token_id, p_token_number
+    FROM service_tokens
+    WHERE department_id = p_department_id 
+      AND division_id = p_division_id
+      AND DATE(created_at) = v_current_date
+      AND status = 'waiting'
+    ORDER BY 
+        CASE priority_level 
+            WHEN 'urgent' THEN 1 
+            WHEN 'vip' THEN 2 
+            ELSE 3 
+        END,
+        created_at ASC
+    LIMIT 1;
+
+    IF p_token_id IS NOT NULL THEN
+        -- Update token status
+        UPDATE service_tokens 
+        SET status = 'called', 
+            called_at = NOW(), 
+            staff_id = p_staff_id,
+            updated_by = p_staff_id
+        WHERE id = p_token_id;
+
+        -- Update queue management
+        UPDATE token_queue_management 
+        SET tokens_waiting = tokens_waiting - 1,
+            last_called_token = p_token_number,
+            updated_at = NOW()
+        WHERE department_id = p_department_id 
+          AND division_id = p_division_id 
+          AND date = v_current_date;
+
+        -- Log the action
+        INSERT INTO token_audit_log (
+            token_id, action_type, old_status, new_status, action_by
+        )
+        VALUES (
+            p_token_id, 'called', 'waiting', 'called', p_staff_id
+        );
+    END IF;
+
+    COMMIT;
+END$$
+
+CREATE DEFINER=`dskalmun`@`localhost` PROCEDURE `sp_cancel_token` (IN `p_token_id` VARCHAR(36), IN `p_staff_id` VARCHAR(36), IN `p_reason` TEXT)   BEGIN
+    DECLARE v_department_id VARCHAR(36);
+    DECLARE v_division_id VARCHAR(36);
+    DECLARE v_current_date DATE;
+    DECLARE v_old_status VARCHAR(50);
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+    SET v_current_date = CURDATE();
+
+    -- Get token details
+    SELECT department_id, division_id, status
+    INTO v_department_id, v_division_id, v_old_status
+    FROM service_tokens
+    WHERE id = p_token_id AND status IN ('waiting', 'called');
+
+    IF v_department_id IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Token not found or cannot be cancelled';
+    END IF;
+
+    -- Update token status
+    UPDATE service_tokens 
+    SET status = 'cancelled',
+        cancelled_at = NOW(),
+        notes = p_reason,
+        updated_by = p_staff_id
+    WHERE id = p_token_id;
+
+    -- Update queue management
+    UPDATE token_queue_management 
+    SET tokens_cancelled = tokens_cancelled + 1,
+        tokens_waiting = CASE WHEN v_old_status = 'waiting' THEN tokens_waiting - 1 ELSE tokens_waiting END,
+        updated_at = NOW()
+    WHERE department_id = v_department_id 
+      AND division_id = v_division_id 
+      AND date = v_current_date;
+
+    -- Log the action
+    INSERT INTO token_audit_log (
+        token_id, action_type, old_status, new_status, action_by, notes
+    )
+    VALUES (
+        p_token_id, 'cancelled', v_old_status, 'cancelled', p_staff_id, p_reason
+    );
+
+    COMMIT;
+END$$
+
+CREATE DEFINER=`dskalmun`@`localhost` PROCEDURE `sp_complete_token` (IN `p_token_id` VARCHAR(36), IN `p_staff_id` VARCHAR(36), IN `p_notes` TEXT)   BEGIN
+    DECLARE v_department_id VARCHAR(36);
+    DECLARE v_division_id VARCHAR(36);
+    DECLARE v_current_date DATE;
+    DECLARE v_service_time INT;
+    DECLARE v_token_number VARCHAR(20);
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+    SET v_current_date = CURDATE();
+
+    -- Get token details and calculate service time
+    SELECT 
+        department_id, division_id, token_number,
+        CASE 
+            WHEN serving_started_at IS NOT NULL THEN 
+                TIMESTAMPDIFF(MINUTE, serving_started_at, NOW())
+            WHEN called_at IS NOT NULL THEN 
+                TIMESTAMPDIFF(MINUTE, called_at, NOW())
+            ELSE 
+                TIMESTAMPDIFF(MINUTE, created_at, NOW())
+        END
+    INTO v_department_id, v_division_id, v_token_number, v_service_time
+    FROM service_tokens
+    WHERE id = p_token_id AND status IN ('called', 'serving');
+
+    IF v_department_id IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Token not found or not in valid status';
+    END IF;
+
+    -- Update token status
+    UPDATE service_tokens 
+    SET status = 'served',
+        served_at = NOW(),
+        actual_service_time = v_service_time,
+        staff_id = p_staff_id,
+        notes = p_notes,
+        updated_by = p_staff_id
+    WHERE id = p_token_id;
+
+    -- Update queue management
+    UPDATE token_queue_management 
+    SET tokens_served = tokens_served + 1,
+        current_serving_token = NULL,
+        average_service_time = (
+            SELECT AVG(actual_service_time) 
+            FROM service_tokens 
+            WHERE department_id = v_department_id 
+              AND division_id = v_division_id
+              AND DATE(created_at) = v_current_date
+              AND status = 'served'
+              AND actual_service_time IS NOT NULL
+        ),
+        updated_at = NOW()
+    WHERE department_id = v_department_id 
+      AND division_id = v_division_id 
+      AND date = v_current_date;
+
+    -- Log the action
+    INSERT INTO token_audit_log (
+        token_id, action_type, old_status, new_status, action_by, notes
+    )
+    VALUES (
+        p_token_id, 'served', 'called', 'served', p_staff_id, p_notes
+    );
+
+    COMMIT;
+END$$
+
+CREATE DEFINER=`dskalmun`@`localhost` PROCEDURE `sp_generate_token` (IN `p_registry_id` VARCHAR(36), IN `p_department_id` VARCHAR(36), IN `p_division_id` VARCHAR(36), IN `p_service_type` VARCHAR(100), IN `p_priority_level` ENUM('normal','urgent','vip'), IN `p_created_by` VARCHAR(36), OUT `p_token_id` VARCHAR(36), OUT `p_token_number` VARCHAR(20), OUT `p_queue_position` INT, OUT `p_estimated_wait_time` INT)   BEGIN
+    DECLARE v_dept_code VARCHAR(10);
+    DECLARE v_div_code VARCHAR(10);
+    DECLARE v_last_number INT DEFAULT 0;
+    DECLARE v_current_date DATE;
+    DECLARE v_token_id VARCHAR(36);
+    DECLARE v_queue_pos INT DEFAULT 1;
+    DECLARE v_avg_service_time DECIMAL(5,2) DEFAULT 15.00;
+    DECLARE v_waiting_tokens INT DEFAULT 0;
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    START TRANSACTION;
+
+    SET v_current_date = CURDATE();
+    SET v_token_id = UUID();
+
+    -- Get department and division codes
+    SELECT 
+        UPPER(LEFT(d.name, 3)), 
+        UPPER(LEFT(dv.name, 2))
+    INTO v_dept_code, v_div_code
+    FROM departments d
+    JOIN divisions dv ON dv.id = p_division_id
+    WHERE d.id = p_department_id AND d.status = 'active' AND dv.status = 'active';
+
+    IF v_dept_code IS NULL OR v_div_code IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid department or division';
+    END IF;
+
+    -- Initialize or update token sequence for today
+    INSERT INTO token_sequences (
+        department_id, division_id, date, last_token_number, 
+        department_code, division_code
+    )
+    VALUES (
+        p_department_id, p_division_id, v_current_date, 1, 
+        v_dept_code, v_div_code
+    )
+    ON DUPLICATE KEY UPDATE 
+        last_token_number = last_token_number + 1,
+        updated_at = NOW();
+
+    -- Get the new token number
+    SELECT last_token_number INTO v_last_number
+    FROM token_sequences
+    WHERE department_id = p_department_id 
+      AND division_id = p_division_id 
+      AND date = v_current_date;
+
+    -- Format token number: DEPTDIV-XXXX
+    SET p_token_number = CONCAT(v_dept_code, v_div_code, '-', LPAD(v_last_number, 4, '0'));
+
+    -- Calculate queue position and estimated wait time
+    SELECT 
+        COUNT(*) + 1,
+        COALESCE(AVG(actual_service_time), 15)
+    INTO v_queue_pos, v_avg_service_time
+    FROM service_tokens st
+    LEFT JOIN token_queue_management tqm ON (
+        tqm.department_id = p_department_id AND 
+        tqm.division_id = p_division_id AND 
+        tqm.date = v_current_date
+    )
+    WHERE st.department_id = p_department_id 
+      AND st.division_id = p_division_id
+      AND DATE(st.created_at) = v_current_date
+      AND st.status IN ('waiting', 'called', 'serving');
+
+    -- Calculate waiting tokens for estimated time
+    SELECT COUNT(*) INTO v_waiting_tokens
+    FROM service_tokens
+    WHERE department_id = p_department_id 
+      AND division_id = p_division_id
+      AND DATE(created_at) = v_current_date
+      AND status = 'waiting';
+
+    SET p_estimated_wait_time = v_waiting_tokens * v_avg_service_time;
+
+    -- Create the token
+    INSERT INTO service_tokens (
+        id, token_number, registry_id, department_id, division_id,
+        service_type, queue_position, status, priority_level,
+        estimated_service_time, wait_time_minutes, created_by
+    )
+    VALUES (
+        v_token_id, p_token_number, p_registry_id, p_department_id, p_division_id,
+        p_service_type, v_queue_pos, 'waiting', p_priority_level,
+        v_avg_service_time, p_estimated_wait_time, p_created_by
+    );
+
+    -- Update queue management
+    INSERT INTO token_queue_management (
+        department_id, division_id, date, total_tokens_issued, 
+        tokens_waiting, estimated_wait_time
+    )
+    VALUES (
+        p_department_id, p_division_id, v_current_date, 1, 1, p_estimated_wait_time
+    )
+    ON DUPLICATE KEY UPDATE 
+        total_tokens_issued = total_tokens_issued + 1,
+        tokens_waiting = tokens_waiting + 1,
+        estimated_wait_time = p_estimated_wait_time,
+        updated_at = NOW();
+
+    -- Log the action
+    INSERT INTO token_audit_log (
+        token_id, action_type, new_status, action_by, notes
+    )
+    VALUES (
+        v_token_id, 'created', 'waiting', p_created_by, 
+        CONCAT('Token generated: ', p_token_number)
+    );
+
+    SET p_token_id = v_token_id;
+    SET p_queue_position = v_queue_pos;
+
+    COMMIT;
+END$$
+
+CREATE DEFINER=`dskalmun`@`localhost` PROCEDURE `sp_generate_token_number` (IN `p_department_id` INT, IN `p_division_id` INT, OUT `p_token_number` VARCHAR(20), OUT `p_queue_position` INT)   BEGIN
+    DECLARE v_dept_code VARCHAR(10);
+    DECLARE v_div_code VARCHAR(10);
+    DECLARE v_last_number INT;
+    DECLARE v_current_date DATE;
+    
+    SET v_current_date = CURDATE();
+    
+    -- Get department and division codes
+    SELECT UPPER(LEFT(d.name, 3)), UPPER(LEFT(dv.name, 2))
+    INTO v_dept_code, v_div_code
+    FROM departments d
+    JOIN divisions dv ON dv.id = p_division_id
+    WHERE d.id = p_department_id;
+    
+    -- Get or create token sequence for today
+    INSERT INTO token_sequences (department_id, division_id, date, last_token_number, department_code, division_code)
+    VALUES (p_department_id, p_division_id, v_current_date, 0, v_dept_code, v_div_code)
+    ON DUPLICATE KEY UPDATE last_token_number = last_token_number;
+    
+    -- Increment and get new token number
+    UPDATE token_sequences 
+    SET last_token_number = last_token_number + 1,
+        updated_at = NOW()
+    WHERE department_id = p_department_id 
+      AND division_id = p_division_id 
+      AND date = v_current_date;
+    
+    -- Get the new token number
+    SELECT last_token_number INTO v_last_number
+    FROM token_sequences
+    WHERE department_id = p_department_id 
+      AND division_id = p_division_id 
+      AND date = v_current_date;
+    
+    -- Format token number: DEPTDIV-001
+    SET p_token_number = CONCAT(v_dept_code, v_div_code, '-', LPAD(v_last_number, 3, '0'));
+    
+    -- Get queue position (count of waiting tokens for this department/division today)
+    SELECT COUNT(*) + 1 INTO p_queue_position
+    FROM service_tokens st
+    WHERE st.department_id = p_department_id 
+      AND st.division_id = p_division_id
+      AND DATE(st.created_at) = v_current_date
+      AND st.status IN ('waiting', 'called');
+      
+END$$
+
+CREATE DEFINER=`dskalmun`@`localhost` PROCEDURE `sp_get_queue_status` (IN `p_department_id` VARCHAR(36), IN `p_division_id` VARCHAR(36))   BEGIN
+    DECLARE v_current_date DATE;
+    SET v_current_date = CURDATE();
+
+    SELECT 
+        tqm.total_tokens_issued,
+        tqm.tokens_served,
+        tqm.tokens_waiting,
+        tqm.tokens_cancelled,
+        tqm.average_service_time,
+        tqm.estimated_wait_time,
+        tqm.current_serving_token,
+        tqm.last_called_token,
+        COUNT(st.id) as active_tokens,
+        d.name as department_name,
+        dv.name as division_name
+    FROM token_queue_management tqm
+    LEFT JOIN service_tokens st ON (
+        st.department_id = tqm.department_id AND 
+        st.division_id = tqm.division_id AND 
+        DATE(st.created_at) = tqm.date AND 
+        st.status IN ('waiting', 'called', 'serving')
+    )
+    LEFT JOIN departments d ON d.id = tqm.department_id
+    LEFT JOIN divisions dv ON dv.id = tqm.division_id
+    WHERE tqm.department_id = p_department_id 
+      AND tqm.division_id = p_division_id 
+      AND tqm.date = v_current_date
+    GROUP BY tqm.id;
+END$$
+
+DELIMITER ;
 
 -- --------------------------------------------------------
 
@@ -345,23 +738,26 @@ INSERT INTO `public_id_counter` (`id`, `sequence_value`) VALUES
 --
 
 CREATE TABLE `public_registry` (
-  `id` int NOT NULL,
-  `registry_id` varchar(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
-  `public_user_id` int DEFAULT NULL,
-  `visitor_name` varchar(255) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
-  `visitor_nic` varchar(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
-  `visitor_address` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci,
-  `visitor_phone` varchar(20) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL,
-  `department_id` int NOT NULL,
-  `division_id` int DEFAULT NULL,
-  `purpose_of_visit` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
-  `remarks` text CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci,
-  `entry_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `visitor_type` enum('new','existing') CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL DEFAULT 'new',
-  `status` enum('active','checked_out','deleted') CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL DEFAULT 'active',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (uuid()),
+  `visitor_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `visitor_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `visitor_nic` varchar(15) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `visitor_phone` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `visitor_address` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `department_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `department_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `division_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `division_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `purpose_of_visit` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `remarks` text COLLATE utf8mb4_unicode_ci,
+  `entry_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `exit_time` timestamp NULL DEFAULT NULL,
+  `status` enum('active','checked_out','deleted') COLLATE utf8mb4_unicode_ci DEFAULT 'active',
+  `created_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `updated_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -397,9 +793,9 @@ CREATE TABLE `public_users` (
 --
 
 INSERT INTO `public_users` (`id`, `public_user_id`, `public_id`, `name`, `nic`, `address`, `mobile`, `qr_code_data`, `qr_code_url`, `email`, `photo_url`, `department_id`, `division_id`, `status`, `created_at`, `updated_at`, `username`, `password_hash`, `qr_code`, `last_login`) VALUES
-(1, 'PUB00001', 'PUB001', 'T.M.Mohemed Anzar', '853421669V', '167A, Gafoor Lane, F.C Road, Kattankudy 02', '+94777930531', NULL, NULL, 'anzar@example.com', NULL, 1, 0, 'active', '2025-05-27 10:55:59', '2025-06-12 09:53:24', 'anzar', '$2y$12$xqSvYG5zxTOcUn90f13rEuDSAQeRHf6Z.IduIITFH9smz17wTvYDq', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAsQAAALECAIAAACAN7HUAAAACXBIWXMAAA7EAAAOxAGVKw4bAAATaUlEQVR4nO3dS3IlOZIAweFI3v/KOftelEDaMF6OoOoBGN8XNMEC/vP379//AQD4b/3vv30CAMDbxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACD5M3mwn5+fycOt8vfv3yt/59Y9PDmfbce6dQ9PbLv2yWNN3ucTk+f81W/U5Lux7R376jM9MXmfrUwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJKOzOU5smwtw4sW93yf34X/x/kzO1Lhl22yFbffnFnNAum3zO/zf6axMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACTrZnOcmNyTfNue7dvmAmyb9TD5d05M3ucT2347k+fz4syRbc/9xXt4y4vPfZKVCQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIDkydkc7PHiHvuTJvfYf3Heyi2T5zM5L2PbbJcTL87QobMyAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCYzfFBt/bz3zbr4cSL+/lvm2+y7VlsO59bJq/9lsnz2fY75Z9ZmQAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBInpzN8dU92ydnYZzYNstg0ovzILY9r5Pz+er8l0nmicz46rfuFisTAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAMm62Rxf3df9llt742+b0TB5XV/9O7dMns9XZz28+P785vfwxXdsGysTAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAMnobI7Jfd1f5P502+YUbJt3cGLb/IVbf2fbfZ60bd7KpG3n81VWJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAACS0dkck/vDT85WOLHtWLf+zm+eYXFi27XfescmvTgrZNJXv5knfH/2sDIBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkPy8uO/9i3uk/+Zrn7RttsKL8022zWh48Z2ffA9/8+yJF9/Vbe/GLVYmAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAAJLR2RyTXtyz/cTkHvu/eT//E9vm2rz4LG7ZNlth27yMbfdnmxf/F2xjZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgGZ3NsW2+wLbzuWXb3vjb5hTc8tW9+r86M2Kbyd/pizNHXpwnsu3+TP4urEwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJKOzOU5s22/8hHPuts1o2LZX/61j3bLt/TmxbWbEiW3PdNJXr33b7+IWKxMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAyZ9/+wT+G9vmJrw4D+Kr+97fcuvdeHEexDYvzgGZ/CZs+45N+upcmxPbnpeVCQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIDkZ9ue5C/Oufjq/IVte79v29P+q89r23Wd2DYLY/JY274/274bt2y7P9vmrViZAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEj+/Nsn8J8m5wJs2/f+xf3zX7yuyT3tX5yX8dV348WZI9vu4bZ345Zt78a28zlhZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAg+Znc//yrJveZ37Znu7kk3eS1n/jNz+LEV+dTnNh2n1/8Hn6VlQkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAZHQ2x7YZFr95rsQt2/bqP7FtJsJXZ3zcsu13uu093PY+3/LiN3Pb72vy2q1MAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACR/Jg/21X3mf/N+/p7FzLEm/862eSvb5uO8+I06sW0WxrZ3lX9mZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgGZ3N8eKe9pPnMzk74JYXZ4V8dS7JLZOzS7a59f5sm29y6+989dpPTM4uefF/pZUJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgGR0NseLXtxnftu8jMl95l8851u2zcK4dZ9vmTyfyWO5hzN/55avfqOsTAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkP9vmC5zYtif5iRf3qz/x4j7zk89i0lefxbbZCtue+wn3p9v2+9r2f9DKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEDy598+gf8v5gt02/Z+nzT5vCaPte0du/X+vDgTYfL3te18tr2Ht/zmGShWJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAACSdbM5Xpx3sG3uxrbzuWXynLfdn8l9+Ldd+zaT8zJueXGeyC1fnSey7VlYmQAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIfrbto35icp/5bbbt53/ixXds0ovv4S3bfqfbfl/b7s8tv/m6vsrKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAyOpvj1l70t451Ytv9OTG57/2Lx9r2TLfdw1u2nfNXZ3ycePF3cWLbOU++q9veMSsTAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAMmff/sE/tPk/vm3bNtH3R7y3a3r+s3XfmLy/rw42+XEb57/cmLbM711n7ddl5UJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgGTdbI4XvThfYHIGyrZZD9tml2yzbU7B5DPd9txvnfOL7+Et22aFbDufW6xMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACQ/2/YJ/817yJ/46j782+ZB3LJt1sM2274/k7bNJZn01ff5xLZncYuVCQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIDkydkck/vVT/6dW7bNudh2f26ZvK4Xj/Wb/84t234XL/6/ODE5Q+fFY52wMgEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQ/Pm3T+A/3dpLfHKWwbY90k9M7vm/bX7H5LN48bpefJ9vefEeTp7zb343Tkw+i22sTAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAk62ZznPjqvvfb5ji8eKxJ22ZqnJj87Uw+023v863z2XZdk/OMbtn2LLb9b7rFygQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBA8uRsjm17kk/ux37Csf7Zree1bYbFV8958nmdHGvbfJMXj7VtzsUtX50DcsLKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEDyM7l39639/E9s29t827VP+upe9CcmZ1i86MVnestv/v5MfhNuefF/pdkcAMAzxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAZnc1xYtsch8m9309s26v/xfPZ9o5NMg9ixovvz7bz2Wbb+7ONlQkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCA5LOzOW4d68Tk+WybPXHCnIKZY704R+bFeQcv3ucTL/4GJ217n09MPi8rEwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAADJutkcJ16cZbBtT/tt53PixbkkzPjq/JcT22aObLuHXz2fbdduZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAg+TN5sBdnNEzads7bnte2Y92yba/+bfNNtv1OT3z1t3zLb55hceLFc7YyAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCMzua4tZ//rX3mJ/erP7n2bXv1b9v7/ZZt93ny70x6cU7KiRdnoGybZzT5d279T5n8bmx7XiesTAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAko7M5tnlxRsO2Pe23nc+tY03aNp9i2/25Zduci1u2fcdunc+L93Dy2rf9Tq1MAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACSjszm27bVuJsI/2zbL4KszCLaZnIHy4jPd9t24dV3bnsWJF5/XLdu+UVYmAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAAJLR2RwnJvda/+rMiMm/s20+xYv78E++85Pv84vv2Iv3Z/JYt679q9/5F78/t1iZAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEh+tu17f+LFPdK3zQHZ9iy2vYcv3ucTv/m5n5ic0fDitZ948bpefKbbzsfKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAyOpvjhP3h9xzrxTkOkzNZts3LuGXbdb34u9g262HbHIcTv/mcX7x2KxMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAybrZHLd8dd/7bcc68eJMjW3zMn4z36g9f+eWbeezzYvzO6xMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACSfnc3xom1745/YNr/jxT3tX3zuJ7a9G7e8+M3cdn8m341bts0K2fYeWpkAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASP5MHmzb3uaTTvZR3zaf4sTk/vAvzt04sW1Oyov38MSt92fbd2zbt+XE5Dfqq9e1jZUJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgGR0NseJF/f837aH/Lb5HS/Oeth2zpP7+W+bt3Lr72ybRzP5+9rmq+/zb2ZlAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACBZN5vjxFf3dZ+cLzBp2974X52BcuLF92dyTsq2d/XEi7NCbv0uXnyfJ5/X5PtsZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgeXI2x1fd2md+cj/2bfvDT87CMMdh5lhfnZNyYts7tu33fsu2d+PF+2xlAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAxm2ORW/vD39rX/TfP+Jic37Ftj/1t8ylOfHX+y7Y5Mi/Odjkx+bxe/CacsDIBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkDw5m+PFfcsn3Zod8OI+/NvmSmw7nxe9eA8n53dsm2Hx4uyJ3/zNvMXKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAECybjbHi/vw33JrP/Ztf+eWyXdj22yFF4+1bY7DttkKJyZ/X9t+y9ueBf/MygQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBA8jO5HzsA8D1WJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAACS/wNniv2gvNJqDgAAAABJRU5ErkJggg==', NULL),
+(1, 'PUB00001', 'PUB001', 'T.M.Mohemed Anzar', '853421669V', '167A, Gafoor Lane, F.C Road, Kattankudy 02', '+94777930531', NULL, NULL, 'anzar@example.com', NULL, 1, 0, 'active', '2025-05-27 10:55:59', '2025-06-25 05:49:07', 'Anzar', '$2y$12$pPx/uSy9T/hVPeRx8nMVhuGu6pHKhsD8EpHAkCH9ozkZGdU/4LM3m', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAsQAAALECAIAAACAN7HUAAAACXBIWXMAAA7EAAAOxAGVKw4bAAATaUlEQVR4nO3dS3IlOZIAweFI3v/KOftelEDaMF6OoOoBGN8XNMEC/vP379//AQD4b/3vv30CAMDbxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACD5M3mwn5+fycOt8vfv3yt/59Y9PDmfbce6dQ9PbLv2yWNN3ucTk+f81W/U5Lux7R376jM9MXmfrUwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJKOzOU5smwtw4sW93yf34X/x/kzO1Lhl22yFbffnFnNAum3zO/zf6axMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACTrZnOcmNyTfNue7dvmAmyb9TD5d05M3ucT2347k+fz4syRbc/9xXt4y4vPfZKVCQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIDkydkc7PHiHvuTJvfYf3Heyi2T5zM5L2PbbJcTL87QobMyAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCYzfFBt/bz3zbr4cSL+/lvm2+y7VlsO59bJq/9lsnz2fY75Z9ZmQAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBInpzN8dU92ydnYZzYNstg0ovzILY9r5Pz+er8l0nmicz46rfuFisTAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAMm62Rxf3df9llt742+b0TB5XV/9O7dMns9XZz28+P785vfwxXdsGysTAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAMnobI7Jfd1f5P502+YUbJt3cGLb/IVbf2fbfZ60bd7KpG3n81VWJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAACS0dkck/vDT85WOLHtWLf+zm+eYXFi27XfescmvTgrZNJXv5knfH/2sDIBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkPy8uO/9i3uk/+Zrn7RttsKL8022zWh48Z2ffA9/8+yJF9/Vbe/GLVYmAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAAJLR2RyTXtyz/cTkHvu/eT//E9vm2rz4LG7ZNlth27yMbfdnmxf/F2xjZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgGZ3NsW2+wLbzuWXb3vjb5hTc8tW9+r86M2Kbyd/pizNHXpwnsu3+TP4urEwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJKOzOU5s22/8hHPuts1o2LZX/61j3bLt/TmxbWbEiW3PdNJXr33b7+IWKxMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAyZ9/+wT+G9vmJrw4D+Kr+97fcuvdeHEexDYvzgGZ/CZs+45N+upcmxPbnpeVCQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIDkZ9ue5C/Oufjq/IVte79v29P+q89r23Wd2DYLY/JY274/274bt2y7P9vmrViZAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEj+/Nsn8J8m5wJs2/f+xf3zX7yuyT3tX5yX8dV348WZI9vu4bZ345Zt78a28zlhZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAg+Znc//yrJveZ37Znu7kk3eS1n/jNz+LEV+dTnNh2n1/8Hn6VlQkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAZHQ2x7YZFr95rsQt2/bqP7FtJsJXZ3zcsu13uu093PY+3/LiN3Pb72vy2q1MAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACR/Jg/21X3mf/N+/p7FzLEm/862eSvb5uO8+I06sW0WxrZ3lX9mZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgGZ3N8eKe9pPnMzk74JYXZ4V8dS7JLZOzS7a59f5sm29y6+989dpPTM4uefF/pZUJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgGR0NseLXtxnftu8jMl95l8851u2zcK4dZ9vmTyfyWO5hzN/55avfqOsTAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkP9vmC5zYtif5iRf3qz/x4j7zk89i0lefxbbZCtue+wn3p9v2+9r2f9DKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEDy598+gf8v5gt02/Z+nzT5vCaPte0du/X+vDgTYfL3te18tr2Ht/zmGShWJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAACSdbM5Xpx3sG3uxrbzuWXynLfdn8l9+Ldd+zaT8zJueXGeyC1fnSey7VlYmQAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIfrbto35icp/5bbbt53/ixXds0ovv4S3bfqfbfl/b7s8tv/m6vsrKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAyOpvj1l70t451Ytv9OTG57/2Lx9r2TLfdw1u2nfNXZ3ycePF3cWLbOU++q9veMSsTAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAMmff/sE/tPk/vm3bNtH3R7y3a3r+s3XfmLy/rw42+XEb57/cmLbM711n7ddl5UJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgGTdbI4XvThfYHIGyrZZD9tml2yzbU7B5DPd9txvnfOL7+Et22aFbDufW6xMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACQ/2/YJ/817yJ/46j782+ZB3LJt1sM2274/k7bNJZn01ff5xLZncYuVCQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIDkydkck/vVT/6dW7bNudh2f26ZvK4Xj/Wb/84t234XL/6/ODE5Q+fFY52wMgEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQ/Pm3T+A/3dpLfHKWwbY90k9M7vm/bX7H5LN48bpefJ9vefEeTp7zb343Tkw+i22sTAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAk62ZznPjqvvfb5ji8eKxJ22ZqnJj87Uw+023v863z2XZdk/OMbtn2LLb9b7rFygQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBA8uRsjm17kk/ux37Csf7Zree1bYbFV8958nmdHGvbfJMXj7VtzsUtX50DcsLKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEDyM7l39639/E9s29t827VP+upe9CcmZ1i86MVnestv/v5MfhNuefF/pdkcAMAzxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAZnc1xYtsch8m9309s26v/xfPZ9o5NMg9ixovvz7bz2Wbb+7ONlQkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCA5LOzOW4d68Tk+WybPXHCnIKZY704R+bFeQcv3ucTL/4GJ217n09MPi8rEwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAADJutkcJ16cZbBtT/tt53PixbkkzPjq/JcT22aObLuHXz2fbdduZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAg+TN5sBdnNEzads7bnte2Y92yba/+bfNNtv1OT3z1t3zLb55hceLFc7YyAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCMzua4tZ//rX3mJ/erP7n2bXv1b9v7/ZZt93ny70x6cU7KiRdnoGybZzT5d279T5n8bmx7XiesTAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAko7M5tnlxRsO2Pe23nc+tY03aNp9i2/25Zduci1u2fcdunc+L93Dy2rf9Tq1MAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACSjszm27bVuJsI/2zbL4KszCLaZnIHy4jPd9t24dV3bnsWJF5/XLdu+UVYmAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAAJLR2RwnJvda/+rMiMm/s20+xYv78E++85Pv84vv2Iv3Z/JYt679q9/5F78/t1iZAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEh+tu17f+LFPdK3zQHZ9iy2vYcv3ucTv/m5n5ic0fDitZ948bpefKbbzsfKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAyOpvjhP3h9xzrxTkOkzNZts3LuGXbdb34u9g262HbHIcTv/mcX7x2KxMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAybrZHLd8dd/7bcc68eJMjW3zMn4z36g9f+eWbeezzYvzO6xMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACSfnc3xom1745/YNr/jxT3tX3zuJ7a9G7e8+M3cdn8m341bts0K2fYeWpkAABIxAQAkYgIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASP5MHmzb3uaTTvZR3zaf4sTk/vAvzt04sW1Oyov38MSt92fbd2zbt+XE5Dfqq9e1jZUJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBAIiYAgGR0NseJF/f837aH/Lb5HS/Oeth2zpP7+W+bt3Lr72ybRzP5+9rmq+/zb2ZlAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACBZN5vjxFf3dZ+cLzBp2974X52BcuLF92dyTsq2d/XEi7NCbv0uXnyfJ5/X5PtsZQIASMQEAJCICQAgERMAQCImAIBETAAAiZgAABIxAQAkYgIASMQEAJCICQAgeXI2x1fd2md+cj/2bfvDT87CMMdh5lhfnZNyYts7tu33fsu2d+PF+2xlAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAxm2ORW/vD39rX/TfP+Jic37Ftj/1t8ylOfHX+y7Y5Mi/Odjkx+bxe/CacsDIBACRiAgBIxAQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkDw5m+PFfcsn3Zod8OI+/NvmSmw7nxe9eA8n53dsm2Hx4uyJ3/zNvMXKBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAECybjbHi/vw33JrP/Ztf+eWyXdj22yFF4+1bY7DttkKJyZ/X9t+y9ueBf/MygQAkIgJACAREwBAIiYAgERMAACJmAAAEjEBACRiAgBIxAQAkIgJACAREwBA8jO5HzsA8D1WJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAAASMQEAJGICAEjEBACQiAkAIBETAEAiJgCAREwAAImYAACS/wNniv2gvNJqDgAAAABJRU5ErkJggg==', NULL),
 (6, 'PUB00002', 'PUB74974', 'Farhana Sulaima Lebbe', '937080590V', '212A,Cassim Road, Kalmunai Kudy 11', '0775560909', NULL, NULL, 'itdskalmunai@gmail.com', NULL, 1, 0, 'active', '2025-06-12 10:05:36', '2025-06-12 10:06:11', 'Farhana', '$2y$12$cheM6qwkUeQQh21zgrq7zuoTfggcwL2YM3KawgYUe6vb12Fa3x8ai', '', NULL),
-(7, 'PUB00003', 'PUB74975', 'Front desk', '200080789v', 'Divisional Secretariat, Kalmunai', '0112223852', NULL, NULL, 'desk@gmail.com', NULL, NULL, NULL, 'active', '2025-06-19 08:59:58', '2025-06-19 08:59:58', 'Front Desk', '$2y$12$c0l20MBGpaTKSQhsBZYZ7.MQotPTdw.hQAHjwflTXy0VXKqu613ci', '', NULL);
+(7, 'PUB00003', 'PUB74975', 'Front desk', '200080789v', ' Kalmunai', '0112223852', NULL, NULL, 'desk@gmail.com', NULL, 1, 23, 'active', '2025-06-19 08:59:58', '2025-06-25 09:43:43', 'PUB008', '$2y$12$c0l20MBGpaTKSQhsBZYZ7.MQotPTdw.hQAHjwflTXy0VXKqu613ci', '', NULL);
 
 --
 -- Triggers `public_users`
@@ -577,12 +973,44 @@ CREATE TABLE `service_requests` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `service_tokens`
+--
+
+CREATE TABLE `service_tokens` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (uuid()),
+  `token_number` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `registry_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `department_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `division_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `service_type` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'General Service',
+  `queue_position` int DEFAULT '0',
+  `status` enum('waiting','called','serving','served','cancelled','expired') COLLATE utf8mb4_unicode_ci DEFAULT 'waiting',
+  `priority_level` enum('normal','urgent','vip') COLLATE utf8mb4_unicode_ci DEFAULT 'normal',
+  `estimated_service_time` int DEFAULT '15' COMMENT 'Estimated service time in minutes',
+  `actual_service_time` int DEFAULT NULL COMMENT 'Actual service time in minutes',
+  `wait_time_minutes` int DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `called_at` timestamp NULL DEFAULT NULL,
+  `serving_started_at` timestamp NULL DEFAULT NULL,
+  `served_at` timestamp NULL DEFAULT NULL,
+  `cancelled_at` timestamp NULL DEFAULT NULL,
+  `staff_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Staff member who served',
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `created_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `updated_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `subject_staff`
 --
 
 CREATE TABLE `subject_staff` (
   `id` int NOT NULL,
   `user_id` int NOT NULL,
+  `staff_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `post` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `assigned_department_id` int NOT NULL,
   `assigned_division_id` int NOT NULL,
@@ -653,6 +1081,67 @@ INSERT INTO `tokens` (`id`, `token_number`, `department_id`, `division_id`, `pub
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `token_audit_log`
+--
+
+CREATE TABLE `token_audit_log` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (uuid()),
+  `token_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `action_type` enum('created','called','serving','served','cancelled','status_change') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `old_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `new_status` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `action_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `action_timestamp` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `notes` text COLLATE utf8mb4_unicode_ci,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `user_agent` text COLLATE utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `token_queue_management`
+--
+
+CREATE TABLE `token_queue_management` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (uuid()),
+  `department_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `division_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `date` date NOT NULL,
+  `total_tokens_issued` int DEFAULT '0',
+  `tokens_served` int DEFAULT '0',
+  `tokens_waiting` int DEFAULT '0',
+  `tokens_cancelled` int DEFAULT '0',
+  `average_service_time` decimal(5,2) DEFAULT '0.00',
+  `longest_wait_time` int DEFAULT '0',
+  `current_serving_token` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `last_called_token` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `estimated_wait_time` int DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `token_sequences`
+--
+
+CREATE TABLE `token_sequences` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (uuid()),
+  `department_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `division_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `date` date NOT NULL,
+  `last_token_number` int DEFAULT '0',
+  `department_code` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `division_code` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `users`
 --
 
@@ -678,8 +1167,10 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `user_id`, `name`, `nic`, `email`, `username`, `password`, `role`, `department_id`, `division_id`, `status`, `created_at`, `updated_at`) VALUES
 (11, 'PUB001', 'Public One', '901234571V', 'public1@example.com', 'public1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'public', NULL, NULL, 'active', '2025-06-06 04:24:48', '2025-06-06 04:24:48'),
-(9, 'STF001', 'Staff One', '901234569V', 'staff1@example.com', 'staff1', '$argon2id$v=19$m=65536,t=4,p=1$SlV1SXlQUlQ5YVNsak9Ydw$D9ABuQR3X6QZz6IzyvpLnD/MPxcYeRUapKELZjjpXKA', 'staff', 1, 1, 'active', '2025-06-06 04:24:48', '2025-06-12 09:56:14'),
-(7, 'ADM001', 'Admin One', '901234567V', 'admin1@example.com', 'admin1', '$argon2id$v=19$m=65536,t=4,p=1$WVhNb3pkQzFjbmFFdUgwMg$/4UMR7Xxmge0Vz6E2HyLeB6IMxxcBoBJdgVkAcfSzkA', 'admin', NULL, NULL, 'active', '2025-06-06 04:24:48', '2025-06-13 04:55:40');
+(9, 'STF001', 'Staff One', '901234569V', 'staff1@example.com', 'staff1', '$argon2id$v=19$m=65536,t=4,p=1$cURZMVVrRUxudzI5REtlYw$FgiiXoyx6UhRotTEUVLM/gFQ27BPiDIhFIPbuO9sa5k', 'staff', 1, 1, 'active', '2025-06-06 04:24:48', '2025-06-24 04:52:52'),
+(7, 'ADM001', 'Admin One', '901234567V', 'admin1@example.com', 'admin1', '$argon2id$v=19$m=65536,t=4,p=1$WVhNb3pkQzFjbmFFdUgwMg$/4UMR7Xxmge0Vz6E2HyLeB6IMxxcBoBJdgVkAcfSzkA', 'admin', NULL, NULL, 'active', '2025-06-06 04:24:48', '2025-06-13 04:55:40'),
+(14, 'ADM002', 'Farhana', '9012345967V', 'farhana@admin.com', 'farhana', '$argon2id$v=19$m=65536,t=4,p=1$T0lFYWZmYVNQbkFSWUxHdA$1PV7f0OdhGhPEqqZoNKw8fdwMPfwyuJzo5rYjBrSA2g', 'admin', NULL, NULL, 'active', '2025-06-25 05:46:42', '2025-06-25 05:48:20'),
+(15, 'STA17508418222202', 'Reception', '853421234V', 'reception@gmail.com', 'Reception', '$argon2id$v=19$m=65536,t=4,p=1$RUduUWR4UGVudjFnTFdkSA$tp8kiD7G4WBYOrcwJ4xWwWLIXPmQgDOAi22PXnsOYUA', 'staff', 1, NULL, 'active', '2025-06-25 08:57:02', '2025-06-25 08:57:02');
 
 -- --------------------------------------------------------
 
@@ -835,7 +1326,42 @@ INSERT INTO `user_sessions` (`id`, `user_id`, `token`, `is_valid`, `expires_at`,
 (131, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwNzYyNDEwfQ.3x6VMGlmq9TROHvDHIKFBaLMshit2ZW0U1CkoSVRiTA', 1, '2025-06-24 10:53:30', '2025-06-23 10:53:30', '2025-06-23 10:53:30'),
 (132, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwNzYyNDIxfQ.ii85_uyJgkgU_7ZVXVlD1OP5waXB4s4qI2hUpM44E5A', 1, '2025-06-24 10:53:41', '2025-06-23 10:53:41', '2025-06-23 10:53:41'),
 (133, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwODIyMjU0fQ.WHGsfpZWKjK6OwcC3aBChw94xF_h_KJzEBe_WhOZpVU', 1, '2025-06-25 03:30:54', '2025-06-24 03:30:54', '2025-06-24 03:30:54'),
-(134, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwODIyMjcyfQ.GBTLwrWuVeEiiIZ_nxjAlfSbt78i6TAOfLTdL3ZNeoY', 1, '2025-06-25 03:31:12', '2025-06-24 03:31:12', '2025-06-24 03:31:12');
+(134, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwODIyMjcyfQ.GBTLwrWuVeEiiIZ_nxjAlfSbt78i6TAOfLTdL3ZNeoY', 1, '2025-06-25 03:31:12', '2025-06-24 03:31:12', '2025-06-24 03:31:12'),
+(135, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwODIyNjQ0fQ.7dTib08sheBEPJ-NNe4N1OJ-dxsPfH9lE8lzCLtZOjM', 1, '2025-06-25 03:37:24', '2025-06-24 03:37:24', '2025-06-24 03:37:24'),
+(136, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwODI1ODk2fQ.k2FJ4TBYXRNcCZhs4S4JC7nCm09TTDIKUqm-eRG6tR4', 1, '2025-06-25 04:31:36', '2025-06-24 04:31:36', '2025-06-24 04:31:36'),
+(137, 9, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiOSIsInVzZXJuYW1lIjoic3RhZmYxIiwicm9sZSI6InN0YWZmIiwiZXhwIjoxNzUwODI2Nzg4fQ.DN4Ll48XJCiHYAGm_LQzYdm6fQzqXNDB_hd0SwAUGpw', 1, '2025-06-25 04:46:28', '2025-06-24 04:46:28', '2025-06-24 04:46:28'),
+(138, 7, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiNyIsInVzZXJuYW1lIjoiYWRtaW4xIiwicm9sZSI6ImFkbWluIiwiZXhwIjoxNzUwOTEwMTQwfQ.MeVsLXqXCLkfBzZ0mFzKQv90gKXDe4oQ5JfaOIrFFHA', 1, '2025-06-26 03:55:40', '2025-06-25 03:55:40', '2025-06-25 03:55:40'),
+(139, 14, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiMTQiLCJ1c2VybmFtZSI6ImZhcmhhbmEiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NTA5MTY4MTl9.BvtpqOTc4SZmkaXeHjnCnb8kcZMEE4QwzdRb21tQoJ4', 1, '2025-06-26 05:46:59', '2025-06-25 05:46:59', '2025-06-25 05:46:59'),
+(140, 14, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiMTQiLCJ1c2VybmFtZSI6ImZhcmhhbmEiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NTA5MjAzNjF9.qCvg-XISuE3uk-LnAnIx9nbSqjU-8R9HNH9l4s-FO24', 1, '2025-06-26 06:46:01', '2025-06-25 06:46:01', '2025-06-25 06:46:01'),
+(141, 14, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiMTQiLCJ1c2VybmFtZSI6ImZhcmhhbmEiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3NTA5MjgxNzJ9.kEAuSZiObO8UaSSluVBOyfv7Yjv5_GDjY_GI_W0DOtQ', 1, '2025-06-26 08:56:12', '2025-06-25 08:56:12', '2025-06-25 08:56:12'),
+(142, 15, 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoiMTUiLCJ1c2VybmFtZSI6IlJlY2VwdGlvbiIsInJvbGUiOiJzdGFmZiIsImV4cCI6MTc1MDkyODI0NX0.4B_XWkPCX7P0ylTChWBg7D_8WVJi0h8-3uGq1NG-DM8', 1, '2025-06-26 08:57:25', '2025-06-25 08:57:25', '2025-06-25 08:57:25');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `visitor_qr_scans`
+--
+
+CREATE TABLE `visitor_qr_scans` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT (uuid()),
+  `public_user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `scanned_by_staff_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `scan_timestamp` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `registry_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `scan_result` enum('success','failed','duplicate','invalid') COLLATE utf8mb4_unicode_ci DEFAULT 'success',
+  `device_info` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `ip_address` varchar(45) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `vw_active_tokens`
+-- (See below for the actual view)
+--
+CREATE TABLE `vw_active_tokens` (
+);
 
 --
 -- Indexes for dumped tables
@@ -978,13 +1504,11 @@ ALTER TABLE `public_id_counter`
 --
 ALTER TABLE `public_registry`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `registry_id` (`registry_id`),
-  ADD KEY `idx_visitor_nic` (`visitor_nic`),
+  ADD KEY `idx_visitor_id` (`visitor_id`),
+  ADD KEY `idx_department_division` (`department_id`,`division_id`),
   ADD KEY `idx_entry_time` (`entry_time`),
   ADD KEY `idx_status` (`status`),
-  ADD KEY `fk_registry_public_user` (`public_user_id`),
-  ADD KEY `fk_registry_department` (`department_id`),
-  ADD KEY `fk_registry_division` (`division_id`);
+  ADD KEY `idx_visitor_nic` (`visitor_nic`);
 
 --
 -- Indexes for table `public_users`
@@ -1063,6 +1587,22 @@ ALTER TABLE `service_requests`
   ADD KEY `idx_status_date` (`status`,`created_at`);
 
 --
+-- Indexes for table `service_tokens`
+--
+ALTER TABLE `service_tokens`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `token_number` (`token_number`),
+  ADD KEY `idx_token_number` (`token_number`),
+  ADD KEY `idx_status` (`status`),
+  ADD KEY `idx_department_division` (`department_id`,`division_id`),
+  ADD KEY `idx_queue_position` (`queue_position`),
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_priority_level` (`priority_level`),
+  ADD KEY `registry_id` (`registry_id`),
+  ADD KEY `idx_tokens_dept_div_date_status` (`department_id`,`division_id`,`created_at`,`status`),
+  ADD KEY `idx_tokens_priority_created` (`priority_level`,`created_at`);
+
+--
 -- Indexes for table `subject_staff`
 --
 ALTER TABLE `subject_staff`
@@ -1079,6 +1619,34 @@ ALTER TABLE `tokens`
   ADD KEY `department_id` (`department_id`),
   ADD KEY `division_id` (`division_id`),
   ADD KEY `public_user_id` (`public_user_id`);
+
+--
+-- Indexes for table `token_audit_log`
+--
+ALTER TABLE `token_audit_log`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_token_id` (`token_id`),
+  ADD KEY `idx_action_type` (`action_type`),
+  ADD KEY `idx_action_timestamp` (`action_timestamp`),
+  ADD KEY `idx_audit_token_action` (`token_id`,`action_type`,`action_timestamp`);
+
+--
+-- Indexes for table `token_queue_management`
+--
+ALTER TABLE `token_queue_management`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_dept_div_date_queue` (`department_id`,`division_id`,`date`),
+  ADD KEY `idx_date` (`date`),
+  ADD KEY `idx_department_division` (`department_id`,`division_id`);
+
+--
+-- Indexes for table `token_sequences`
+--
+ALTER TABLE `token_sequences`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_dept_div_date` (`department_id`,`division_id`,`date`),
+  ADD KEY `idx_date` (`date`),
+  ADD KEY `idx_department_division` (`department_id`,`division_id`);
 
 --
 -- Indexes for table `users`
@@ -1100,6 +1668,16 @@ ALTER TABLE `user_sessions`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_token` (`token`(250)),
   ADD KEY `idx_user_sessions` (`user_id`,`is_valid`,`expires_at`);
+
+--
+-- Indexes for table `visitor_qr_scans`
+--
+ALTER TABLE `visitor_qr_scans`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_public_user` (`public_user_id`),
+  ADD KEY `idx_scan_timestamp` (`scan_timestamp`),
+  ADD KEY `idx_scan_result` (`scan_result`),
+  ADD KEY `registry_id` (`registry_id`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -1196,12 +1774,6 @@ ALTER TABLE `public_id_counter`
   MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
--- AUTO_INCREMENT for table `public_registry`
---
-ALTER TABLE `public_registry`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT for table `public_users`
 --
 ALTER TABLE `public_users`
@@ -1265,13 +1837,44 @@ ALTER TABLE `tokens`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=135;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=143;
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `vw_active_tokens`
+--
+DROP TABLE IF EXISTS `vw_active_tokens`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`dskalmun`@`localhost` SQL SECURITY DEFINER VIEW `vw_active_tokens`  AS SELECT `st`.`id` AS `id`, `st`.`token_number` AS `token_number`, `st`.`queue_position` AS `queue_position`, `st`.`status` AS `status`, `st`.`estimated_time` AS `estimated_time`, `st`.`created_at` AS `created_at`, `pr`.`visitor_name` AS `visitor_name`, `pr`.`visitor_nic` AS `visitor_nic`, `pr`.`purpose_of_visit` AS `purpose_of_visit`, `d`.`name` AS `department_name`, `dv`.`name` AS `division_name`, timestampdiff(MINUTE,`st`.`created_at`,now()) AS `waiting_minutes` FROM (((`service_tokens` `st` join `public_registry` `pr` on((`st`.`registry_id` = `pr`.`id`))) join `departments` `d` on((`st`.`department_id` = `d`.`id`))) join `divisions` `dv` on((`st`.`division_id` = `dv`.`id`))) WHERE ((`st`.`status` in ('waiting','called','serving')) AND (cast(`st`.`created_at` as date) = curdate())) ORDER BY `st`.`department_id` ASC, `st`.`division_id` ASC, `st`.`queue_position` ASC ;
+
+--
+-- Constraints for dumped tables
+--
+
+--
+-- Constraints for table `service_tokens`
+--
+ALTER TABLE `service_tokens`
+  ADD CONSTRAINT `service_tokens_ibfk_1` FOREIGN KEY (`registry_id`) REFERENCES `public_registry` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `token_audit_log`
+--
+ALTER TABLE `token_audit_log`
+  ADD CONSTRAINT `token_audit_log_ibfk_1` FOREIGN KEY (`token_id`) REFERENCES `service_tokens` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `visitor_qr_scans`
+--
+ALTER TABLE `visitor_qr_scans`
+  ADD CONSTRAINT `visitor_qr_scans_ibfk_1` FOREIGN KEY (`registry_id`) REFERENCES `public_registry` (`id`) ON DELETE SET NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
