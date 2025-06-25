@@ -1,50 +1,76 @@
 
--- Updated Public Registry Schema with Token Management
--- This schema supports both new and existing visitors with token generation
+-- Updated Public Registry Schema with Token Management System
+-- Using UUID for all IDs and comprehensive token management
 
--- Update existing public_registry table to support token generation
-ALTER TABLE public_registry 
-ADD COLUMN token_number VARCHAR(20) NULL AFTER id,
-ADD COLUMN token_status ENUM('waiting', 'called', 'served', 'expired') DEFAULT 'waiting' AFTER token_number,
-ADD COLUMN estimated_time TIME NULL AFTER token_status,
-ADD COLUMN served_at TIMESTAMP NULL AFTER estimated_time,
-ADD COLUMN queue_position INT DEFAULT 0 AFTER served_at,
-ADD INDEX idx_token_number (token_number),
-ADD INDEX idx_token_status (token_status),
-ADD INDEX idx_queue_position (queue_position);
+-- Update existing public_registry table to use UUID and add token support
+DROP TABLE IF EXISTS public_registry;
+CREATE TABLE public_registry (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    visitor_id VARCHAR(36) NULL,
+    visitor_name VARCHAR(255) NOT NULL,
+    visitor_nic VARCHAR(15) NOT NULL,
+    visitor_phone VARCHAR(20) NULL,
+    visitor_address TEXT NOT NULL,
+    department_id VARCHAR(36) NOT NULL,
+    department_name VARCHAR(255) NOT NULL,
+    division_id VARCHAR(36) NOT NULL,
+    division_name VARCHAR(255) NOT NULL,
+    purpose_of_visit TEXT NOT NULL,
+    remarks TEXT NULL,
+    entry_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    exit_time TIMESTAMP NULL,
+    status ENUM('active', 'checked_out', 'deleted') DEFAULT 'active',
+    created_by VARCHAR(36) NULL,
+    updated_by VARCHAR(36) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_visitor_id (visitor_id),
+    INDEX idx_department_division (department_id, division_id),
+    INDEX idx_entry_time (entry_time),
+    INDEX idx_status (status),
+    INDEX idx_visitor_nic (visitor_nic)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Create tokens table for managing service tokens
-CREATE TABLE IF NOT EXISTS service_tokens (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+-- Create comprehensive service_tokens table
+DROP TABLE IF EXISTS service_tokens;
+CREATE TABLE service_tokens (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
     token_number VARCHAR(20) NOT NULL UNIQUE,
-    registry_id INT NOT NULL,
-    department_id INT NOT NULL,
-    division_id INT NOT NULL,
+    registry_id VARCHAR(36) NOT NULL,
+    department_id VARCHAR(36) NOT NULL,
+    division_id VARCHAR(36) NOT NULL,
     service_type VARCHAR(100) DEFAULT 'General Service',
     queue_position INT DEFAULT 0,
-    status ENUM('waiting', 'called', 'serving', 'served', 'expired') DEFAULT 'waiting',
+    status ENUM('waiting', 'called', 'serving', 'served', 'cancelled', 'expired') DEFAULT 'waiting',
+    priority_level ENUM('normal', 'urgent', 'vip') DEFAULT 'normal',
+    estimated_service_time INT DEFAULT 15 COMMENT 'Estimated service time in minutes',
+    actual_service_time INT NULL COMMENT 'Actual service time in minutes',
+    wait_time_minutes INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     called_at TIMESTAMP NULL,
+    serving_started_at TIMESTAMP NULL,
     served_at TIMESTAMP NULL,
-    estimated_time TIME NULL,
-    actual_service_time INT DEFAULT 0 COMMENT 'Service time in minutes',
-    staff_id INT NULL COMMENT 'Staff member who served',
+    cancelled_at TIMESTAMP NULL,
+    staff_id VARCHAR(36) NULL COMMENT 'Staff member who served',
     notes TEXT NULL,
+    created_by VARCHAR(36) NULL,
+    updated_by VARCHAR(36) NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_token_number (token_number),
     INDEX idx_status (status),
     INDEX idx_department_division (department_id, division_id),
     INDEX idx_queue_position (queue_position),
-    FOREIGN KEY (registry_id) REFERENCES public_registry(id) ON DELETE CASCADE,
-    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
-    FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE CASCADE,
-    FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    INDEX idx_created_at (created_at),
+    INDEX idx_priority_level (priority_level),
+    FOREIGN KEY (registry_id) REFERENCES public_registry(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Create token_sequences table for managing token numbering per department/division
-CREATE TABLE IF NOT EXISTS token_sequences (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    department_id INT NOT NULL,
-    division_id INT NOT NULL,
+-- Create token_sequences table for managing daily token numbering
+DROP TABLE IF EXISTS token_sequences;
+CREATE TABLE token_sequences (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    department_id VARCHAR(36) NOT NULL,
+    division_id VARCHAR(36) NOT NULL,
     date DATE NOT NULL,
     last_token_number INT DEFAULT 0,
     department_code VARCHAR(10) NOT NULL,
@@ -53,117 +79,80 @@ CREATE TABLE IF NOT EXISTS token_sequences (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY unique_dept_div_date (department_id, division_id, date),
     INDEX idx_date (date),
-    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
-    FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE CASCADE
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    INDEX idx_department_division (department_id, division_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Create visitor_qr_scans table for tracking QR code scans
-CREATE TABLE IF NOT EXISTS visitor_qr_scans (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    public_user_id INT NOT NULL,
-    scanned_by_staff_id INT NOT NULL,
+-- Create token_queue_management table for real-time queue tracking
+DROP TABLE IF EXISTS token_queue_management;
+CREATE TABLE token_queue_management (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    department_id VARCHAR(36) NOT NULL,
+    division_id VARCHAR(36) NOT NULL,
+    date DATE NOT NULL,
+    total_tokens_issued INT DEFAULT 0,
+    tokens_served INT DEFAULT 0,
+    tokens_waiting INT DEFAULT 0,
+    tokens_cancelled INT DEFAULT 0,
+    average_service_time DECIMAL(5,2) DEFAULT 0.00,
+    longest_wait_time INT DEFAULT 0,
+    current_serving_token VARCHAR(20) NULL,
+    last_called_token VARCHAR(20) NULL,
+    estimated_wait_time INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_dept_div_date_queue (department_id, division_id, date),
+    INDEX idx_date (date),
+    INDEX idx_department_division (department_id, division_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create token_audit_log for comprehensive audit trail
+DROP TABLE IF EXISTS token_audit_log;
+CREATE TABLE token_audit_log (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    token_id VARCHAR(36) NOT NULL,
+    action_type ENUM('created', 'called', 'serving', 'served', 'cancelled', 'status_change') NOT NULL,
+    old_status VARCHAR(50) NULL,
+    new_status VARCHAR(50) NULL,
+    action_by VARCHAR(36) NULL,
+    action_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT NULL,
+    ip_address VARCHAR(45) NULL,
+    user_agent TEXT NULL,
+    INDEX idx_token_id (token_id),
+    INDEX idx_action_type (action_type),
+    INDEX idx_action_timestamp (action_timestamp),
+    FOREIGN KEY (token_id) REFERENCES service_tokens(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create visitor_qr_scans table for QR code tracking
+DROP TABLE IF EXISTS visitor_qr_scans;
+CREATE TABLE visitor_qr_scans (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    public_user_id VARCHAR(36) NOT NULL,
+    scanned_by_staff_id VARCHAR(36) NOT NULL,
     scan_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    registry_id INT NULL,
+    registry_id VARCHAR(36) NULL,
+    scan_result ENUM('success', 'failed', 'duplicate', 'invalid') DEFAULT 'success',
     device_info VARCHAR(255) NULL,
     ip_address VARCHAR(45) NULL,
-    status ENUM('success', 'failed', 'duplicate') DEFAULT 'success',
+    notes TEXT NULL,
     INDEX idx_public_user (public_user_id),
     INDEX idx_scan_timestamp (scan_timestamp),
-    FOREIGN KEY (public_user_id) REFERENCES public_users(id) ON DELETE CASCADE,
-    FOREIGN KEY (scanned_by_staff_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_scan_result (scan_result),
     FOREIGN KEY (registry_id) REFERENCES public_registry(id) ON DELETE SET NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Insert sample department codes for token generation
-INSERT INTO token_sequences (department_id, division_id, date, last_token_number, department_code, division_code)
-SELECT 
-    d.id as department_id,
-    dv.id as division_id,
-    CURDATE() as date,
-    0 as last_token_number,
-    UPPER(LEFT(d.name, 3)) as department_code,
-    UPPER(LEFT(dv.name, 2)) as division_code
-FROM departments d
-CROSS JOIN divisions dv
-WHERE d.status = 'active' AND dv.status = 'active'
-ON DUPLICATE KEY UPDATE last_token_number = last_token_number;
+-- Add CHECK constraints for data validation
+ALTER TABLE service_tokens 
+ADD CONSTRAINT chk_queue_position CHECK (queue_position >= 0),
+ADD CONSTRAINT chk_service_times CHECK (actual_service_time IS NULL OR actual_service_time >= 0),
+ADD CONSTRAINT chk_wait_time CHECK (wait_time_minutes >= 0);
 
--- Create stored procedure for generating token numbers
-DELIMITER //
-CREATE PROCEDURE sp_generate_token_number(
-    IN p_department_id INT,
-    IN p_division_id INT,
-    OUT p_token_number VARCHAR(20),
-    OUT p_queue_position INT
-)
-BEGIN
-    DECLARE v_dept_code VARCHAR(10);
-    DECLARE v_div_code VARCHAR(10);
-    DECLARE v_last_number INT;
-    DECLARE v_current_date DATE;
-    
-    SET v_current_date = CURDATE();
-    
-    -- Get department and division codes
-    SELECT UPPER(LEFT(d.name, 3)), UPPER(LEFT(dv.name, 2))
-    INTO v_dept_code, v_div_code
-    FROM departments d
-    JOIN divisions dv ON dv.id = p_division_id
-    WHERE d.id = p_department_id;
-    
-    -- Get or create token sequence for today
-    INSERT INTO token_sequences (department_id, division_id, date, last_token_number, department_code, division_code)
-    VALUES (p_department_id, p_division_id, v_current_date, 0, v_dept_code, v_div_code)
-    ON DUPLICATE KEY UPDATE last_token_number = last_token_number;
-    
-    -- Increment and get new token number
-    UPDATE token_sequences 
-    SET last_token_number = last_token_number + 1,
-        updated_at = NOW()
-    WHERE department_id = p_department_id 
-      AND division_id = p_division_id 
-      AND date = v_current_date;
-    
-    -- Get the new token number
-    SELECT last_token_number INTO v_last_number
-    FROM token_sequences
-    WHERE department_id = p_department_id 
-      AND division_id = p_division_id 
-      AND date = v_current_date;
-    
-    -- Format token number: DEPTDIV-001
-    SET p_token_number = CONCAT(v_dept_code, v_div_code, '-', LPAD(v_last_number, 3, '0'));
-    
-    -- Get queue position (count of waiting tokens for this department/division today)
-    SELECT COUNT(*) + 1 INTO p_queue_position
-    FROM service_tokens st
-    WHERE st.department_id = p_department_id 
-      AND st.division_id = p_division_id
-      AND DATE(st.created_at) = v_current_date
-      AND st.status IN ('waiting', 'called');
-      
-END //
-DELIMITER ;
-
--- Create view for active tokens dashboard
-CREATE OR REPLACE VIEW vw_active_tokens AS
-SELECT 
-    st.id,
-    st.token_number,
-    st.queue_position,
-    st.status,
-    st.estimated_time,
-    st.created_at,
-    pr.visitor_name,
-    pr.visitor_nic,
-    pr.purpose_of_visit,
-    d.name as department_name,
-    dv.name as division_name,
-    TIMESTAMPDIFF(MINUTE, st.created_at, NOW()) as waiting_minutes
-FROM service_tokens st
-JOIN public_registry pr ON st.registry_id = pr.id
-JOIN departments d ON st.department_id = d.id
-JOIN divisions dv ON st.division_id = dv.id
-WHERE st.status IN ('waiting', 'called', 'serving')
-  AND DATE(st.created_at) = CURDATE()
-ORDER BY st.department_id, st.division_id, st.queue_position;
+ALTER TABLE token_queue_management
+ADD CONSTRAINT chk_token_counts CHECK (
+    total_tokens_issued >= 0 AND 
+    tokens_served >= 0 AND 
+    tokens_waiting >= 0 AND 
+    tokens_cancelled >= 0 AND
+    (tokens_served + tokens_waiting + tokens_cancelled) <= total_tokens_issued
+);

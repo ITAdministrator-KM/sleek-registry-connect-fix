@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import PublicRegistryForm from './PublicRegistryForm';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiService } from '@/services/apiService';
+import { tokenService } from '@/services/tokenService';
 import { useNavigate } from 'react-router-dom';
 
 interface RegistryEntryCreateData {
@@ -12,9 +14,9 @@ interface RegistryEntryCreateData {
   visitor_nic: string;
   visitor_phone: string;
   visitor_address: string;
-  department_id: number;
+  department_id: string;
   department_name: string;
-  division_id: number;
+  division_id: string;
   division_name: string;
   purpose_of_visit: string;
   remarks: string;
@@ -27,6 +29,7 @@ const PublicRegistryWrapper: React.FC = () => {
   const [departments, setDepartments] = useState([]);
   const [divisions, setDivisions] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [generatedToken, setGeneratedToken] = useState<any>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -67,38 +70,85 @@ const PublicRegistryWrapper: React.FC = () => {
     try {
       setIsSubmitting(true);
       
-      const entryData = {
-        registry_id: `REG-${Date.now()}`,
-        visitor_id: formData.visitor_id || 0,
+      // First, create the registry entry
+      const registryData = {
+        visitor_id: formData.visitor_id || null,
         visitor_name: formData.visitor_name,
         visitor_nic: formData.visitor_nic,
         visitor_phone: formData.visitor_phone || '',
         visitor_address: formData.visitor_address,
-        department_id: parseInt(formData.department_id),
+        department_id: formData.department_id.toString(),
         department_name: formData.department_name,
-        division_id: parseInt(formData.division_id),
+        division_id: formData.division_id.toString(),
         division_name: formData.division_name,
         purpose_of_visit: formData.purpose_of_visit,
         remarks: formData.remarks || '',
         entry_time: new Date().toISOString(),
         exit_time: '',
-        status: 'active' as const, // Use 'active' instead of 'completed'
+        status: 'active' as const,
       };
 
-      console.log("entryData", entryData)
-      // Simulate API call
-      setTimeout(() => {
+      console.log("Registry data:", registryData);
+
+      // Create registry entry via API (this would need to be implemented in the backend)
+      const registryResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://dskalmunai.lk/backend/api'}/registry/create-entry.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify(registryData)
+      });
+
+      if (!registryResponse.ok) {
+        throw new Error('Failed to create registry entry');
+      }
+
+      const registryResult = await registryResponse.json();
+      
+      if (registryResult.status !== 'success') {
+        throw new Error(registryResult.message || 'Failed to create registry entry');
+      }
+
+      const registryId = registryResult.data.id || registryResult.data.registry_id;
+
+      // Generate token for the visitor
+      try {
+        const tokenResponse = await tokenService.generateToken({
+          registry_id: registryId,
+          department_id: formData.department_id.toString(),
+          division_id: formData.division_id.toString(),
+          service_type: 'General Service',
+          priority_level: 'normal'
+        });
+
+        setGeneratedToken({
+          ...tokenResponse,
+          visitor_name: formData.visitor_name,
+          department_name: formData.department_name,
+          division_name: formData.division_name
+        });
+
         toast({
           title: "Success",
-          description: "Visitor registered successfully!",
+          description: `Visitor registered successfully! Token ${tokenResponse.token_number} generated.`,
         });
-        navigate('/staff/dashboard');
-      }, 1000);
+
+      } catch (tokenError) {
+        console.error('Token generation failed:', tokenError);
+        // Registry was created but token generation failed
+        toast({
+          title: "Partial Success",
+          description: "Visitor registered but token generation failed. Please generate manually.",
+          variant: "destructive",
+        });
+      }
+
     } catch (error) {
       console.error('Error submitting form:', error);
       toast({
         title: "Error",
-        description: "Failed to register visitor. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to register visitor. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -107,8 +157,124 @@ const PublicRegistryWrapper: React.FC = () => {
   };
 
   const handleCancel = () => {
+    setGeneratedToken(null);
     navigate('/staff/dashboard');
   };
+
+  const handleNewEntry = () => {
+    setGeneratedToken(null);
+  };
+
+  const printToken = () => {
+    if (!generatedToken) return;
+
+    const printContent = `
+      ================================
+           DIVISIONAL SECRETARIAT
+                KALMUNAI
+      ================================
+      
+      TOKEN NUMBER: ${generatedToken.token_number}
+      
+      Visitor: ${generatedToken.visitor_name}
+      Department: ${generatedToken.department_name}
+      Division: ${generatedToken.division_name}
+      
+      Queue Position: ${generatedToken.queue_position}
+      Estimated Wait: ${generatedToken.estimated_wait_time} minutes
+      
+      Date & Time: ${new Date().toLocaleString()}
+      
+      Please wait for your number to
+      be called.
+      
+      ================================
+      Thank you for your patience
+      ================================
+    `;
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Token ${generatedToken.token_number}</title>
+            <style>
+              body { 
+                font-family: 'Courier New', monospace; 
+                white-space: pre-line; 
+                margin: 20px;
+                text-align: center;
+              }
+            </style>
+          </head>
+          <body>
+            ${printContent}
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+      printWindow.close();
+    }
+
+    toast({
+      title: "Token Printed",
+      description: "Token has been sent to printer",
+    });
+  };
+
+  if (generatedToken) {
+    return (
+      <div className="min-h-screen bg-gray-100 py-6 flex items-center justify-center">
+        <Card className="w-full max-w-md mx-auto">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-bold text-green-600">
+              Registration Successful!
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-6">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+              <h3 className="text-3xl font-bold text-green-800 mb-2">
+                {generatedToken.token_number}
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">Token Number</p>
+              
+              <div className="space-y-2 text-left">
+                <p><strong>Visitor:</strong> {generatedToken.visitor_name}</p>
+                <p><strong>Department:</strong> {generatedToken.department_name}</p>
+                <p><strong>Division:</strong> {generatedToken.division_name}</p>
+                <p><strong>Queue Position:</strong> {generatedToken.queue_position}</p>
+                <p><strong>Estimated Wait:</strong> {generatedToken.estimated_wait_time} minutes</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col space-y-3">
+              <button
+                onClick={printToken}
+                className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Print Token
+              </button>
+              <button
+                onClick={handleNewEntry}
+                className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Register New Visitor
+              </button>
+              <button
+                onClick={handleCancel}
+                className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 py-6 flex items-center justify-center">
