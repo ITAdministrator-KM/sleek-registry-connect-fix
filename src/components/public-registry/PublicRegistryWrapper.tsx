@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import PublicRegistryForm from './PublicRegistryForm';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,8 +87,6 @@ const PublicRegistryWrapper: React.FC = () => {
             address: formData.visitor_address,
             department_id: parseInt(formData.department_id),
             division_id: parseInt(formData.division_id),
-            username: `visitor_${Date.now()}`,
-            password: 'temp123', // Temporary password
             status: 'active' as const,
           });
           
