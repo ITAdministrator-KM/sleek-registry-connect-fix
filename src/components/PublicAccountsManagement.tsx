@@ -83,6 +83,7 @@ export const PublicAccountsManagement: React.FC = () => {
         ...formData,
         department_id: formData.department_id ? parseInt(formData.department_id) : undefined,
         division_id: formData.division_id ? parseInt(formData.division_id) : undefined,
+        status: 'active' as const, // Add missing status property
       };
 
       if (editingUser) {

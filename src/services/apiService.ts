@@ -66,9 +66,11 @@ export interface ServiceCatalog {
   division_name?: string;
   fee_amount: number;
   processing_time_days: number;
-  required_documents?: string;
+  required_documents?: string; // Keep as string for API consistency
   status: 'active' | 'inactive';
   icon?: string;
+  eligibility_criteria?: string; // Add missing property
+  form_template_url?: string; // Add missing property
   created_at?: string;
   updated_at?: string;
 }
@@ -139,7 +141,7 @@ class ApiService extends ApiBase {
     }
   }
 
-  async createPublicUser(userData: Omit<PublicUser, 'id' | 'public_id' | 'created_at' | 'updated_at'>): Promise<PublicUser> {
+  async createPublicUser(userData: Omit<PublicUser, 'id' | 'public_id' | 'created_at' | 'updated_at'> & { status: 'active' | 'inactive' }): Promise<PublicUser> {
     const response = await this.makeRequest('/public-users/index.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
