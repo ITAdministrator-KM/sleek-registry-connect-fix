@@ -37,24 +37,86 @@ try {
     sendError(500, "Internal server error: " . $e->getMessage());
 }
 
+function generateTokenNumber($departmentId, $db) {
+    try {
+        $today = date('Y-m-d');
+        
+        // Get count of tokens for this department today
+        $stmt = $db->prepare("SELECT COUNT(*) FROM tokens WHERE department_id = ? AND DATE(created_at) = ?");
+        $stmt->execute([$departmentId, $today]);
+        $count = $stmt->fetchColumn();
+        
+        // Generate token number: DEPT-DATE-SEQ (e.g., D1-20231201-001)
+        $tokenNumber = 'D' . $departmentId . '-' . date('Ymd') . '-' . str_pad($count + 1, 3, '0', STR_PAD_LEFT);
+        
+        return $tokenNumber;
+    } catch (Exception $e) {
+        error_log("Generate token number error: " . $e->getMessage());
+        return 'TKN-' . time() . '-' . rand(100, 999);
+    }
+}
+
 function getTokens($db) {
     try {
+        $departmentId = $_GET['department_id'] ?? null;
+        $divisionId = $_GET['division_id'] ?? null;
+        $date = $_GET['date'] ?? null;
+        $limit = $_GET['limit'] ?? null;
+        
         $query = "SELECT t.*, 
                          d.name as department_name, 
                          div.name as division_name,
-                         pu.name as public_user_name,
-                         pu.public_user_id
+                         pu.name as visitor_name,
+                         pu.nic as visitor_nic,
+                         pr.purpose_of_visit
                   FROM tokens t 
                   LEFT JOIN departments d ON t.department_id = d.id 
                   LEFT JOIN divisions div ON t.division_id = div.id 
                   LEFT JOIN public_users pu ON t.public_user_id = pu.id
-                  ORDER BY t.created_at DESC";
+                  LEFT JOIN public_registry pr ON t.registry_id = pr.id
+                  WHERE 1=1";
+        
+        $params = [];
+        
+        if ($departmentId) {
+            $query .= " AND t.department_id = ?";
+            $params[] = $departmentId;
+        }
+        
+        if ($divisionId) {
+            $query .= " AND t.division_id = ?";
+            $params[] = $divisionId;
+        }
+        
+        if ($date) {
+            $query .= " AND DATE(t.created_at) = ?";
+            $params[] = $date;
+        }
+        
+        $query .= " ORDER BY t.created_at DESC";
+        
+        if ($limit) {
+            $query .= " LIMIT ?";
+            $params[] = intval($limit);
+        }
         
         $stmt = $db->prepare($query);
-        $stmt->execute();
+        $stmt->execute($params);
         $tokens = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
+        // Calculate wait times and add additional fields
+        foreach ($tokens as &$token) {
+            if ($token['created_at'] && $token['served_at']) {
+                $created = new DateTime($token['created_at']);
+                $served = new DateTime($token['served_at']);
+                $token['total_wait_minutes'] = $served->diff($created)->i;
+            } else {
+                $token['total_wait_minutes'] = null;
+            }
+        }
+        
         sendResponse($tokens, "Tokens retrieved successfully");
+        
     } catch (Exception $e) {
         error_log("Get tokens error: " . $e->getMessage());
         sendError(500, "Failed to fetch tokens: " . $e->getMessage());
@@ -64,77 +126,75 @@ function getTokens($db) {
 function createToken($db) {
     try {
         $input = file_get_contents("php://input");
+        if (empty($input)) {
+            sendError(400, "Empty request body");
+            return;
+        }
+
         $data = json_decode($input, true);
+        if (!$data) {
+            sendError(400, "Invalid JSON data");
+            return;
+        }
         
-        if (!$data || !isset($data['department_id'])) {
+        // Validate required fields
+        if (!isset($data['department_id']) || empty($data['department_id'])) {
             sendError(400, "Department ID is required");
             return;
         }
         
+        $db->beginTransaction();
+        
         // Generate token number
-        $tokenNumber = generateTokenNumber($db, $data['department_id']);
+        $tokenNumber = generateTokenNumber($data['department_id'], $db);
         
         // Calculate queue position
-        $queuePosition = getQueuePosition($db, $data['department_id'], $data['division_id'] ?? null);
+        $stmt = $db->prepare("SELECT COUNT(*) FROM tokens WHERE department_id = ? AND status IN ('waiting', 'called') AND DATE(created_at) = CURDATE()");
+        $stmt->execute([$data['department_id']]);
+        $queuePosition = $stmt->fetchColumn() + 1;
         
-        $query = "INSERT INTO tokens (token_number, registry_id, department_id, division_id, 
-                                    public_user_id, service_type, priority_level, queue_position, 
-                                    estimated_wait_time) 
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $query = "INSERT INTO tokens (token_number, registry_id, department_id, division_id, public_user_id, service_type, priority_level, status, queue_position, estimated_wait_time, created_at) 
+                  VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?, ?, NOW())";
         
-        $stmt = $db->prepare($query);
-        $stmt->execute([
+        $params = [
             $tokenNumber,
-            $data['registry_id'] ?? null,
-            $data['department_id'],
-            $data['division_id'] ?? null,
-            $data['public_user_id'] ?? null,
+            !empty($data['registry_id']) ? intval($data['registry_id']) : null,
+            intval($data['department_id']),
+            !empty($data['division_id']) ? intval($data['division_id']) : null,
+            !empty($data['public_user_id']) ? intval($data['public_user_id']) : null,
             $data['service_type'] ?? 'General Service',
             $data['priority_level'] ?? 'normal',
             $queuePosition,
-            calculateWaitTime($queuePosition)
-        ]);
+            max(5, $queuePosition * 8) // Estimate 8 minutes per person
+        ];
+        
+        $stmt = $db->prepare($query);
+        if (!$stmt->execute($params)) {
+            $errorInfo = $stmt->errorInfo();
+            throw new Exception("Failed to create token: " . $errorInfo[2]);
+        }
         
         $tokenId = $db->lastInsertId();
+        $db->commit();
         
         sendResponse([
-            "id" => $tokenId,
+            "id" => intval($tokenId),
             "token_number" => $tokenNumber,
+            "department_id" => intval($data['department_id']),
+            "division_id" => !empty($data['division_id']) ? intval($data['division_id']) : null,
             "queue_position" => $queuePosition,
-            "estimated_wait_time" => calculateWaitTime($queuePosition)
+            "estimated_wait_time" => max(5, $queuePosition * 8),
+            "status" => "waiting",
+            "created_at" => date('Y-m-d H:i:s')
         ], "Token created successfully");
         
     } catch (Exception $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
         error_log("Create token error: " . $e->getMessage());
         sendError(500, "Failed to create token: " . $e->getMessage());
     }
-}
-
-function generateTokenNumber($db, $departmentId) {
-    $today = date('Y-m-d');
-    $stmt = $db->prepare("SELECT COUNT(*) FROM tokens WHERE department_id = ? AND DATE(created_at) = ?");
-    $stmt->execute([$departmentId, $today]);
-    $count = $stmt->fetchColumn() + 1;
-    
-    return sprintf("D%d-%03d", $departmentId, $count);
-}
-
-function getQueuePosition($db, $departmentId, $divisionId = null) {
-    $query = "SELECT COUNT(*) FROM tokens WHERE department_id = ? AND status IN ('waiting', 'called', 'serving')";
-    $params = [$departmentId];
-    
-    if ($divisionId) {
-        $query .= " AND division_id = ?";
-        $params[] = $divisionId;
-    }
-    
-    $stmt = $db->prepare($query);
-    $stmt->execute($params);
-    return $stmt->fetchColumn() + 1;
-}
-
-function calculateWaitTime($queuePosition) {
-    return max(5, $queuePosition * 8); // 8 minutes per person minimum 5 minutes
 }
 
 function updateToken($db) {
@@ -168,7 +228,10 @@ function updateToken($db) {
         $params[] = $data['id'];
         
         $stmt = $db->prepare($query);
-        $stmt->execute($params);
+        if (!$stmt->execute($params)) {
+            $errorInfo = $stmt->errorInfo();
+            throw new Exception("Update failed: " . $errorInfo[2]);
+        }
         
         sendResponse(["id" => $data['id']], "Token updated successfully");
         
@@ -190,7 +253,10 @@ function deleteToken($db) {
         
         $query = "UPDATE tokens SET status = 'cancelled' WHERE id = ?";
         $stmt = $db->prepare($query);
-        $stmt->execute([$data['id']]);
+        if (!$stmt->execute([$data['id']])) {
+            $errorInfo = $stmt->errorInfo();
+            throw new Exception("Delete failed: " . $errorInfo[2]);
+        }
         
         sendResponse(["id" => $data['id']], "Token cancelled successfully");
         
