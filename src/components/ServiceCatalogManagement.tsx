@@ -38,7 +38,7 @@ const ServiceCatalogManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(isDialogOpen);
   const [selectedService, setSelectedService] = useState<ServiceCatalog | null>(null);
   const { toast } = useToast();
 
@@ -106,7 +106,7 @@ const ServiceCatalogManagement = () => {
     setFormData({
       service_name: service.service_name,
       service_code: service.service_code,
-      description: service.description,
+      description: service.description || '',
       department_id: service.department_id?.toString() || '',
       division_id: service.division_id?.toString() || '',
       icon: service.icon || '',
@@ -146,9 +146,9 @@ const ServiceCatalogManagement = () => {
         department_id: parseInt(formData.department_id),
         division_id: formData.division_id ? parseInt(formData.division_id) : undefined,
         icon: formData.icon,
-        fee_amount: parseFloat(formData.fee_amount),
+        fee_amount: parseFloat(formData.fee_amount) || 0,
         required_documents: formData.required_documents,
-        processing_time_days: parseInt(formData.processing_time_days),
+        processing_time_days: parseInt(formData.processing_time_days) || 7,
         eligibility_criteria: formData.eligibility_criteria,
         form_template_url: formData.form_template_url,
         status: formData.status as 'active' | 'inactive',

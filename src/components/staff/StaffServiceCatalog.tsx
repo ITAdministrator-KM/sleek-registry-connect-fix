@@ -118,7 +118,7 @@ const StaffServiceCatalog = () => {
               <Card key={service.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-center space-x-3 mb-3">
-                    <span className="text-3xl">{service.icon}</span>
+                    <span className="text-3xl">{service.icon || '📄'}</span>
                     <div className="min-w-0">
                       <h3 className="font-semibold text-sm truncate">{service.service_name}</h3>
                       <p className="text-xs text-gray-500">{service.service_code}</p>
@@ -129,8 +129,8 @@ const StaffServiceCatalog = () => {
                   
                   <div className="space-y-2 text-xs text-gray-500 mb-4">
                     <div className="flex items-center justify-between">
-                      <span>Fee: Rs. {service.fee_amount}</span>
-                      <span>Processing: {service.processing_time_days} days</span>
+                      <span>Fee: Rs. {service.fee_amount || 0}</span>
+                      <span>Processing: {service.processing_time_days || service.processing_time || 'N/A'} days</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Department: {service.department_name}</span>

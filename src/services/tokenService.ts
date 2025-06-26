@@ -201,4 +201,4 @@ export const tokenService = {
   }
 };
 
-export { Token };
+export type { Token } from './apiService';

@@ -196,8 +196,8 @@ const TokenManagement = () => {
       TOKEN NUMBER: ${token.token_number}
       
       Visitor: ${token.visitor_name || 'N/A'}
-      Department: ${token.department_name || 'N/A'}
-      Division: ${token.division_name || 'N/A'}
+      Department: ${token.department_name || `Dept ${token.department_id}` || 'N/A'}
+      Division: ${token.division_name || `Div ${token.division_id}` || 'N/A'}
       Status: ${token.status.toUpperCase()}
       
       Generated: ${new Date(token.created_at).toLocaleString()}
@@ -421,14 +421,14 @@ const TokenManagement = () => {
                         <Button
                           size="sm"
                           className="bg-orange-500 hover:bg-orange-600 text-white"
-                          onClick={() => startServing(token.id, token.token_number)}
+                          onClick={() => startServing(token.id.toString(), token.token_number)}
                         >
                           Start Service
                         </Button>
                         <Button
                           size="sm"
                           className="bg-green-500 hover:bg-green-600 text-white"
-                          onClick={() => completeToken(token.id, token.token_number)}
+                          onClick={() => completeToken(token.id.toString(), token.token_number)}
                         >
                           <CheckCircle size={14} />
                         </Button>
@@ -438,7 +438,7 @@ const TokenManagement = () => {
                       <Button
                         size="sm"
                         className="bg-green-500 hover:bg-green-600 text-white"
-                        onClick={() => completeToken(token.id, token.token_number)}
+                        onClick={() => completeToken(token.id.toString(), token.token_number)}
                       >
                         Complete
                       </Button>
@@ -448,7 +448,7 @@ const TokenManagement = () => {
                         size="sm"
                         variant="outline"
                         className="border-red-300 text-red-600 hover:bg-red-50"
-                        onClick={() => cancelToken(token.id, token.token_number)}
+                        onClick={() => cancelToken(token.id.toString(), token.token_number)}
                       >
                         <XCircle size={14} />
                       </Button>

@@ -1,4 +1,3 @@
-
 export interface PublicUser {
   id: number;
   public_id: string;
@@ -39,6 +38,8 @@ export interface Token {
   visitor_name?: string;
   purpose_of_visit?: string;
   total_wait_minutes?: number;
+  department_name?: string;
+  division_name?: string;
 }
 
 export interface Department {
@@ -97,14 +98,25 @@ export interface Service {
 
 export interface ServiceCatalog {
   id: number;
-  name: string;
+  service_name: string;
+  service_code: string;
   description?: string;
   department_id: number;
+  division_id?: number;
   department_name?: string;
+  division_name?: string;
+  icon?: string;
+  fee_amount?: number;
+  required_documents?: string;
+  processing_time_days?: number;
+  eligibility_criteria?: string;
+  form_template_url?: string;
   requirements?: string;
   processing_time?: string;
   fees?: string;
   status: 'active' | 'inactive';
+  created_at?: string;
+  updated_at?: string;
 }
 
 class ApiService {
