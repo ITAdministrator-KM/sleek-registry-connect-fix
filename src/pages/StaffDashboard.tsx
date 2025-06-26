@@ -15,6 +15,9 @@ import TokenDisplayLauncher from '@/components/display/TokenDisplayLauncher';
 import StaffOverview from '@/components/staff/StaffOverview';
 import { apiService } from '@/services/api';
 import ModernPublicRegistry from '@/components/public-registry/ModernPublicRegistry';
+import TokenDisplayManager from '@/components/staff/TokenDisplayManager';
+import StaffNotificationManager from '@/components/staff/StaffNotificationManager';
+import EnhancedPublicRegistryFlow from '@/components/staff/EnhancedPublicRegistryFlow';
 
 const StaffDashboard = () => {
   const { user, loading, isAuthenticated, logout } = useAuth(['staff']);
@@ -117,13 +120,15 @@ const StaffDashboard = () => {
       case 'public-accounts':
         return <PublicAccountsManagement />;
       case 'public-registry':
-        return <ModernPublicRegistry />;
+        return <EnhancedPublicRegistryFlow />;
       case 'id-cards':
         return <IDCardGenerator />;
+      case 'token-display':
+        return <TokenDisplayManager />;
+      case 'notifications':
+        return <StaffNotificationManager />;
       case 'display':
         return <TokenDisplayLauncher />;
-      case 'notifications':
-        return <NotificationManagement />;
       case 'settings':
         return <AccountSettings />;
       default:
