@@ -129,15 +129,16 @@ const ScanIDFlow: React.FC<ScanIDFlowProps> = ({
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
         body: JSON.stringify({
-          visitor_id: scannedUser.id,
+          public_user_id: scannedUser.id,
           visitor_name: scannedUser.name,
           visitor_nic: scannedUser.nic,
           visitor_phone: scannedUser.mobile,
           visitor_address: scannedUser.address,
           department_id: formData.department_id,
-          division_id: formData.division_id,
+          division_id: formData.division_id || null,
           purpose_of_visit: formData.purpose_of_visit,
           remarks: formData.remarks,
+          visitor_type: 'existing',
           entry_time: new Date().toISOString(),
           status: 'active'
         })
@@ -149,7 +150,8 @@ const ScanIDFlow: React.FC<ScanIDFlowProps> = ({
           type: 'scan-id',
           publicUser: scannedUser,
           registryData,
-          autoGenerateToken: true
+          autoGenerateToken: true,
+          formData
         });
       }
     } catch (error) {
@@ -251,7 +253,7 @@ const ScanIDFlow: React.FC<ScanIDFlowProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="scan-department">Department *</Label>
-              <Select value={formData.department_id} onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value }))}>
+              <Select value={formData.department_id} onValueChange={(value) => setFormData(prev => ({ ...prev, department_id: value, division_id: '' }))}>
                 <SelectTrigger id="scan-department">
                   <SelectValue placeholder="Select Department" />
                 </SelectTrigger>
@@ -271,11 +273,13 @@ const ScanIDFlow: React.FC<ScanIDFlowProps> = ({
                   <SelectValue placeholder="Select Division" />
                 </SelectTrigger>
                 <SelectContent>
-                  {divisions.map((div) => (
-                    <SelectItem key={div.id} value={div.id.toString()}>
-                      {div.name}
-                    </SelectItem>
-                  ))}
+                  {divisions
+                    .filter(div => div.department_id.toString() === formData.department_id)
+                    .map((div) => (
+                      <SelectItem key={div.id} value={div.id.toString()}>
+                        {div.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

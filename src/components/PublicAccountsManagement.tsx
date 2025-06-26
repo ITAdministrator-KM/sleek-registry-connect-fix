@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { apiService, PublicUser, Department, Division } from '@/services/apiService';
-import { Search, Plus, Edit, Trash2, User, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, User, AlertTriangle, IdCard } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export const PublicAccountsManagement: React.FC = () => {
@@ -45,7 +46,6 @@ export const PublicAccountsManagement: React.FC = () => {
     try {
       setIsLoading(true);
       const userData = await apiService.getPublicUsers();
-      console.log('Fetched public users:', userData);
       setUsers(Array.isArray(userData) ? userData : []);
     } catch (error) {
       console.error('Error fetching public users:', error);
@@ -206,7 +206,7 @@ export const PublicAccountsManagement: React.FC = () => {
           <div className="flex justify-between items-center">
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
-              Public Accounts Management
+              Public Accounts Management ({filteredUsers.length} accounts)
             </CardTitle>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -357,9 +357,6 @@ export const PublicAccountsManagement: React.FC = () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <Input
-              id="search"
-              name="search"
-              autoComplete="off"
               placeholder="Search by name, ID, or NIC..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -367,38 +364,58 @@ export const PublicAccountsManagement: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredUsers.map((user) => (
-              <Card key={user.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="space-y-2">
-                    <h3 className="font-semibold">{user.name}</h3>
-                    <p className="text-sm text-gray-600">ID: {user.public_id}</p>
-                    <p className="text-sm text-gray-600">NIC: {user.nic}</p>
-                    <p className="text-sm text-gray-600">Mobile: {user.mobile}</p>
-                    <div className="flex space-x-2 mt-3">
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleEdit(user)}
-                      >
-                        <Edit className="w-3 h-3 mr-1" />
-                        Edit
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleDelete(user)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-3 h-3 mr-1" />
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Public ID</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>NIC</TableHead>
+                  <TableHead>Mobile</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <IdCard className="w-4 h-4 text-blue-600" />
+                        {user.public_id}
+                      </div>
+                    </TableCell>
+                    <TableCell>{user.name}</TableCell>
+                    <TableCell>{user.nic}</TableCell>
+                    <TableCell>{user.mobile}</TableCell>
+                    <TableCell>{user.email || '-'}</TableCell>
+                    <TableCell>{user.department_name || '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleEdit(user)}
+                        >
+                          <Edit className="w-3 h-3 mr-1" />
+                          Edit
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleDelete(user)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
 
           {filteredUsers.length === 0 && (

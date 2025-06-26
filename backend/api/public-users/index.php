@@ -1,3 +1,4 @@
+
 <?php
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
@@ -57,12 +58,10 @@ function getPublicUsers($db) {
         $id = $_GET['id'] ?? null;
         
         if ($id) {
-            $query = "SELECT pu.*, d.name as department_name, `div`.name as division_name,
-                            qr.qr_code_data, qr.qr_code_url
+            $query = "SELECT pu.*, d.name as department_name, `div`.name as division_name
                      FROM public_users pu 
                      LEFT JOIN departments d ON pu.department_id = d.id 
                      LEFT JOIN divisions `div` ON pu.division_id = `div`.id 
-                     LEFT JOIN qr_codes qr ON pu.id = qr.public_user_id
                      WHERE pu.id = ? AND pu.status = 'active'";
             
             $stmt = $db->prepare($query);
@@ -77,12 +76,10 @@ function getPublicUsers($db) {
             unset($user['password_hash']);
             sendResponse($user, "Public user retrieved successfully");
         } else {
-            $query = "SELECT pu.*, d.name as department_name, `div`.name as division_name,
-                            qr.qr_code_data, qr.qr_code_url
+            $query = "SELECT pu.*, d.name as department_name, `div`.name as division_name
                      FROM public_users pu 
                      LEFT JOIN departments d ON pu.department_id = d.id 
                      LEFT JOIN divisions `div` ON pu.division_id = `div`.id 
-                     LEFT JOIN qr_codes qr ON pu.id = qr.public_user_id
                      WHERE pu.status = 'active' 
                      ORDER BY pu.id ASC";
             
@@ -116,7 +113,8 @@ function createPublicUser($db) {
             return;
         }
         
-        $requiredFields = ['name', 'nic', 'address', 'mobile', 'email', 'username'];
+        // Check required fields
+        $requiredFields = ['name', 'nic', 'mobile'];
         foreach ($requiredFields as $field) {
             if (!isset($data->$field) || empty(trim($data->$field))) {
                 sendError(400, "Missing required field: $field");
@@ -124,12 +122,12 @@ function createPublicUser($db) {
             }
         }
         
-        if (!filter_var($data->email, FILTER_VALIDATE_EMAIL)) {
-            sendError(400, "Invalid email format");
-            return;
-        }
+        // Set default values
+        $address = $data->address ?? '';
+        $email = $data->email ?? '';
+        $username = $data->username ?? 'user_' . time();
         
-        // Improved NIC validation for Sri Lankan format
+        // Validate NIC format
         $nic = trim($data->nic);
         if (!preg_match('/^([0-9]{9}[vVxX]|[0-9]{12})$/', $nic)) {
             sendError(400, "Invalid NIC format. Use 9 digits followed by V/X or 12 digits");
@@ -137,11 +135,11 @@ function createPublicUser($db) {
         }
         
         // Check for existing username, email, or NIC
-        $stmt = $db->prepare("SELECT COUNT(*) FROM public_users WHERE username = ? OR email = ? OR nic = ?");
-        $stmt->execute([$data->username, $data->email, $nic]);
+        $stmt = $db->prepare("SELECT COUNT(*) FROM public_users WHERE nic = ? OR (username = ? AND username != '') OR (email = ? AND email != '')");
+        $stmt->execute([$nic, $username, $email]);
         
         if ($stmt->fetchColumn() > 0) {
-            sendError(409, "Username, email, or NIC already exists");
+            sendError(409, "NIC, username, or email already exists");
             return;
         }
         
@@ -150,12 +148,7 @@ function createPublicUser($db) {
         // Generate sequential public_id
         $public_id = generateSequentialPublicId($db);
         
-        $password_hash = null;
-        if (isset($data->password) && !empty($data->password)) {
-            $password_hash = password_hash($data->password, PASSWORD_DEFAULT);
-        } else {
-            $password_hash = password_hash('changeme', PASSWORD_DEFAULT);
-        }
+        $password_hash = password_hash($data->password ?? 'changeme', PASSWORD_DEFAULT);
         
         $query = "INSERT INTO public_users (public_user_id, name, nic, address, mobile, email, username, password_hash, department_id, division_id, status) 
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')";
@@ -165,10 +158,10 @@ function createPublicUser($db) {
             $public_id,
             $data->name,
             $nic,
-            $data->address,
+            $address,
             $data->mobile,
-            $data->email,
-            $data->username,
+            $email,
+            $username,
             $password_hash,
             (isset($data->department_id) && !empty($data->department_id)) ? $data->department_id : null,
             (isset($data->division_id) && !empty($data->division_id)) ? $data->division_id : null
@@ -185,23 +178,24 @@ function createPublicUser($db) {
             'public_id' => $public_id,
             'name' => $data->name,
             'nic' => $nic,
+            'mobile' => $data->mobile,
+            'address' => $address,
             'created_at' => date('Y-m-d H:i:s')
         ]);
-        
-        // Store QR code in database
-        $qrQuery = "INSERT INTO qr_codes (public_user_id, qr_code_data, qr_code_url) VALUES (?, ?, ?)";
-        $qrStmt = $db->prepare($qrQuery);
-        $qrUrl = "https://dskalmunai.lk/qr-scan/" . $public_id;
-        $qrStmt->execute([$userId, $qrData, $qrUrl]);
         
         $db->commit();
         
         sendResponse([
             "public_id" => $public_id,
             "id" => $userId,
-            "qr_code_data" => $qrData,
-            "qr_code_url" => $qrUrl
-        ], "Public user created successfully with QR code");
+            "name" => $data->name,
+            "nic" => $nic,
+            "mobile" => $data->mobile,
+            "address" => $address,
+            "email" => $email,
+            "username" => $username,
+            "qr_code_data" => $qrData
+        ], "Public user created successfully");
         
     } catch (Exception $e) {
         if ($db->inTransaction()) {
@@ -222,16 +216,6 @@ function updatePublicUser($db) {
             return;
         }
         
-        $db->beginTransaction();
-        
-        $stmt = $db->prepare("SELECT id, public_user_id FROM public_users WHERE id = ? AND status = 'active'");
-        $stmt->execute([$data->id]);
-        
-        if ($stmt->rowCount() === 0) {
-            sendError(404, "Public user not found");
-            return;
-        }
-        
         $updateFields = [];
         $params = [];
         
@@ -239,7 +223,7 @@ function updatePublicUser($db) {
         
         foreach ($allowedFields as $field) {
             if (isset($data->$field)) {
-                if ($field === 'email' && !filter_var($data->$field, FILTER_VALIDATE_EMAIL)) {
+                if ($field === 'email' && !empty($data->$field) && !filter_var($data->$field, FILTER_VALIDATE_EMAIL)) {
                     sendError(400, "Invalid email format");
                     return;
                 }
@@ -265,13 +249,9 @@ function updatePublicUser($db) {
         $stmt = $db->prepare($query);
         $stmt->execute($params);
         
-        $db->commit();
         sendResponse(["id" => $data->id], "Public user updated successfully");
         
     } catch (Exception $e) {
-        if ($db->inTransaction()) {
-            $db->rollBack();
-        }
         error_log("Update public user error: " . $e->getMessage());
         sendError(500, "Failed to update public user: " . $e->getMessage());
     }
@@ -287,13 +267,12 @@ function deletePublicUser($db) {
             return;
         }
         
-        $db->beginTransaction();
-        
-        $stmt = $db->prepare("SELECT id FROM public_users WHERE id = ? AND status = 'active'");
+        // Check if user has active registry entries or tokens
+        $stmt = $db->prepare("SELECT COUNT(*) FROM public_registry WHERE public_user_id = ? AND status = 'active'");
         $stmt->execute([$data->id]);
         
-        if ($stmt->rowCount() === 0) {
-            sendError(404, "Public user not found or already deleted");
+        if ($stmt->fetchColumn() > 0) {
+            sendError(409, "Cannot delete user with active registry entries. Please complete or cancel them first.");
             return;
         }
         
@@ -301,13 +280,9 @@ function deletePublicUser($db) {
         $stmt = $db->prepare($query);
         $stmt->execute([$data->id]);
         
-        $db->commit();
         sendResponse(["id" => $data->id], "Public user deleted successfully");
         
     } catch (Exception $e) {
-        if ($db->inTransaction()) {
-            $db->rollBack();
-        }
         error_log("Delete public user error: " . $e->getMessage());
         sendError(500, "Failed to delete public user: " . $e->getMessage());
     }
