@@ -74,8 +74,22 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 -- Add username column to public_users if not exists
-ALTER TABLE public_users 
-ADD COLUMN IF NOT EXISTS username VARCHAR(50) UNIQUE AFTER email;
+SET @dbname = DATABASE();
+SET @tablename = 'public_users';
+SET @columnname = 'username';
+SET @preparedStatement = (SELECT IF(
+    NOT EXISTS(
+        SELECT * FROM information_schema.COLUMNS
+        WHERE column_name = @columnname
+        AND table_name = @tablename
+        AND table_schema = @dbname
+    ),
+    CONCAT('ALTER TABLE ', @tablename, ' ADD COLUMN ', @columnname, ' VARCHAR(50) UNIQUE AFTER email'),
+    'SELECT 1'
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
 
 -- Update existing public_users to have usernames if they don't
 UPDATE public_users 
