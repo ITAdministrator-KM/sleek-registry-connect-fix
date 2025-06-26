@@ -1,35 +1,47 @@
 
 -- Create public_registry table for visitor management
-CREATE TABLE IF NOT EXISTS `public_registry` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `registry_id` varchar(20) NOT NULL UNIQUE,
-  `public_user_id` int(11) DEFAULT NULL,
-  `visitor_name` varchar(255) NOT NULL,
-  `visitor_nic` varchar(20) NOT NULL,
-  `visitor_address` text,
-  `visitor_phone` varchar(20),
-  `department_id` int(11) NOT NULL,
-  `division_id` int(11) DEFAULT NULL,
-  `purpose_of_visit` text NOT NULL,
-  `remarks` text,
-  `entry_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `visitor_type` enum('new','existing') NOT NULL DEFAULT 'new',
-  `status` enum('active','checked_out','deleted') NOT NULL DEFAULT 'active',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_registry_id` (`registry_id`),
-  KEY `idx_visitor_nic` (`visitor_nic`),
-  KEY `idx_entry_time` (`entry_time`),
-  KEY `idx_status` (`status`),
-  KEY `fk_registry_public_user` (`public_user_id`),
-  KEY `fk_registry_department` (`department_id`),
-  KEY `fk_registry_division` (`division_id`),
-  CONSTRAINT `fk_registry_public_user` FOREIGN KEY (`public_user_id`) REFERENCES `public_users` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_registry_department` FOREIGN KEY (`department_id`) REFERENCES `departments` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_registry_division` FOREIGN KEY (`division_id`) REFERENCES `divisions` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS public_registry (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    registry_id VARCHAR(50) UNIQUE NOT NULL,
+    public_user_id INT NULL,
+    visitor_name VARCHAR(100) NOT NULL,
+    visitor_nic VARCHAR(20) NOT NULL,
+    visitor_address TEXT,
+    visitor_phone VARCHAR(20),
+    department_id INT NOT NULL,
+    division_id INT NULL,
+    purpose_of_visit VARCHAR(255) NOT NULL,
+    remarks TEXT,
+    entry_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    exit_time TIMESTAMP NULL,
+    visitor_type ENUM('new', 'existing') NOT NULL,
+    status ENUM('active', 'checked_out', 'deleted') DEFAULT 'active',
+    staff_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (public_user_id) REFERENCES public_users(id) ON DELETE SET NULL,
+    FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
+    FOREIGN KEY (division_id) REFERENCES divisions(id) ON DELETE SET NULL,
+    FOREIGN KEY (staff_id) REFERENCES users(id) ON DELETE SET NULL,
+    
+    INDEX idx_registry_entry_time (entry_time),
+    INDEX idx_registry_department (department_id),
+    INDEX idx_registry_visitor_type (visitor_type),
+    INDEX idx_registry_status (status),
+    INDEX idx_registry_date_status (DATE(entry_time), status)
+);
 
--- Add indexes for better performance
-CREATE INDEX `idx_registry_date` ON `public_registry` (DATE(`entry_time`));
-CREATE INDEX `idx_registry_department_date` ON `public_registry` (`department_id`, DATE(`entry_time`));
+-- Update public_users table to ensure public_user_id column exists
+ALTER TABLE public_users 
+ADD COLUMN IF NOT EXISTS public_user_id VARCHAR(20) UNIQUE AFTER id;
+
+-- Update existing records to have public_user_id if they don't
+UPDATE public_users 
+SET public_user_id = public_id 
+WHERE public_user_id IS NULL AND public_id IS NOT NULL;
+
+-- Ensure public_user_id is generated for records without it
+UPDATE public_users 
+SET public_user_id = CONCAT('PUB', LPAD(id, 5, '0'))
+WHERE public_user_id IS NULL;
