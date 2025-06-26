@@ -1,11 +1,10 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { tokenService, Token, QueueStatus } from '@/services/tokenService';
-import { apiService } from '@/services/apiService';
+import { tokenService, QueueStatus } from '@/services/tokenService';
+import { apiService, Token } from '@/services/apiService';
 import { Printer, RefreshCw, Phone, CheckCircle, XCircle, Clock } from 'lucide-react';
 
 const TokenManagement = () => {
@@ -32,15 +31,7 @@ const TokenManagement = () => {
   useEffect(() => {
     if (selectedDepartment && selectedDivision) {
       fetchTokensAndQueue();
-      // Set up real-time updates
-      tokenService.connectWebSocket(selectedDepartment, selectedDivision);
-      tokenService.onQueueUpdate(handleQueueUpdate);
     }
-
-    return () => {
-      tokenService.disconnectWebSocket();
-      tokenService.removeListener('queue_update');
-    };
   }, [selectedDepartment, selectedDivision, refreshTrigger]);
 
   const fetchDepartments = async () => {
@@ -104,10 +95,6 @@ const TokenManagement = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQueueUpdate = (data: QueueStatus) => {
-    setQueueStatus(data);
   };
 
   const callNextToken = async () => {

@@ -1,5 +1,5 @@
 
-import { apiService } from './apiService';
+import { apiService, Token } from './apiService';
 
 interface TokenData {
   registry_id?: number;
@@ -10,11 +10,12 @@ interface TokenData {
   priority_level?: 'low' | 'normal' | 'high' | 'urgent';
 }
 
-interface QueueStatus {
+export interface QueueStatus {
   tokens_waiting: number;
   tokens_served: number;
   total_tokens_issued: number;
   estimated_wait_time: number;
+  average_service_time?: number;
   current_serving_token?: string;
 }
 
@@ -49,12 +50,40 @@ export const tokenService = {
     }
   },
 
+  async getTokens(filters?: { department_id?: string; division_id?: string; date?: string; limit?: number }): Promise<{ tokens: Token[] }> {
+    try {
+      const tokens = await apiService.getTokens();
+      let filteredTokens = tokens;
+
+      if (filters) {
+        filteredTokens = tokens.filter(token => {
+          if (filters.department_id && token.department_id.toString() !== filters.department_id) return false;
+          if (filters.division_id && token.division_id?.toString() !== filters.division_id) return false;
+          if (filters.date) {
+            const tokenDate = new Date(token.created_at).toDateString();
+            const filterDate = new Date(filters.date).toDateString();
+            if (tokenDate !== filterDate) return false;
+          }
+          return true;
+        });
+
+        if (filters.limit) {
+          filteredTokens = filteredTokens.slice(0, filters.limit);
+        }
+      }
+
+      return { tokens: filteredTokens };
+    } catch (error) {
+      console.error('Get tokens error:', error);
+      return { tokens: [] };
+    }
+  },
+
   async getQueueStatus(departmentId: string, divisionId?: string): Promise<QueueStatus> {
     try {
       const tokens = await apiService.getTokens();
       const today = new Date().toDateString();
       
-      // Filter tokens for today and specific department/division
       const relevantTokens = tokens.filter(token => {
         const tokenDate = new Date(token.created_at).toDateString();
         const matchesDept = token.department_id.toString() === departmentId;
@@ -71,6 +100,7 @@ export const tokenService = {
         tokens_served: servedTokens,
         total_tokens_issued: relevantTokens.length,
         estimated_wait_time: Math.max(5, waitingTokens * 8),
+        average_service_time: 8,
         current_serving_token: currentServing?.token_number
       };
     } catch (error) {
@@ -79,9 +109,42 @@ export const tokenService = {
         tokens_waiting: 0,
         tokens_served: 0,
         total_tokens_issued: 0,
-        estimated_wait_time: 0
+        estimated_wait_time: 0,
+        average_service_time: 8
       };
     }
+  },
+
+  async getNextToken(departmentId: string, divisionId?: string) {
+    try {
+      const tokens = await apiService.getTokens();
+      const nextToken = tokens
+        .filter(t => t.department_id.toString() === departmentId && 
+                    (!divisionId || t.division_id?.toString() === divisionId) &&
+                    t.status === 'waiting')
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+
+      if (nextToken) {
+        await this.updateTokenStatus(nextToken.id, 'called');
+        return { token_id: nextToken.id, token_number: nextToken.token_number };
+      }
+      return { token_id: null, token_number: null };
+    } catch (error) {
+      console.error('Get next token error:', error);
+      throw error;
+    }
+  },
+
+  async completeToken(tokenId: string, notes?: string) {
+    return this.updateTokenStatus(parseInt(tokenId), 'completed');
+  },
+
+  async cancelToken(tokenId: string, reason?: string) {
+    return this.updateTokenStatus(parseInt(tokenId), 'cancelled');
+  },
+
+  async startServingToken(tokenId: string) {
+    return this.updateTokenStatus(parseInt(tokenId), 'serving');
   },
 
   async updateTokenStatus(tokenId: number, status: string, staffId?: number) {
@@ -118,5 +181,24 @@ export const tokenService = {
       console.error('Token update error:', error);
       throw error;
     }
+  },
+
+  // Mock WebSocket methods for now
+  connectWebSocket(departmentId: string, divisionId?: string) {
+    console.log('WebSocket connection mock for', departmentId, divisionId);
+  },
+
+  disconnectWebSocket() {
+    console.log('WebSocket disconnect mock');
+  },
+
+  onQueueUpdate(callback: (data: QueueStatus) => void) {
+    console.log('Queue update listener mock');
+  },
+
+  removeListener(event: string) {
+    console.log('Remove listener mock', event);
   }
 };
+
+export { Token };

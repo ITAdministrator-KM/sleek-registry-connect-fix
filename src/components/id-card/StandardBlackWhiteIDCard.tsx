@@ -1,6 +1,6 @@
 
 import React from 'react';
-import QRCode from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface StandardBlackWhiteIDCardProps {
   user: {
@@ -107,7 +107,7 @@ export const StandardBlackWhiteIDCard: React.FC<StandardBlackWhiteIDCardProps> =
 
           {/* Right side - QR Code */}
           <div className="flex flex-col items-center justify-center" style={{ width: '20mm' }}>
-            <QRCode
+            <QRCodeSVG
               value={qrData}
               size={60}
               level="M"
@@ -153,16 +153,18 @@ export const StandardBlackWhiteIDCard: React.FC<StandardBlackWhiteIDCardProps> =
         </div>
       )}
 
-      <style jsx>{`
-        @media print {
-          .no-print { display: none !important; }
-          .id-card-print-area {
-            page-break-inside: avoid;
-            -webkit-print-color-adjust: exact;
-            color-adjust: exact;
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @media print {
+            .no-print { display: none !important; }
+            .id-card-print-area {
+              page-break-inside: avoid;
+              -webkit-print-color-adjust: exact;
+              color-adjust: exact;
+            }
           }
-        }
-      `}</style>
+        `
+      }} />
     </div>
   );
 };

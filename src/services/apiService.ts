@@ -1,3 +1,4 @@
+
 export interface PublicUser {
   id: number;
   public_id: string;
@@ -7,8 +8,12 @@ export interface PublicUser {
   mobile: string;
   email?: string;
   username?: string;
+  password?: string;
   department_id?: number;
   division_id?: number;
+  department_name?: string;
+  division_name?: string;
+  date_of_birth?: string;
   created_at?: string;
   updated_at?: string;
   status: 'active' | 'inactive' | 'deleted';
@@ -31,6 +36,9 @@ export interface Token {
   served_at?: string;
   completed_at?: string;
   staff_id?: number;
+  visitor_name?: string;
+  purpose_of_visit?: string;
+  total_wait_minutes?: number;
 }
 
 export interface Department {
@@ -53,6 +61,20 @@ export interface Staff {
   role: 'admin' | 'staff';
 }
 
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  username: string;
+  role: 'admin' | 'staff' | 'public';
+  department_id?: number;
+  division_id?: number;
+  department_name?: string;
+  division_name?: string;
+  nic?: string;
+  status: 'active' | 'inactive';
+}
+
 export interface Notification {
   id: number;
   title: string;
@@ -71,6 +93,18 @@ export interface Service {
   name: string;
   description?: string;
   department_id: number;
+}
+
+export interface ServiceCatalog {
+  id: number;
+  name: string;
+  description?: string;
+  department_id: number;
+  department_name?: string;
+  requirements?: string;
+  processing_time?: string;
+  fees?: string;
+  status: 'active' | 'inactive';
 }
 
 class ApiService {
@@ -145,6 +179,32 @@ class ApiService {
     });
   }
 
+  // Users
+  async getUsers(): Promise<User[]> {
+    return this.makeRequest('/users/index.php');
+  }
+
+  async createUser(userData: Omit<User, 'id'>): Promise<User> {
+    return this.makeRequest('/users/index.php', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async updateUser(id: number, userData: Partial<User>): Promise<User> {
+    return this.makeRequest('/users/index.php', {
+      method: 'PUT',
+      body: JSON.stringify({ id, ...userData }),
+    });
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    return this.makeRequest('/users/index.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ id }),
+    });
+  }
+
   // Tokens
   async getTokens(): Promise<Token[]> {
     return this.makeRequest('/tokens/index.php');
@@ -163,13 +223,44 @@ class ApiService {
   }
 
   // Divisions
-  async getDivisions(): Promise<Division[]> {
-    return this.makeRequest('/divisions/index.php');
+  async getDivisions(departmentId?: number): Promise<Division[]> {
+    const endpoint = departmentId ? `/divisions/index.php?department_id=${departmentId}` : '/divisions/index.php';
+    return this.makeRequest(endpoint);
   }
 
   // Staff
   async getStaff(): Promise<Staff[]> {
     return this.makeRequest('/staff/index.php');
+  }
+
+  // Services
+  async getServices(): Promise<ServiceCatalog[]> {
+    return this.makeRequest('/service-catalog/index.php');
+  }
+
+  async getPublicServices(): Promise<ServiceCatalog[]> {
+    return this.makeRequest('/service-catalog/index.php?public=true');
+  }
+
+  async createService(serviceData: Omit<ServiceCatalog, 'id'>): Promise<ServiceCatalog> {
+    return this.makeRequest('/service-catalog/index.php', {
+      method: 'POST',
+      body: JSON.stringify(serviceData),
+    });
+  }
+
+  async updateService(id: number, serviceData: Partial<ServiceCatalog>): Promise<ServiceCatalog> {
+    return this.makeRequest('/service-catalog/index.php', {
+      method: 'PUT',
+      body: JSON.stringify({ id, ...serviceData }),
+    });
+  }
+
+  async deleteService(id: number): Promise<void> {
+    return this.makeRequest('/service-catalog/index.php', {
+      method: 'DELETE',
+      body: JSON.stringify({ id }),
+    });
   }
 
   // Notifications
@@ -186,4 +277,3 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
-export type { PublicUser, Token, Department, Division, Staff, Notification, Service };
