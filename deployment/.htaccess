@@ -10,34 +10,42 @@ RewriteBase /
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
-# CORS Headers for API
+# CORS Headers for API requests
 <IfModule mod_headers.c>
-    Header always set Access-Control-Allow-Origin "*"
-    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
-    Header always set Access-Control-Max-Age "3600"
+    # Allow CORS for API endpoints
+    SetEnvIf Request_URI "^/backend/api/" IS_API_REQUEST
+    Header always set Access-Control-Allow-Origin "*" env=IS_API_REQUEST
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" env=IS_API_REQUEST
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With" env=IS_API_REQUEST
+    Header always set Access-Control-Max-Age "3600" env=IS_API_REQUEST
 </IfModule>
 
-# Handle preflight requests
+# Handle preflight OPTIONS requests for API
 RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteCond %{REQUEST_URI} ^/backend/api/
 RewriteRule ^(.*)$ $1 [R=200,L]
 
-# Handle React Router (client-side routing)
+# API routing - handle backend API requests
+RewriteCond %{REQUEST_URI} ^/backend/api/
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^backend/api/(.*)$ backend/api/$1 [L]
+
+# React Router (client-side routing) - handle frontend routes
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} !^/backend/
+RewriteCond %{REQUEST_URI} !^/api/
 RewriteRule . /index.html [L]
 
-# PHP Error Handling (disable in production)
+# PHP Configuration
 php_flag display_errors Off
 php_flag log_errors On
-php_value error_log /path/to/error.log
-
-# File Upload Settings
 php_value upload_max_filesize 10M
 php_value post_max_size 10M
 php_value max_execution_time 300
 php_value max_input_time 300
+php_value memory_limit 256M
 
 # Protect sensitive files
 <Files "*.log">
@@ -46,6 +54,11 @@ php_value max_input_time 300
 </Files>
 
 <Files ".htaccess">
+    Order allow,deny
+    Deny from all
+</Files>
+
+<Files "*.sql">
     Order allow,deny
     Deny from all
 </Files>
@@ -61,3 +74,20 @@ php_value max_input_time 300
     ExpiresByType image/gif "access plus 1 year"
     ExpiresByType image/svg+xml "access plus 1 year"
 </IfModule>
+
+# Gzip compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+</IfModule>
+
+# Error pages
+ErrorDocument 404 /index.html
+ErrorDocument 403 /index.html

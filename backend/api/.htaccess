@@ -1,16 +1,80 @@
+
 RewriteEngine On
 RewriteBase /backend/api/
 
-# Handle Authorization Header
+# Security Headers for API
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options DENY
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>
+
+# CORS Headers - Allow cross-origin requests
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-HTTP-Method-Override"
+    Header always set Access-Control-Max-Age "3600"
+    Header always set Content-Type "application/json; charset=utf-8"
+</IfModule>
+
+# Handle Authorization Header properly
 RewriteCond %{HTTP:Authorization} .
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-# Redirect Trailing Slashes If Not A Folder...
+# Handle preflight OPTIONS requests
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=200,L]
+
+# Remove trailing slashes from API endpoints
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} (.+)/$
 RewriteRule ^ %1 [L,R=301]
 
-# Handle Front Controller...
-RewriteCond %{REQUEST_FILENAME} !-d
+# API endpoint routing
+# Route to specific index.php files in subdirectories
 RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^ index.php [L]
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} ^/backend/api/([^/]+)/?(.*)$
+RewriteCond %{DOCUMENT_ROOT}/backend/api/%1/index.php -f
+RewriteRule ^([^/]+)/?(.*)$ $1/index.php [L,QSA]
+
+# Fallback to main index.php if no specific endpoint found
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . index.php [L,QSA]
+
+# PHP Configuration for API
+php_flag display_errors Off
+php_flag log_errors On
+php_value error_reporting "E_ALL & ~E_NOTICE & ~E_STRICT & ~E_DEPRECATED"
+php_value upload_max_filesize 10M
+php_value post_max_size 10M
+php_value max_execution_time 120
+php_value max_input_time 120
+php_value memory_limit 128M
+
+# JSON Content Type
+<FilesMatch "\.php$">
+    Header set Content-Type "application/json; charset=utf-8"
+</FilesMatch>
+
+# Protect sensitive files
+<Files "*.log">
+    Order allow,deny
+    Deny from all
+</Files>
+
+<Files "config.php">
+    Order allow,deny
+    Deny from all
+</Files>
+
+<Files ".htaccess">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Enable mod_rewrite logging (disable in production)
+# RewriteLog /tmp/rewrite.log
+# RewriteLogLevel 3

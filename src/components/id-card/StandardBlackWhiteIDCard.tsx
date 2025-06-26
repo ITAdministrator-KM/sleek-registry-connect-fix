@@ -43,91 +43,84 @@ export const StandardBlackWhiteIDCard: React.FC<StandardBlackWhiteIDCardProps> =
 
   return (
     <div className={`bg-white ${className}`}>
-      {/* Print-ready ID Card */}
+      {/* Print-ready ID Card - Exact match to reference */}
       <div 
         className="id-card-print-area bg-white border-2 border-black text-black"
         style={{
           width: '85.6mm',
           height: '54mm',
-          fontSize: '8px',
-          lineHeight: '1.2',
+          fontSize: '10px',
+          lineHeight: '1.1',
           fontFamily: 'Arial, sans-serif',
-          padding: '2mm',
+          padding: '3mm',
           margin: '0 auto',
-          position: 'relative'
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
-        {/* Header with logos */}
-        <div className="flex justify-between items-center mb-1">
-          <div className="w-8 h-8 border border-black flex items-center justify-center">
-            <span className="text-xs font-bold">LOGO1</span>
+        {/* Header with logos - minimized height */}
+        <div className="flex justify-between items-center" style={{ height: '8mm', marginBottom: '2mm' }}>
+          <div className="w-6 h-6 border border-black flex items-center justify-center rounded-full">
+            <span className="text-xs font-bold">L1</span>
           </div>
           <div className="text-center flex-1 mx-2">
             <div className="font-bold text-xs leading-tight">
-              DIVISIONAL SECRETARIAT
+              Divisional Secretariat
             </div>
             <div className="font-bold text-xs">
-              KALMUNAI
+              Kalmunai
             </div>
           </div>
-          <div className="w-8 h-8 border border-black flex items-center justify-center">
-            <span className="text-xs font-bold">LOGO2</span>
+          <div className="w-6 h-6 border border-black flex items-center justify-center rounded-full">
+            <span className="text-xs font-bold">L2</span>
           </div>
         </div>
 
         {/* Main content area */}
-        <div className="flex gap-2" style={{ height: '35mm' }}>
+        <div className="flex gap-3 flex-1">
           {/* Left side - User details */}
-          <div className="flex-1 space-y-1 text-xs">
-            <div>
-              <span className="font-bold">Name: </span>
-              <span>{user.name}</span>
+          <div className="flex-1 space-y-1">
+            <div className="flex">
+              <span className="font-bold w-16 text-xs">Name:</span>
+              <span className="text-xs">{user.name}</span>
             </div>
-            <div>
-              <span className="font-bold">ID Number: </span>
-              <span>{publicId}</span>
+            <div className="flex">
+              <span className="font-bold w-16 text-xs">NIC:</span>
+              <span className="text-xs">{user.nic}</span>
             </div>
-            <div>
-              <span className="font-bold">NIC: </span>
-              <span>{user.nic}</span>
+            <div className="flex">
+              <span className="font-bold w-16 text-xs">DOB:</span>
+              <span className="text-xs">{user.dateOfBirth || user.date_of_birth || 'N/A'}</span>
             </div>
-            <div>
-              <span className="font-bold">DOB: </span>
-              <span>{user.dateOfBirth || user.date_of_birth || 'N/A'}</span>
-            </div>
-            <div>
-              <span className="font-bold">Mobile: </span>
-              <span>{user.mobile}</span>
-            </div>
-            <div>
-              <span className="font-bold">Address: </span>
+            <div className="flex">
+              <span className="font-bold w-16 text-xs">Address:</span>
               <span className="text-xs leading-tight">{user.address}</span>
+            </div>
+            <div className="flex mt-2">
+              <span className="font-bold w-20 text-xs">ID Number:</span>
+              <span className="text-sm font-bold">{publicId}</span>
             </div>
           </div>
 
           {/* Right side - QR Code */}
-          <div className="flex flex-col items-center justify-center" style={{ width: '20mm' }}>
+          <div className="flex flex-col items-center justify-center" style={{ width: '18mm' }}>
             <QRCodeSVG
               value={qrData}
-              size={60}
+              size={50}
               level="M"
               includeMargin={false}
               style={{
-                width: '18mm',
-                height: '18mm'
+                width: '16mm',
+                height: '16mm'
               }}
             />
-            <div className="text-xs mt-1 text-center font-bold">
-              SCAN ME
-            </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="absolute bottom-1 left-2 right-2 text-center">
-          <div className="text-xs font-bold border-t border-black pt-1">
-            GOVERNMENT IDENTIFICATION CARD
-          </div>
+        {/* Bottom border line */}
+        <div className="absolute bottom-1 left-2 right-2">
+          <div className="border-t border-black"></div>
         </div>
       </div>
 
@@ -161,7 +154,10 @@ export const StandardBlackWhiteIDCard: React.FC<StandardBlackWhiteIDCardProps> =
               page-break-inside: avoid;
               -webkit-print-color-adjust: exact;
               color-adjust: exact;
+              transform: none !important;
+              margin: 0 !important;
             }
+            body { margin: 0; padding: 20px; }
           }
         `
       }} />

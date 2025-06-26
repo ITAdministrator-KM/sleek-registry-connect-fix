@@ -1,5 +1,10 @@
 
 <?php
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('log_errors', 1);
+
 include_once '../../config/cors.php';
 include_once '../../config/database.php';
 include_once '../../config/error_handler.php';
@@ -11,8 +16,16 @@ try {
     $db = $database->getConnection();
 
     if (!$db) {
+        error_log("Database connection failed in public-users API");
         sendError(500, "Database connection failed");
         exit;
+    }
+
+    // Log the request method and data for debugging
+    error_log("Public Users API - Method: " . $_SERVER['REQUEST_METHOD']);
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = file_get_contents("php://input");
+        error_log("Public Users API - POST data: " . $input);
     }
 
     switch ($_SERVER['REQUEST_METHOD']) {
@@ -34,6 +47,7 @@ try {
     }
 } catch (Exception $e) {
     error_log("Public Users API Error: " . $e->getMessage());
+    error_log("Stack trace: " . $e->getTraceAsString());
     sendError(500, "Internal server error: " . $e->getMessage());
 }
 
@@ -112,20 +126,25 @@ function createPublicUser($db) {
     try {
         $input = file_get_contents("php://input");
         if (empty($input)) {
+            error_log("Empty request body in createPublicUser");
             sendError(400, "Empty request body");
             return;
         }
 
         $data = json_decode($input, true);
         if (!$data) {
-            sendError(400, "Invalid JSON data");
+            error_log("Invalid JSON data in createPublicUser: " . json_last_error_msg());
+            sendError(400, "Invalid JSON data: " . json_last_error_msg());
             return;
         }
+        
+        error_log("Creating public user with data: " . print_r($data, true));
         
         // Check required fields
         $requiredFields = ['name', 'nic', 'mobile'];
         foreach ($requiredFields as $field) {
             if (!isset($data[$field]) || empty(trim($data[$field]))) {
+                error_log("Missing required field: $field");
                 sendError(400, "Missing required field: $field");
                 return;
             }
@@ -144,6 +163,7 @@ function createPublicUser($db) {
         // Validate NIC format
         $nic = trim($data['nic']);
         if (!preg_match('/^([0-9]{9}[vVxX]|[0-9]{12})$/', $nic)) {
+            error_log("Invalid NIC format: $nic");
             sendError(400, "Invalid NIC format. Use 9 digits followed by V/X or 12 digits");
             return;
         }
@@ -153,6 +173,7 @@ function createPublicUser($db) {
         $stmt->execute([$nic]);
         
         if ($stmt->fetchColumn() > 0) {
+            error_log("NIC already exists: $nic");
             sendError(409, "NIC already exists");
             return;
         }
@@ -171,6 +192,7 @@ function createPublicUser($db) {
         
         // Generate sequential public_id
         $public_id = generateSequentialPublicId($db);
+        error_log("Generated public ID: $public_id");
         
         // Hash password
         $password = isset($data['password']) ? $data['password'] : 'changeme123';
@@ -179,7 +201,6 @@ function createPublicUser($db) {
         $query = "INSERT INTO public_users (public_user_id, name, nic, address, mobile, email, username, password_hash, department_id, division_id, status, created_at) 
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', NOW())";
         
-        $stmt = $db->prepare($query);
         $params = [
             $public_id,
             trim($data['name']),
@@ -193,12 +214,17 @@ function createPublicUser($db) {
             !empty($data['division_id']) ? intval($data['division_id']) : null
         ];
         
+        error_log("Executing query with params: " . print_r($params, true));
+        
+        $stmt = $db->prepare($query);
         if (!$stmt->execute($params)) {
             $errorInfo = $stmt->errorInfo();
+            error_log("SQL Error: " . print_r($errorInfo, true));
             throw new Exception("Failed to create public user: " . $errorInfo[2]);
         }
         
         $userId = $db->lastInsertId();
+        error_log("Created user with ID: $userId");
         
         // Generate QR code data
         $qrData = json_encode([
@@ -212,7 +238,7 @@ function createPublicUser($db) {
         
         $db->commit();
         
-        sendResponse([
+        $responseData = [
             "id" => intval($userId),
             "public_id" => $public_id,
             "public_user_id" => $public_id,
@@ -227,13 +253,17 @@ function createPublicUser($db) {
             "department_id" => !empty($data['department_id']) ? intval($data['department_id']) : null,
             "division_id" => !empty($data['division_id']) ? intval($data['division_id']) : null,
             "created_at" => date('Y-m-d H:i:s')
-        ], "Public user created successfully");
+        ];
+        
+        error_log("Sending response: " . print_r($responseData, true));
+        sendResponse($responseData, "Public user created successfully");
         
     } catch (Exception $e) {
-        if ($db->inTransaction()) {
+        if ($db && $db->inTransaction()) {
             $db->rollBack();
         }
         error_log("Create public user error: " . $e->getMessage());
+        error_log("Stack trace: " . $e->getTraceAsString());
         sendError(500, "Failed to create public user: " . $e->getMessage());
     }
 }
