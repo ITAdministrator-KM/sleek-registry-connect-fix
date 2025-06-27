@@ -28,7 +28,7 @@ const QRCodeScanner: React.FC<QRCodeScannerProps> = ({ onUserScanned, onClose })
       // Try to parse as JSON first (QR code data)
       try {
         const parsed = JSON.parse(data);
-        publicId = parsed.public_id || parsed.id || parsed.public_user_id;
+        publicId = parsed.public_id || parsed.id;
       } catch {
         // If not JSON, assume it's a direct public ID
         publicId = data;
@@ -38,25 +38,18 @@ const QRCodeScanner: React.FC<QRCodeScannerProps> = ({ onUserScanned, onClose })
         throw new Error('Invalid QR code or ID format');
       }
       
-      console.log('Searching for user with ID:', publicId);
-      
       // Fetch user data from API
       const users = await apiService.getPublicUsers();
-      console.log('Available users:', users);
-      
       const user = users.find(u => 
         u.public_id === publicId || 
         u.id === parseInt(publicId) ||
-        u.id.toString() === publicId ||
-        (u as any).public_user_id === publicId
+        u.id.toString() === publicId
       );
       
       if (!user) {
-        console.log('No user found with ID:', publicId);
-        throw new Error(`User not found with ID: ${publicId}`);
+        throw new Error('User not found');
       }
       
-      console.log('Found user:', user);
       onUserScanned(user);
       toast({
         title: "Success",
